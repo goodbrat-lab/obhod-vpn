@@ -1,12 +1,12 @@
 #!/bin/bash
 
-# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - VERSION 0.2.0-6
-# Fixes missing library paths and ensures all dependencies.
+# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - VERSION 0.2.0-7
+# Adds Subscription Support and restores original Podkop functionality.
 
 VERSION="0.2.0"
-RELEASE="6"
+RELEASE="7"
 
-BUILD_DIR="/tmp/obhod_v0206_build"
+BUILD_DIR="/tmp/obhod_v0207_build"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/data" "$BUILD_DIR/control"
 
@@ -23,15 +23,15 @@ chmod +x "$BUILD_DIR/data/usr/bin/obhod"
 cp "/root/Obhod project/obhod-core/files/usr/bin/obhod-watchdog" "$BUILD_DIR/data/usr/bin/obhod-watchdog"
 chmod +x "$BUILD_DIR/data/usr/bin/obhod-watchdog"
 
-# CRITICAL: Copy libraries to /usr/lib/obhod/ (Fixing the previous missing path bug)
+# Copy libraries
 cp "/root/Obhod project/obhod-core/files/usr/lib/"* "$BUILD_DIR/data/usr/lib/obhod/"
-rm -f "$BUILD_DIR/data/usr/lib/obhod/obhod" # Remove accidental copy of binary if any
+rm -f "$BUILD_DIR/data/usr/lib/obhod/obhod" 
 
 cp "/root/Obhod project/obhod-core/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"
 chmod +x "$BUILD_DIR/data/etc/init.d/obhod"
 cp "/root/Obhod project/obhod-core/files/etc/config/obhod" "$BUILD_DIR/data/etc/config/obhod"
 
-# 2. LuCI Files (Original Vue.js UI)
+# 2. LuCI Files (Original Vue.js UI + Subscriptions)
 mkdir -p "$BUILD_DIR/data/www/luci-static/resources/view/obhod"
 cp -r "/root/Obhod project/luci-app-obhod/htdocs/luci-static/resources/view/obhod/"* "$BUILD_DIR/data/www/luci-static/resources/view/obhod/"
 
@@ -41,9 +41,10 @@ mkdir -p "$BUILD_DIR/data/usr/share/rpcd/acl.d"
 cp "/root/Obhod project/luci-app-obhod/root/usr/share/luci/menu.d/luci-app-obhod.json" "$BUILD_DIR/data/usr/share/luci/menu.d/"
 cp "/root/Obhod project/luci-app-obhod/root/usr/share/rpcd/acl.d/luci-app-obhod.json" "$BUILD_DIR/data/usr/share/rpcd/acl.d/"
 cp "/root/Obhod project/luci-app-obhod/root/etc/uci-defaults/50_luci-obhod" "$BUILD_DIR/data/etc/uci-defaults/"
+mkdir -p "$BUILD_DIR/data/usr/lib/lua/luci/i18n"
+cp "/root/Obhod project/luci-app-obhod/root/usr/lib/lua/luci/i18n/obhod.ru.lmo" "$BUILD_DIR/data/usr/lib/lua/luci/i18n/" 2>/dev/null || true
 
 # 3. Control & Post-Install Script
-# Added rpcd-mod-file and coreutils-base64 to dependencies
 cat <<EOF > "$BUILD_DIR/control/control"
 Package: obhod
 Version: $VERSION-$RELEASE
@@ -51,7 +52,7 @@ Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-bas
 Section: net
 Architecture: all
 Maintainer: Obhod Team
-Description: Obhod VPN (Fixed Library Paths and RPC access)
+Description: Obhod VPN (Restored Full functionality + Subscriptions)
 EOF
 
 cat <<EOF > "$BUILD_DIR/control/postinst"
@@ -72,6 +73,6 @@ cd "$BUILD_DIR/data" && tar -czf "../data.tar.gz" .
 cd "$BUILD_DIR/control" && tar -czf "../control.tar.gz" .
 cd "$BUILD_DIR"
 echo "2.0" > debian-binary
-tar -czf "/root/Obhod project/dist/obhod_0.2.0-6_all.ipk" debian-binary data.tar.gz control.tar.gz
+tar -czf "/root/Obhod project/dist/obhod_${VERSION}-${RELEASE}_all.ipk" debian-binary data.tar.gz control.tar.gz
 
-echo "Successfully built obhod_0.2.0-6_all.ipk"
+echo "Successfully built obhod_${VERSION}-${RELEASE}_all.ipk"
