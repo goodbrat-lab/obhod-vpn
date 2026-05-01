@@ -1,0 +1,39 @@
+#!/bin/sh /etc/rc.common
+
+START=99
+USE_PROCD=1
+PROG=/usr/bin/obhoud
+
+start_service() {
+    config_load obhod
+    local enabled
+    config_get_bool enabled settings enabled 0
+
+    if [ "$enabled" -eq 0 ]; then
+        echo "Obhod is disabled in /etc/config/obhod"
+        return 1
+    fi
+
+    echo "Starting obhoud daemon..."
+
+    procd_open_instance
+    procd_set_param command "$PROG"
+    procd_set_param respawn 3600 5 0
+    procd_set_param stdout 1
+    procd_set_param stderr 1
+    procd_close_instance
+}
+
+stop_service() {
+    echo "Stopping obhoud daemon..."
+    # The network flush is handled internally by the daemon on SIGTERM
+}
+
+reload_service() {
+    stop
+    start
+}
+
+service_triggers() {
+    procd_add_reload_trigger "obhod"
+}

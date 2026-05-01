@@ -1,0 +1,30 @@
+config global 'settings'
+    # Enable or disable the obhod daemon
+    option enabled '1'
+    
+    # The firewall mark used to identify VPN traffic. 
+    # Must not conflict with mwan3. Default is 255.
+    option fwmark '255'
+    
+    # Port for the sing-box DNS inbound
+    option dns_port '15353'
+    
+    # Port for the sing-box TProxy inbound
+    option tproxy_port '11080'
+    
+    # Log level (debug, info, warn, error, fatal)
+    option log_level 'info'
+
+# Define your VPN tunnels here
+config tunnel 'main'
+    option type 'vless'
+    option server 'proxy.example.com'
+    option port '443'
+    option uuid '00000000-0000-0000-0000-000000000000'
+
+# Define your routing rules here
+config routing 'rule1'
+    option target 'tunnel_main'
+    # Domains that should be routed through the tunnel above
+    list domains 'example.com'
+    list domains 'google.com'

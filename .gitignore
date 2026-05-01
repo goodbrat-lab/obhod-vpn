@@ -1,0 +1,19 @@
+# Binaries
+/dist/*.ipk
+/backend/obhoud_*
+/backend/obhoud_test
+
+# SDK
+/opt/openwrt-sdk
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
+
+# Temp
+/tmp/
+*.log
+
+# Podkop (Reference only, do not commit)
+/podkop/

@@ -1,0 +1,101 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8"
+
+msgid "Obhod VPN"
+msgstr "Obhod VPN"
+
+msgid "Reliable selective VPN routing for OpenWrt."
+msgstr "Надежная выборочная маршрутизация VPN для OpenWrt."
+
+msgid "Dashboard"
+msgstr "Панель управления"
+
+msgid "Service Status"
+msgstr "Статус сервиса"
+
+msgid "Running"
+msgstr "Запущен"
+
+msgid "Stopped"
+msgstr "Остановлен"
+
+msgid "WAN Status"
+msgstr "Статус WAN"
+
+msgid "Ready"
+msgstr "Готов"
+
+msgid "Waiting"
+msgstr "Ожидание"
+
+msgid "DNS Health"
+msgstr "Здоровье DNS"
+
+msgid "Healthy"
+msgstr "В норме"
+
+msgid "Issues Detected"
+msgstr "Обнаружены проблемы"
+
+msgid "Uptime"
+msgstr "Время работы"
+
+msgid "Active Tunnels"
+msgstr "Активные туннели"
+
+msgid "Tunnels"
+msgstr "Туннели"
+
+msgid "Add Tunnel"
+msgstr "Добавить туннель"
+
+msgid "Import VLESS URL"
+msgstr "Импорт VLESS URL"
+
+msgid "Import Tunnel"
+msgstr "Импорт туннеля"
+
+msgid "Paste VLESS URL here:"
+msgstr "Вставьте VLESS URL сюда:"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Import"
+msgstr "Импортировать"
+
+msgid "Type"
+msgstr "Тип"
+
+msgid "Server"
+msgstr "Сервер"
+
+msgid "Port"
+msgstr "Порт"
+
+msgid "Routing Rules"
+msgstr "Правила маршрутизации"
+
+msgid "Target Tunnel"
+msgstr "Целевой туннель"
+
+msgid "Domains"
+msgstr "Домены"
+
+msgid "Backup / Restore"
+msgstr "Бэкап / Восстановление"
+
+msgid "Download Backup"
+msgstr "Скачать бэкап"
+
+msgid "Restore Configuration"
+msgstr "Восстановление конфигурации"
+
+msgid "Restore Settings"
+msgstr "Восстановить настройки"
+
+msgid "Settings"
+msgstr "Настройки"
+
+msgid "Status"
+msgstr "Статус"
