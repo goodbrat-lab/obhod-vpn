@@ -1,13 +1,13 @@
 #!/bin/sh
 
-# Obhod VPN One-Line Installer (Universal)
+# Obhod VPN One-Line Installer (Universal) v0.2.1
 # Usage: sh <(wget -qO- "https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh?$(date +%s)")
 
 set -e
 
-echo "--- Obhod VPN Installer v0.2.0-8 ---"
+echo "--- Obhod VPN Installer v0.2.1 ---"
 
-# Use fixed universal filename to avoid 404s due to version changes
+# Use fixed universal filename
 PKG_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/obhod_universal.ipk"
 
 # Download and Install
