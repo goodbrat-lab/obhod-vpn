@@ -8,18 +8,20 @@ set -e
 echo "--- Obhod VPN Installation Script ---"
 
 # 1. Detect architecture
-ARCH=$(opkg print-architecture | awk 'NR==1 {print $2}')
-echo "Detected architecture: $ARCH"
+ARCH_LIST=$(opkg print-architecture | awk '{print $2}' | grep -v -E "all|noarch")
+echo "System architectures: $ARCH_LIST"
 
 PKG_URL=""
-if echo "$ARCH" | grep -q "aarch64"; then
+if echo "$ARCH_LIST" | grep -q "aarch64"; then
     echo "Selecting ARM64 package..."
     PKG_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/obhod-arm64.ipk"
-elif echo "$ARCH" | grep -q "mips"; then
+elif echo "$ARCH_LIST" | grep -q "mips"; then
     echo "Selecting MIPS package..."
     PKG_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/obhod-mips.ipk"
 else
-    echo "Error: Unsupported architecture $ARCH"
+    # Fallback to the first non-generic arch if no match found
+    ARCH=$(echo "$ARCH_LIST" | head -n 1)
+    echo "Error: Unsupported architecture $ARCH (or list: $ARCH_LIST)"
     exit 1
 fi
 
