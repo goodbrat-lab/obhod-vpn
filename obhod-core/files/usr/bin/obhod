@@ -123,7 +123,6 @@ start_main() {
     log "WAN is ready (or wait timed out)."
 
     log "Clearing FakeIP cache to prevent stale IP issues..."
-    rm -f /tmp/sing-box/cache.db
 
     check_requirements
 
@@ -376,11 +375,6 @@ backup_dnsmasq_config_option() {
 
 dnsmasq_configure() {
     local shutdown_correctly
-    config_get shutdown_correctly "settings" "shutdown_correctly"
-    if [ "$shutdown_correctly" -eq 0 ]; then
-        log "Previous shutdown of obhod was not correct, reconfiguration of dnsmasq is not required"
-        return 0
-    fi
 
     log "Backup dnsmasq configuration"
     current_servers="$(uci_get "dhcp" "@dnsmasq[0]" "server")"
@@ -408,11 +402,6 @@ dnsmasq_configure() {
 dnsmasq_restore() {
     log "Restoring the dnsmasq configuration"
     local shutdown_correctly
-    config_get shutdown_correctly "settings" "shutdown_correctly"
-    if [ "$shutdown_correctly" -eq 1 ]; then
-        log "Previous shutdown of obhod was correct, reconfiguration of dnsmasq is not required"
-        return 0
-    fi
 
     local cachesize noresolv backup_servers resolvfile
     log "Restoring cachesize" "debug"
