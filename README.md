@@ -14,12 +14,17 @@
 
 ## Быстрый старт
 
-1.  Установите пакеты `obhod` и `luci-app-obhod`.
-2.  Откройте в браузере: `http://192.168.1.1/cgi-bin/luci/admin/services/obhod`.
-3.  Добавьте ваш первый туннель и список доменов.
-4.  Наслаждайтесь свободным интернетом.
+Вы можете установить последнюю версию прямо из репозитория одной командой в консоли роутера:
 
-Подробная инструкция по установке доступна в [INSTALL.md](./INSTALL.md).
+```bash
+# Для архитектуры ARM64 (Xiaomi AX3000T и др.)
+wget -O /tmp/obhod.ipk https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/obhod-full_0.1.1-1_aarch64_cortex-a53.ipk && opkg install /tmp/obhod.ipk
+
+# Для архитектуры MIPS
+wget -O /tmp/obhod.ipk https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/obhod-full_0.1.1-1_mips_24kc.ipk && opkg install /tmp/obhod.ipk
+```
+
+После установки меню **Obhod VPN** появится в разделе **Services** автоматически. Подробная инструкция доступна в [INSTALL.md](./INSTALL.md).
 
 ## Разница с Podkop
 
