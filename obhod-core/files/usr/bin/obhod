@@ -78,24 +78,24 @@ check_requirements() {
     if has_outbound_section; then
         log "Outbound section found" "debug"
     else
-        log "Outbound section not found. Please check your configuration file (missing proxy_string, subscription_url, selector_proxy_links, urltest_proxy_links, outbound_json, or interface). Aborted." "error"
+        log "Outbound section not found. Please check your configuration file (missing proxy_string, subscription_url, selector_proxy_links, urltest_proxy_links, outbound_json, or interface subscription_url). Aborted." "error"
         exit 1
     fi
 }
 
 _check_outbound_section() {
     local section="$1"
-    local proxy_string interface outbound_json urltest_proxy_links subscription_url
+    local proxy_string interface subscription_url outbound_json urltest_proxy_links subscription_url
 
     config_get proxy_string "$section" "proxy_string"
     config_get subscription_url "$section" "subscription_url"
     config_get selector_proxy_links "$section" "selector_proxy_links"
     config_get urltest_proxy_links "$section" "urltest_proxy_links"
     config_get outbound_json "$section" "outbound_json"
-    config_get interface "$section" "interface"
+    config_get interface subscription_url "$section" "interface subscription_url"
 
     if [ -n "$proxy_string" ] || [ -n "$subscription_url" ] || [ -n "$selector_proxy_links" ] || 
-        [ -n "$urltest_proxy_links" ] || [ -n "$outbound_json" ] || [ -n "$interface" ]; then
+        [ -n "$urltest_proxy_links" ] || [ -n "$outbound_json" ] || [ -n "$interface subscription_url" ]; then
         section_exists=0
     fi
 }
@@ -153,7 +153,7 @@ fetch_subscription_section() {
 start_main() {
     log "Starting obhod"
 
-    log "Waiting for WAN interface to be ready..."
+    log "Waiting for WAN interface subscription_url to be ready..."
     local retry=0
     while ! ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; do
         retry=$((retry+1))
@@ -338,14 +338,14 @@ route_table_rule_mark() {
     fi
 }
 
-nft_init_interfaces_set() {
+nft_init_interface subscription_urls_set() {
     nft_create_ifname_set "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME"
 
-    local source_network_interfaces
-    config_get source_network_interfaces "settings" "source_network_interfaces" "br-lan"
+    local source_network_interface subscription_urls
+    config_get source_network_interface subscription_urls "settings" "source_network_interface subscription_urls" "br-lan"
 
-    for interface in $source_network_interfaces; do
-        nft add element inet "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME" "{ $interface }"
+    for interface subscription_url in $source_network_interface subscription_urls; do
+        nft add element inet "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME" "{ $interface subscription_url }"
     done
 }
 
@@ -374,8 +374,8 @@ create_nft_rules() {
     log "Create common set"
     nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
 
-    log "Create interface set"
-    nft_init_interfaces_set
+    log "Create interface subscription_url set"
+    nft_init_interface subscription_urls_set
 
     log "Create nft rules"
     nft add chain inet "$NFT_TABLE_NAME" mangle '{ type filter hook prerouting priority -150; policy accept; }'
@@ -837,16 +837,16 @@ configure_outbound_handler() {
         ;;
     vpn)
         log "Configuring outbound in VPN connection type for the $section section"
-        local interface_name domain_resolver_enabled domain_resolver_dns_type domain_resolver_dns_server \
+        local interface subscription_url_name domain_resolver_enabled domain_resolver_dns_type domain_resolver_dns_server \
             domain_resolver_dns_server_address outbound_tag domain_resolver_tag dns_domain_resolver
 
-        config_get interface_name "$section" "interface"
+        config_get interface subscription_url_name "$section" "interface subscription_url"
         config_get domain_resolver_enabled "$section" "domain_resolver_enabled"
         config_get domain_resolver_dns_type "$section" "domain_resolver_dns_type"
         config_get domain_resolver_dns_server "$section" "domain_resolver_dns_server"
 
-        if [ -z "$interface_name" ]; then
-            log "VPN interface is not set. Aborted." "fatal"
+        if [ -z "$interface subscription_url_name" ]; then
+            log "VPN interface subscription_url is not set. Aborted." "fatal"
             exit 1
         fi
 
@@ -863,7 +863,7 @@ configure_outbound_handler() {
                 "$domain_resolver_dns_server" "$dns_domain_resolver" "$outbound_tag")
         fi
 
-        config=$(sing_box_cm_add_interface_outbound "$config" "$outbound_tag" "$interface_name" "$domain_resolver_tag")
+        config=$(sing_box_cm_add_interface subscription_url_outbound "$config" "$outbound_tag" "$interface subscription_url_name" "$domain_resolver_tag")
         ;;
     block)
         log "Connection type 'block' detected for the $section section – no outbound will be created (handled via reject route rules)"
@@ -912,13 +912,13 @@ sing_box_configure_dns() {
 sing_box_configure_route() {
     log "Configure the route section of a sing-box JSON configuration"
 
-    local output_network_interface
-    config_get output_network_interface "settings" "output_network_interface"
-    if [ -z "$output_network_interface" ]; then
+    local output_network_interface subscription_url
+    config_get output_network_interface subscription_url "settings" "output_network_interface subscription_url"
+    if [ -z "$output_network_interface subscription_url" ]; then
         config=$(sing_box_cm_configure_route "$config" "$SB_DIRECT_OUTBOUND_TAG" true "$SB_DNS_SERVER_TAG")
     else
         config=$(sing_box_cm_configure_route "$config" "$SB_DIRECT_OUTBOUND_TAG" false "$SB_DNS_SERVER_TAG" \
-            "$output_network_interface")
+            "$output_network_interface subscription_url")
     fi
 
     local sniff_inbounds
@@ -1708,8 +1708,8 @@ get_service_listen_address() {
         return 0
     fi
 
-    local interface="lan"
-    network_get_ipaddr service_listen_address "$interface"
+    local interface subscription_url="lan"
+    network_get_ipaddr service_listen_address "$interface subscription_url"
 
     if [ -z "$service_listen_address" ]; then
         log "Failed to determine the listening IP address. Please open an issue to report this problem: https://github.com/itdoginfo/obhod/issues" "error"
@@ -1847,7 +1847,7 @@ check_nft() {
 
     if [ "$found_hetzner" -eq 1 ] || [ "$found_ovh" -eq 1 ]; then
 
-        local sets="obhod_subnets obhod_domains interfaces obhod_discord_subnets localv4"
+        local sets="obhod_subnets obhod_domains interface subscription_urls obhod_discord_subnets localv4"
 
         nolog "Sets statistics:"
         for set_name in $sets; do
@@ -2320,7 +2320,7 @@ check_fakeip() {
 }
 
 #######################################
-# Clash API interface for managing proxies and groups
+# Clash API interface subscription_url for managing proxies and groups
 # Arguments:
 #   $1 - Action: get_proxies, get_proxy_latency, get_group_latency, set_group_proxy
 #   $2 - Proxy/Group tag (required for latency and set operations)
@@ -2687,7 +2687,7 @@ global_check() {
     if uci show network.wan > /dev/null 2>&1; then
         awk '
             /^config / {
-                p = ($2 == "interface" && $3 == "'\''wan'\''")
+                p = ($2 == "interface subscription_url" && $3 == "'\''wan'\''")
                 proto = ""
             }
             p {
@@ -2787,7 +2787,7 @@ Available commands:
     check_logs              Show obhod logs from system journal
     check_sing_box_logs     Show sing-box logs
     check_fakeip            Test FakeIP on router
-    clash_api               Clash API interface for managing proxies and groups
+    clash_api               Clash API interface subscription_url for managing proxies and groups
     show_config             Display current obhod configuration
     show_version            Show obhod version
     show_sing_box_config    Show sing-box configuration
