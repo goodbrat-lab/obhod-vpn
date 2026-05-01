@@ -1,27 +1,31 @@
 #!/bin/sh
 
-# Obhod VPN One-Line Installer
-# Usage: sh <(wget -qO- https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)
+# Obhod VPN One-Line Installer v0.1.3
+# Usage: sh <(wget -qO- "https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh?$(date +%s)")
 
 set -e
 
-echo "--- Obhod VPN Installer v0.1.2 ---"
+echo "--- Obhod VPN Installer v0.1.3 ---"
 
 # 1. Detect architecture
-ARCH_LIST=$(opkg print-architecture | awk '{print $2}' | grep -v -E "all|noarch" | xargs)
-echo "Found architectures: $ARCH_LIST"
+# Filter out 'all' and 'noarch' and get the most specific one
+ARCH_LIST=$(opkg print-architecture | awk '$2 !~ /all|noarch/ {print $2}')
+echo "Available architectures: $ARCH_LIST"
 
 PKG_URL=""
+
+# Priority check for aarch64
 if echo "$ARCH_LIST" | grep -q "aarch64"; then
     echo "Selecting ARM64 package..."
     PKG_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/obhod-arm64.ipk"
+# Priority check for mips
 elif echo "$ARCH_LIST" | grep -q "mips"; then
     echo "Selecting MIPS package..."
     PKG_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/obhod-mips.ipk"
-else
-    # Fallback to the first non-generic arch if no match found
-    ARCH=$(echo "$ARCH_LIST" | head -n 1)
-    echo "Error: Unsupported architecture $ARCH (or list: $ARCH_LIST)"
+fi
+
+if [ -z "$PKG_URL" ]; then
+    echo "Error: Could not find a suitable package for your architectures: $ARCH_LIST"
     exit 1
 fi
 
