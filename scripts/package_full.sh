@@ -1,12 +1,10 @@
 #!/bin/bash
 
-# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - VERSION 0.2.0-7
-# Adds Subscription Support and restores original Podkop functionality.
-
+# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - UNIVERSAL NAME
 VERSION="0.2.0"
-RELEASE="7"
+RELEASE="8"
 
-BUILD_DIR="/tmp/obhod_v0207_build"
+BUILD_DIR="/tmp/obhod_v0208_build"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/data" "$BUILD_DIR/control"
 
@@ -31,7 +29,7 @@ cp "/root/Obhod project/obhod-core/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/
 chmod +x "$BUILD_DIR/data/etc/init.d/obhod"
 cp "/root/Obhod project/obhod-core/files/etc/config/obhod" "$BUILD_DIR/data/etc/config/obhod"
 
-# 2. LuCI Files (Original Vue.js UI + Subscriptions)
+# 2. LuCI Files
 mkdir -p "$BUILD_DIR/data/www/luci-static/resources/view/obhod"
 cp -r "/root/Obhod project/luci-app-obhod/htdocs/luci-static/resources/view/obhod/"* "$BUILD_DIR/data/www/luci-static/resources/view/obhod/"
 
@@ -52,7 +50,7 @@ Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-bas
 Section: net
 Architecture: all
 Maintainer: Obhod Team
-Description: Obhod VPN (Restored Full functionality + Subscriptions)
+Description: Obhod VPN (Universal Package)
 EOF
 
 cat <<EOF > "$BUILD_DIR/control/postinst"
@@ -73,6 +71,6 @@ cd "$BUILD_DIR/data" && tar -czf "../data.tar.gz" .
 cd "$BUILD_DIR/control" && tar -czf "../control.tar.gz" .
 cd "$BUILD_DIR"
 echo "2.0" > debian-binary
-tar -czf "/root/Obhod project/dist/obhod_${VERSION}-${RELEASE}_all.ipk" debian-binary data.tar.gz control.tar.gz
+tar -czf "/root/Obhod project/dist/obhod_universal.ipk" debian-binary data.tar.gz control.tar.gz
 
-echo "Successfully built obhod_${VERSION}-${RELEASE}_all.ipk"
+echo "Built: obhod_universal.ipk"
