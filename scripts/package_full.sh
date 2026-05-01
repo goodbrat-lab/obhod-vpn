@@ -2,7 +2,7 @@
 
 # ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - VUE UI + ORIGINAL SHELL BACKEND
 VERSION="0.2.0"
-RELEASE="4"
+RELEASE="5"
 
 BUILD_DIR="/tmp/obhod_v020_build"
 rm -rf "$BUILD_DIR"
@@ -43,7 +43,7 @@ Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-bas
 Section: net
 Architecture: all
 Maintainer: Obhod Team
-Description: Obhod VPN (Restored Functional Diagnostics)
+Description: Obhod VPN (Restored Full Original Podkop Functionality)
 EOF
 
 cat <<EOF > "$BUILD_DIR/control/postinst"
