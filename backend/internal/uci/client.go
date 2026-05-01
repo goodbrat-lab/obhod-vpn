@@ -77,14 +77,13 @@ func parseUciShow(data []byte) (*UciConfig, error) {
 	rulesMap := make(map[string]*RoutingRule)
 
 	scanner := bufio.NewScanner(bytes.NewReader(data))
+	// Support both old 'tunnel'/'routing' and original Podkop 'section' schemas
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || !strings.HasPrefix(line, "obhod.") {
 			continue
 		}
 
-		// e.g. obhod.settings.fwmark='255'
-		// or obhod.main=tunnel
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
 			continue
@@ -100,17 +99,20 @@ func parseUciShow(data []byte) (*UciConfig, error) {
 
 		sectionID := keySegments[1]
 
-		// It's a type definition, e.g., obhod.main=tunnel
+		// Type definition
 		if len(keySegments) == 2 {
 			if valPart == "tunnel" {
 				tunnelsMap[sectionID] = &Tunnel{ID: sectionID}
 			} else if valPart == "routing" {
 				rulesMap[sectionID] = &RoutingRule{ID: sectionID}
+			} else if valPart == "section" {
+				// Original Podkop section acts as BOTH a tunnel and a routing rule
+				tunnelsMap[sectionID] = &Tunnel{ID: sectionID, Type: "vless"} // Assume vless parsing handles the proxy_string
+				rulesMap[sectionID] = &RoutingRule{ID: sectionID, Target: sectionID}
 			}
 			continue
 		}
 
-		// Option or List, e.g. obhod.main.server='proxy.example.com'
 		option := keySegments[2]
 
 		if sectionID == "settings" || sectionID == "@global[0]" {
@@ -133,6 +135,8 @@ func parseUciShow(data []byte) (*UciConfig, error) {
 				cfg.Settings.LogLevel = valPart
 			}
 		} else if t, ok := tunnelsMap[sectionID]; ok {
+			r, hasRule := rulesMap[sectionID]
+			
 			switch option {
 			case "type":
 				t.Type = valPart
@@ -164,16 +168,63 @@ func parseUciShow(data []byte) (*UciConfig, error) {
 				t.Path = valPart
 			case "host":
 				t.Host = valPart
-			}
-		} else if r, ok := rulesMap[sectionID]; ok {
-			switch option {
-			case "target":
-				r.Target = valPart
-			case "domains":
-				// Handle potential list format: 'val1' 'val2' or val1 val2
-				parts := strings.Fields(valPart)
-				for _, p := range parts {
-					r.Domains = append(r.Domains, strings.Trim(p, "'\""))
+			// Original Podkop fields:
+			case "proxy_string":
+				// E.g., vless://uuid@server:port?query
+				if strings.HasPrefix(valPart, "vless://") {
+					t.Type = "vless"
+					parsed := strings.TrimPrefix(valPart, "vless://")
+					upParts := strings.SplitN(parsed, "@", 2)
+					if len(upParts) == 2 {
+						t.UUID = upParts[0]
+						spParts := strings.SplitN(upParts[1], ":", 2)
+						if len(spParts) == 2 {
+							t.Server = spParts[0]
+							pqParts := strings.SplitN(spParts[1], "?", 2)
+							if p, err := strconv.Atoi(pqParts[0]); err == nil {
+								t.Port = p
+							}
+							if len(pqParts) == 2 {
+								query := strings.Split(pqParts[1], "#")[0] // strip hash
+								params := strings.Split(query, "&")
+								for _, param := range params {
+									kv := strings.SplitN(param, "=", 2)
+									if len(kv) == 2 {
+										switch kv[0] {
+										case "type": t.Transport = kv[1]
+										case "security": t.Security = kv[1]
+										case "sni": t.SNI = kv[1]
+										case "fp": t.Fingerprint = kv[1]
+										case "pbk": t.PublicKey = kv[1]
+										case "sid": t.ShortID = kv[1]
+										case "spx": t.SpiderX = kv[1]
+										case "path": t.Path = kv[1]
+										case "host": t.Host = kv[1]
+										case "flow": t.Flow = kv[1]
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			case "user_domains":
+				if hasRule {
+					parts := strings.Fields(valPart)
+					for _, p := range parts {
+						r.Domains = append(r.Domains, strings.Trim(p, "'\""))
+					}
+				}
+			case "domains": // New schema field
+				if hasRule {
+					parts := strings.Fields(valPart)
+					for _, p := range parts {
+						r.Domains = append(r.Domains, strings.Trim(p, "'\""))
+					}
+				}
+			case "target": // New schema field
+				if hasRule {
+					r.Target = valPart
 				}
 			}
 		}

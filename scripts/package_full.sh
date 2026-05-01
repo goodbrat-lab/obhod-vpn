@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL
-VERSION="0.1.1"
+# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - VUE ORIGINAL UI RESTORED
+VERSION="0.1.4"
 RELEASE="1"
 ARCH=$1
 BINARY=$2
@@ -11,7 +11,7 @@ if [ -z "$ARCH" ] || [ -z "$BINARY" ]; then
     exit 1
 fi
 
-BUILD_DIR="/tmp/obhod_v011_build"
+BUILD_DIR="/tmp/obhod_v014_build"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/data" "$BUILD_DIR/control"
 
@@ -25,34 +25,32 @@ cp "$BINARY" "$BUILD_DIR/data/usr/bin/obhoud"
 chmod +x "$BUILD_DIR/data/usr/bin/obhoud"
 cp "/root/Obhod project/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"
 chmod +x "$BUILD_DIR/data/etc/init.d/obhod"
-cp "/root/Obhod project/luci-app-obhod/root/etc/config/obhod" "$BUILD_DIR/data/etc/config/obhod"
+# Use original podkop-style config but named obhod
+cat <<EOF > "$BUILD_DIR/data/etc/config/obhod"
+config settings 'settings'
+        option dns_type 'udp'
+        option dns_server '8.8.8.8'
+        option fwmark '255'
+        option dns_port '15353'
+        option tproxy_port '11080'
+        option log_level 'info'
 
-# 2. LuCI Files (Stable CBI)
-LUCI_BASE="$BUILD_DIR/data/usr/lib/lua/luci"
-mkdir -p "$LUCI_BASE/controller"
-mkdir -p "$LUCI_BASE/model/cbi/obhod"
-
-cp "/root/Obhod project/luci-app-obhod/luasrc/controller/obhod.lua" "$LUCI_BASE/controller/"
-cp "/root/Obhod project/luci-app-obhod/luasrc/model/cbi/obhod/"*.lua "$LUCI_BASE/model/cbi/obhod/"
-cp "/root/Obhod project/luci-app-obhod/luasrc/obhod_api.lua" "$BUILD_DIR/data/usr/lib/lua/"
-
-# ACL
-mkdir -p "$BUILD_DIR/data/usr/share/rpcd/acl.d"
-cat <<EOF > "$BUILD_DIR/data/usr/share/rpcd/acl.d/luci-app-obhod.json"
-{
-	"luci-app-obhod": {
-		"description": "Grant access to Obhod VPN",
-		"read": {
-			"cgi-bin": [ "luci/admin/services/obhod/*" ],
-			"uci": [ "obhod" ]
-		},
-		"write": {
-			"cgi-bin": [ "luci/admin/services/obhod/*" ],
-			"uci": [ "obhod" ]
-		}
-	}
-}
+config section 'main'
+        option connection_type 'proxy'
+        option proxy_config_type 'url'
+        option proxy_string ''
+        list user_domains 'google.com'
 EOF
+
+# 2. LuCI Files (Original Vue.js UI from Podkop)
+mkdir -p "$BUILD_DIR/data/www/luci-static/resources/view/obhod"
+cp -r "/root/Obhod project/luci-app-obhod/htdocs/luci-static/resources/view/obhod/"* "$BUILD_DIR/data/www/luci-static/resources/view/obhod/"
+
+# Menu and ACL
+mkdir -p "$BUILD_DIR/data/usr/share/luci/menu.d"
+mkdir -p "$BUILD_DIR/data/usr/share/rpcd/acl.d"
+cp "/root/Obhod project/luci-app-obhod/root/usr/share/luci/menu.d/luci-app-obhod.json" "$BUILD_DIR/data/usr/share/luci/menu.d/"
+cp "/root/Obhod project/luci-app-obhod/root/usr/share/rpcd/acl.d/luci-app-obhod.json" "$BUILD_DIR/data/usr/share/rpcd/acl.d/"
 
 # 3. Control & Post-Install Script
 cat <<EOF > "$BUILD_DIR/control/control"
@@ -62,7 +60,7 @@ Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, luci-lua-runtime, luci
 Section: net
 Architecture: $ARCH
 Maintainer: Obhod Team
-Description: Obhod VPN Full Package (Final Ultra-Stable)
+Description: Obhod VPN Full Package (Original Vue UI)
 EOF
 
 cat <<EOF > "$BUILD_DIR/control/postinst"

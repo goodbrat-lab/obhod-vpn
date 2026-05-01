@@ -1,9 +1,0 @@
-config global 'settings'
-	option enabled '0'
-	option fwmark '255'
-	option dns_port '15353'
-	option tproxy_port '11080'
-	option log_level 'info'
-
-config routing 'default_rule'
-	option target 'none'

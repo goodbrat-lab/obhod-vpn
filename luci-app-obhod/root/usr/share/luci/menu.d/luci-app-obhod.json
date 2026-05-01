@@ -1,13 +1,14 @@
 {
-	"admin/services/obhod": {
-		"title": "Obhod VPN",
-		"order": 60,
-		"action": {
-			"type": "view",
-			"path": "obhod/main"
-		},
-		"depends": {
-			"acl": [ "luci-app-obhod" ]
+  "admin/services/obhod": {
+    "title": "Obhod",
+    "order": 42,
+    "action": {
+      "type": "view",
+      "path": "obhod/obhod"
+    },
+    "depends": {
+			"acl": [ "luci-app-obhod" ],
+			"uci": { "obhod": true }
 		}
-	}
+  }
 }

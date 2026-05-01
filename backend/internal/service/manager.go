@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/obhod/obhoud/internal/dns"
 	"github.com/obhod/obhoud/internal/uci"
 )
 

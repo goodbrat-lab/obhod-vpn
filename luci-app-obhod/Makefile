@@ -1,13 +1,30 @@
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI support for Obhod VPN
-LUCI_DEPENDS:=+obhod +curl +luci-lua-runtime
-LUCI_PKGARCH:=all
-
 PKG_NAME:=luci-app-obhod
-PKG_VERSION:=0.1.0
+
+PKG_VERSION := $(if $(OBHOD_VERSION),$(OBHOD_VERSION),0.$(shell date +%d%m%Y))
+
 PKG_RELEASE:=1
+
+LUCI_TITLE:=LuCI obhod app
+LUCI_DEPENDS:=+luci-base +obhod
+LUCI_PKGARCH:=all
+LUCI_LANG.ru:=Русский (Russian)
+LUCI_LANG.en:=English
+
+PKG_LICENSE:=GPL-2.0-or-later
+PKG_MAINTAINER:=ITDog <obhod@itdog.info>
+
+LUCI_LANGUAGES:=en ru
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
-# call BuildPackage - OpenWrt buildroot signature
+define Package/$(PKG_NAME)/install
+	$(INSTALL_DIR) $(1)$(HTDOCS)
+	$(CP) $(PKG_BUILD_DIR)/htdocs/* $(1)$(HTDOCS)/
+	$(INSTALL_DIR) $(1)/
+	$(CP) $(PKG_BUILD_DIR)/root/* $(1)/
+	sed -i -e 's/__COMPILED_VERSION_VARIABLE__/$(PKG_VERSION)/g' $(1)$(HTDOCS)/luci-static/resources/view/obhod/main.js || true
+endef
+
+$(eval $(call BuildPackage,$(PKG_NAME)))

@@ -1,21 +1,28 @@
 {
-	"luci-app-obhod": {
-		"description": "Grant access to Obhod VPN",
-		"read": {
-			"cgi-bin": [ "luci/admin/services/obhod/*" ],
-			"uci": [ "obhod" ],
-			"ubus": {
-				"uci": [ "get", "sections" ],
-				"file": [ "read", "list" ]
-			}
-		},
-		"write": {
-			"cgi-bin": [ "luci/admin/services/obhod/*" ],
-			"uci": [ "obhod" ],
-			"ubus": {
-				"uci": [ "set", "add", "delete", "commit" ],
-				"file": [ "write" ]
-			}
-		}
-	}
+  "luci-app-obhod": {
+    "description": "Grant UCI and RPC access to LuCI app obhod",
+    "read": {
+      "file": {
+        "/etc/init.d/obhod": [
+          "exec"
+        ],
+        "/usr/bin/obhod": [
+          "exec"
+        ]
+      },
+      "ubus": {
+        "service": [
+          "list"
+        ]
+      },
+      "uci": [
+        "obhod"
+      ]
+    },
+    "write": {
+      "uci": [
+        "obhod"
+      ]
+    }
+  }
 }
