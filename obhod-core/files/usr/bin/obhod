@@ -736,6 +736,45 @@ configure_outbound_handler() {
             config="$(sing_box_cm_add_selector_outbound "$config" "$selector_tag" "$selector_outbounds" \
                 "$default_outbound")"
             ;;
+        subscription)
+            log "Detected proxy configuration type: subscription" "debug"
+            local sub_url sub_links
+            config_get sub_url "$section" "subscription_url"
+            
+            [ -z "$sub_url" ] && return 0
+            
+            # Fetch and parse links (re-using fetch_subscription logic)
+            local tmp_sub="/tmp/obhod_sub_$section.txt"
+            if fetch_subscription "$sub_url" "$tmp_sub"; then
+                sub_links=$(cat "$tmp_sub" | tr '\n' ' ')
+                # Now treat it like a urltest with these links
+                local urltest_tag selector_tag outbound_tags urltest_outbounds selector_outbounds
+                local urltest_check_interval urltest_tolerance urltest_testing_url
+                
+                config_get urltest_check_interval "$section" "subscription_update_interval" "1d"
+                config_get urltest_tolerance "$section" "urltest_tolerance" 50
+                config_get urltest_testing_url "$section" "urltest_testing_url" "https://www.gstatic.com/generate_204"
+
+                # Standard urltest flow
+                local i=1
+                for link in $sub_links; do
+                    outbound_tag="$section-outbound-$i"
+                    config=$(sing_box_cf_add_proxy_outbound "$config" "$section" "$link" "0")
+                    outbound_tags="${outbound_tags}${outbound_tag},"
+                    i=$((i + 1))
+                done
+                outbound_tags="${outbound_tags%,}"
+                
+                urltest_tag="$(get_outbound_tag_by_section "$section-urltest")"
+                selector_tag="$(get_outbound_tag_by_section "$section")"
+                urltest_outbounds="$(comma_string_to_json_array "$outbound_tags")"
+                selector_outbounds="$(comma_string_to_json_array "$outbound_tags,$urltest_tag")"
+                
+                config="$(sing_box_cm_add_urltest_outbound "$config" "$urltest_tag" "$urltest_outbounds" \
+                    "$urltest_testing_url" "$urltest_check_interval" "$urltest_tolerance")"
+                config="$(sing_box_cm_add_selector_outbound "$config" "$selector_tag" "$selector_outbounds" "$urltest_tag")"
+            fi
+            ;;
         urltest)
             log "Detected proxy configuration type: urltest" "debug"
             local urltest_proxy_links udp_over_tcp i urltest_tag selector_tag outbound_tag outbound_tags \
