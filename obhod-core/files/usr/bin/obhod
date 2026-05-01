@@ -154,6 +154,10 @@ start_main() {
     log "Nice"
     list_update &
     echo $! > /var/run/obhod_list_update.pid
+
+    log "Starting Watchdog"
+    /usr/bin/obhod-watchdog &
+    echo $! > /var/run/obhod_watchdog.pid
 }
 
 stop_main() {
@@ -166,6 +170,15 @@ stop_main() {
             log "Stopped list_update"
         fi
         rm -f /var/run/obhod_list_update.pid
+    fi
+
+    if [ -f /var/run/obhod_watchdog.pid ]; then
+        pid=$(cat /var/run/obhod_watchdog.pid)
+        if kill -0 "$pid" 2> /dev/null; then
+            kill "$pid" 2> /dev/null
+            log "Stopped Watchdog"
+        fi
+        rm -f /var/run/obhod_watchdog.pid
     fi
 
     remove_cron_job

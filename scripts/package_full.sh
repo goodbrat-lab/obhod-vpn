@@ -2,7 +2,7 @@
 
 # ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - VUE UI + ORIGINAL SHELL BACKEND
 VERSION="0.2.0"
-RELEASE="2"
+RELEASE="3"
 
 BUILD_DIR="/tmp/obhod_v020_build"
 rm -rf "$BUILD_DIR"
@@ -18,6 +18,8 @@ mkdir -p "$BUILD_DIR/data/etc/uci-defaults"
 # Copy core files
 cp "/root/Obhod project/obhod-core/files/usr/bin/obhod" "$BUILD_DIR/data/usr/bin/obhod"
 chmod +x "$BUILD_DIR/data/usr/bin/obhod"
+cp "/root/Obhod project/obhod-core/files/usr/bin/obhod-watchdog" "$BUILD_DIR/data/usr/bin/obhod-watchdog" 2>/dev/null || true
+chmod +x "$BUILD_DIR/data/usr/bin/obhod-watchdog" 2>/dev/null || true
 cp -r "/root/Obhod project/obhod-core/files/usr/lib/obhod/"* "$BUILD_DIR/data/usr/lib/obhod/" 2>/dev/null || true
 cp "/root/Obhod project/obhod-core/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"
 chmod +x "$BUILD_DIR/data/etc/init.d/obhod"

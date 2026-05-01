@@ -1,0 +1,32 @@
+#!/bin/sh
+# /usr/bin/obhod-watchdog
+
+sleep 60 # Initial delay after startup
+
+FAIL_COUNT=0
+MAX_FAILS=3
+
+while true; do
+    # Check if WAN is actually up before blaming Obhod
+    if ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; then
+        # WAN is up, now check if DNS/Proxy is working
+        if ! ping -c 1 -W 2 google.com >/dev/null 2>&1; then
+            FAIL_COUNT=$((FAIL_COUNT + 1))
+            logger -t obhod-watchdog "Connectivity check failed ($FAIL_COUNT/$MAX_FAILS)"
+        else
+            FAIL_COUNT=0
+        fi
+
+        if [ "$FAIL_COUNT" -ge "$MAX_FAILS" ]; then
+            logger -t obhod-watchdog "3 consecutive failures detected. Restarting obhod..."
+            /etc/init.d/obhod restart
+            exit 0
+        fi
+    else
+        # If WAN is down, don't increase fail count, just wait
+        logger -t obhod-watchdog "WAN is down, skipping proxy check."
+        FAIL_COUNT=0
+    fi
+
+    sleep 30
+done
