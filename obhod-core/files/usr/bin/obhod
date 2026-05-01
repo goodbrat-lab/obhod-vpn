@@ -107,6 +107,48 @@ has_outbound_section() {
     return $section_exists
 }
 
+fetch_subscription() {
+    local url="$1"
+    local output_file="$2"
+    log "Fetching subscription from $url"
+    
+    local data
+    data=$(curl -sL -m 15 "$url")
+    if [ $? -ne 0 ] || [ -z "$data" ]; then
+        log "Failed to fetch subscription" "error"
+        return 1
+    fi
+
+    # Decode base64 if needed
+    if echo "$data" | grep -q "^[A-Za-z0-9+/]*=\{0,2\}$"; then
+        echo "$data" | base64 -d > "$output_file"
+    else
+        echo "$data" > "$output_file"
+    fi
+    return 0
+}
+
+update_subscriptions() {
+    log "Updating all subscriptions..."
+    config_foreach fetch_subscription_section "subscription"
+}
+
+fetch_subscription_section() {
+    local section="$1"
+    local url enabled name
+    config_get_bool enabled "$section" "enabled" 0
+    config_get url "$section" "url"
+    config_get name "$section" "name" "$section"
+
+    [ "$enabled" -eq 0 ] && return 0
+    [ -z "$url" ] && return 0
+
+    local tmp_sub="/tmp/obhod_sub_$section.txt"
+    if fetch_subscription "$url" "$tmp_sub"; then
+        log "Subscription '$name' updated successfully"
+    fi
+}
+
 start_main() {
     log "Starting obhod"
 
@@ -2720,8 +2762,10 @@ main)
 list_update)
     list_update
     ;;
-check_proxy)
-    check_proxy
+update_subscriptions)
+    update_subscriptions
+    ;;
+check_proxy)    check_proxy
     ;;
 check_nft)
     check_nft

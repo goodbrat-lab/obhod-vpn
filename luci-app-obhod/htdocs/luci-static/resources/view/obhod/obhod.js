@@ -11,6 +11,9 @@
 // Sections content
 "require view.obhod.section as section";
 
+// Subscriptions content
+"require view.obhod.subscriptions as subscriptions";
+
 // Dashboard content
 "require view.obhod.dashboard as dashboard";
 
@@ -41,6 +44,19 @@ const EntryPoint = {
 
     // Render section content
     section.createSectionContent(sectionsSection);
+
+    // Subscriptions tab
+    const subscriptionsSection = obhodMap.section(
+      form.TypedSection,
+      "subscription",
+      _("Subscriptions"),
+    );
+    subscriptionsSection.anonymous = false;
+    subscriptionsSection.addremove = true;
+    subscriptionsSection.template = "cbi/simpleform";
+
+    // Render subscription content
+    subscriptions.createSubscriptionContent(subscriptionsSection);
 
     // Settings tab
     const settingsSection = obhodMap.section(
