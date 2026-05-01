@@ -5,11 +5,11 @@
 
 set -e
 
-echo "--- Obhod VPN Installation Script ---"
+echo "--- Obhod VPN Installer v0.1.2 ---"
 
 # 1. Detect architecture
-ARCH_LIST=$(opkg print-architecture | awk '{print $2}' | grep -v -E "all|noarch")
-echo "System architectures: $ARCH_LIST"
+ARCH_LIST=$(opkg print-architecture | awk '{print $2}' | grep -v -E "all|noarch" | xargs)
+echo "Found architectures: $ARCH_LIST"
 
 PKG_URL=""
 if echo "$ARCH_LIST" | grep -q "aarch64"; then
