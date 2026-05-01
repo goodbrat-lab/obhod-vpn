@@ -60,6 +60,7 @@ sing_box_cf_add_proxy_outbound() {
     local section="$2"
     local url="$3"
     local udp_over_tcp="$4"
+    local custom_tag="$5" # Added custom_tag support
 
     url=$(url_decode "$url")
     url=$(url_strip_fragment "$url")
@@ -70,7 +71,7 @@ sing_box_cf_add_proxy_outbound() {
     socks4 | socks4a | socks5)
         local tag host port version userinfo username password udp_over_tcp
 
-        tag=$(get_outbound_tag_by_section "$section")
+        tag=${custom_tag:-$(get_outbound_tag_by_section "$section")}
         host=$(url_get_host "$url")
         port=$(url_get_port "$url")
         version="${scheme#socks}"
@@ -95,7 +96,7 @@ sing_box_cf_add_proxy_outbound() {
         ;;
     vless)
         local tag host port uuid flow packet_encoding
-        tag=$(get_outbound_tag_by_section "$section")
+        tag=${custom_tag:-$(get_outbound_tag_by_section "$section")}
         host=$(url_get_host "$url")
         port=$(url_get_port "$url")
         uuid=$(url_get_userinfo "$url")
@@ -118,7 +119,7 @@ sing_box_cf_add_proxy_outbound() {
             fi
         fi
 
-        tag=$(get_outbound_tag_by_section "$section")
+        tag=${custom_tag:-$(get_outbound_tag_by_section "$section")}
         host=$(url_get_host "$url")
         port=$(url_get_port "$url")
         method="${userinfo%%:*}"
@@ -138,7 +139,7 @@ sing_box_cf_add_proxy_outbound() {
         ;;
     trojan)
         local tag host port password
-        tag=$(get_outbound_tag_by_section "$section")
+        tag=${custom_tag:-$(get_outbound_tag_by_section "$section")}
         host=$(url_get_host "$url")
         port=$(url_get_port "$url")
         password=$(url_get_userinfo "$url")
@@ -149,7 +150,7 @@ sing_box_cf_add_proxy_outbound() {
         ;;
     hysteria2 | hy2)
         local tag host port password obfuscator_type obfuscator_password upload_mbps download_mbps
-        tag=$(get_outbound_tag_by_section "$section")
+        tag=${custom_tag:-$(get_outbound_tag_by_section "$section")}
         host=$(url_get_host "$url")
         port="$(url_get_port "$url")"
         password=$(url_get_userinfo "$url")
