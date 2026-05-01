@@ -78,23 +78,24 @@ check_requirements() {
     if has_outbound_section; then
         log "Outbound section found" "debug"
     else
-        log "Outbound section not found. Please check your configuration file (missing proxy_string, selector_proxy_links, urltest_proxy_links, outbound_json, or interface). Aborted." "error"
+        log "Outbound section not found. Please check your configuration file (missing proxy_string, subscription_url, selector_proxy_links, urltest_proxy_links, outbound_json, or interface). Aborted." "error"
         exit 1
     fi
 }
 
 _check_outbound_section() {
     local section="$1"
-    local proxy_string interface outbound_json urltest_proxy_links
+    local proxy_string interface outbound_json urltest_proxy_links subscription_url
 
     config_get proxy_string "$section" "proxy_string"
+    config_get subscription_url "$section" "subscription_url"
     config_get selector_proxy_links "$section" "selector_proxy_links"
     config_get urltest_proxy_links "$section" "urltest_proxy_links"
     config_get outbound_json "$section" "outbound_json"
     config_get interface "$section" "interface"
 
-    if [ -n "$proxy_string" ] || [ -n "$selector_proxy_links" ] || [ -n "$urltest_proxy_links" ] ||
-        [ -n "$outbound_json" ] || [ -n "$interface" ]; then
+    if [ -n "$proxy_string" ] || [ -n "$subscription_url" ] || [ -n "$selector_proxy_links" ] || 
+        [ -n "$urltest_proxy_links" ] || [ -n "$outbound_json" ] || [ -n "$interface" ]; then
         section_exists=0
     fi
 }
