@@ -1,13 +1,13 @@
 #!/bin/sh
 
-# Obhod VPN One-Line Installer v0.2.0-4
+# Obhod VPN One-Line Installer v0.2.0-6
 # Usage: sh <(wget -qO- "https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh?$(date +%s)")
 
 set -e
 
-echo "--- Obhod VPN Installer v0.2.0-4 ---"
+echo "--- Obhod VPN Installer v0.2.0-6 ---"
 
-PKG_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/obhod_0.2.0-4_all.ipk"
+PKG_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/obhod_0.2.0-6_all.ipk"
 
 # Download and Install
 echo "Downloading Universal Package (Shell Backend + Vue UI)..."
