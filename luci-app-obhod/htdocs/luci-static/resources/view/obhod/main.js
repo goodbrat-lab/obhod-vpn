@@ -864,9 +864,9 @@ var STATUS_COLORS = {
   ERROR: "#f44336",
   WARNING: "#ff9800"
 };
-var OBHOD_LUCI_APP_VERSION = "__COMPILED_VERSION_VARIABLE__";
-var FAKEIP_CHECK_DOMAIN = "fakeip.obhod.fyi";
-var IP_CHECK_DOMAIN = "ip.obhod.fyi";
+var OBHOD_LUCI_APP_VERSION = "0.2.0";
+var FAKEIP_CHECK_DOMAIN = "fakeip.podkop.fyi";
+var IP_CHECK_DOMAIN = "ip.podkop.fyi";
 var REGIONAL_OPTIONS = [
   "russia_inside",
   "russia_outside",

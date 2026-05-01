@@ -1280,6 +1280,7 @@ sing_box_save_config() {
     log "Temporary sing-box config hash: $temp_config_hash" "debug"
     if [ "$current_config_hash" != "$temp_config_hash" ]; then
         log "sing-box configuration has changed and will be updated"
+        mkdir -p "$(dirname "$sing_box_config_path")"
         mv "$temp_file_path" "$sing_box_config_path"
     else
         log "sing-box configuration is unchanged"
@@ -1895,7 +1896,7 @@ get_system_info() {
 
     obhod_version="$OBHOD_VERSION"
 
-    obhod_latest_version=$(curl -m 3 -s https://api.github.com/repos/itdoginfo/obhod/releases/latest | grep '"tag_name":' | cut -d'"' -f4)
+    obhod_latest_version=$(curl -m 3 -s https://api.github.com/repos/itdoginfo/podkop/releases/latest | grep '"tag_name":' | cut -d'"' -f4)
     [ -z "$obhod_latest_version" ] && obhod_latest_version="unknown"
 
     if [ -f /www/luci-static/resources/view/obhod/main.js ]; then

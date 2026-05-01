@@ -2,7 +2,7 @@
 
 # ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - VUE UI + ORIGINAL SHELL BACKEND
 VERSION="0.2.0"
-RELEASE="3"
+RELEASE="4"
 
 BUILD_DIR="/tmp/obhod_v020_build"
 rm -rf "$BUILD_DIR"
@@ -39,11 +39,11 @@ cp "/root/Obhod project/luci-app-obhod/root/usr/share/rpcd/acl.d/luci-app-obhod.
 cat <<EOF > "$BUILD_DIR/control/control"
 Package: obhod
 Version: $VERSION-$RELEASE
-Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, luci-base, luci-compat
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-base, luci-compat
 Section: net
 Architecture: all
 Maintainer: Obhod Team
-Description: Obhod VPN (Original Podkop functionality restored)
+Description: Obhod VPN (Restored Functional Diagnostics)
 EOF
 
 cat <<EOF > "$BUILD_DIR/control/postinst"
