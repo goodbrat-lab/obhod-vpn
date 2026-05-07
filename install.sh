@@ -1,7 +1,8 @@
 #!/bin/sh
 
 # Obhod VPN Installer v0.3.0
-# Usage: sh <(wget -qO- "https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh")
+# Usage (busybox-compatible, works on OpenWrt):
+#   wget -qO /tmp/install.sh "https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh" && sh /tmp/install.sh
 
 set -e
 
