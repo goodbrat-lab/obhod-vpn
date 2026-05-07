@@ -41,6 +41,12 @@ def add_to_tar(tar: tarfile.TarFile, real_path: Path, arcname: str, mode: int = 
     info = tar.gettarinfo(str(real_path), arcname=arcname)
     if mode is not None:
         info.mode = mode
+    # Clear metadata that causes PAX extended headers in busybox-incompatible format
+    info.uid = 0
+    info.gid = 0
+    info.uname = "root"
+    info.gname = "root"
+    info.mtime = 0
     with open(real_path, "rb") as f:
         tar.addfile(info, f)
 
@@ -91,13 +97,17 @@ def build_data_tar(tmp_dir: Path, binary_path: Path) -> Path:
     ]
 
     data_tar = tmp_dir / "data.tar.gz"
-    with tarfile.open(data_tar, "w:gz") as tar:
+    # GNU_FORMAT: busybox tar on OpenWrt does not support PAX extended headers (0x78)
+    with tarfile.open(data_tar, "w:gz", format=tarfile.GNU_FORMAT) as tar:
         for item in sorted(data_dir.rglob("*")):
             arcname = "./" + str(item.relative_to(data_dir)).replace("\\", "/")
             if item.is_dir():
                 info = tarfile.TarInfo(name=arcname)
                 info.type = tarfile.DIRTYPE
                 info.mode = 0o755
+                info.uid = 0; info.gid = 0
+                info.uname = "root"; info.gname = "root"
+                info.mtime = 0
                 tar.addfile(info)
             else:
                 mode = 0o755 if item in exec_files else 0o644
@@ -143,8 +153,8 @@ exit 0
     (ctrl_dir / "prerm").write_text(prerm_text)
 
     control_tar = tmp_dir / "control.tar.gz"
-    with tarfile.open(control_tar, "w:gz") as tar:
-        for item in ctrl_dir.iterdir():
+    with tarfile.open(control_tar, "w:gz", format=tarfile.GNU_FORMAT) as tar:
+        for item in sorted(ctrl_dir.iterdir()):
             arcname = "./" + item.name
             mode = 0o755 if item.name in ("postinst", "prerm") else 0o644
             add_to_tar(tar, item, arcname, mode)
@@ -175,10 +185,18 @@ def build_ipk(suffix: str, arch_ipk: str):
         debian_binary = tmp_dir / "debian-binary"
         debian_binary.write_text("2.0\n")
 
-        # Final .ipk (tar of tar.gz files)
-        with tarfile.open(output_path, "w:gz") as ipk:
+        # Final .ipk = tar of {debian-binary, control.tar.gz, data.tar.gz}
+        # MUST be GNU_FORMAT — busybox opkg cannot parse PAX headers
+        with tarfile.open(output_path, "w:gz", format=tarfile.GNU_FORMAT) as ipk:
             for f in [debian_binary, control_tar, data_tar]:
-                ipk.add(f, arcname=f.name)
+                info = tarfile.TarInfo(name=f.name)
+                info.size = f.stat().st_size
+                info.mode = 0o644
+                info.uid = 0; info.gid = 0
+                info.uname = "root"; info.gname = "root"
+                info.mtime = 0
+                with open(f, "rb") as fh:
+                    ipk.addfile(info, fh)
 
         size_kb = output_path.stat().st_size // 1024
         checksum = sha256(output_path)[:12]
