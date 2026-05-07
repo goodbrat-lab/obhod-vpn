@@ -1,0 +1,33 @@
+# Force LF line endings for all shell scripts and text files
+# (important: these run on Linux/OpenWrt, must not have CRLF)
+
+# Default: auto-detect
+* text=auto
+
+# Shell scripts — always LF
+*.sh text eol=lf
+files/etc/init.d/* text eol=lf
+obhod-core/files/etc/init.d/* text eol=lf
+obhod-core/files/usr/bin/obhod text eol=lf
+obhod-core/files/usr/bin/obhod-watchdog text eol=lf
+obhod-core/files/usr/lib/*.sh text eol=lf
+
+# UCI config files — LF
+files/etc/config/* text eol=lf
+obhod-core/files/etc/config/* text eol=lf
+
+# Go source — LF
+*.go text eol=lf
+go.mod text eol=lf
+go.sum text eol=lf
+
+# Markdown and text — auto (doesn't matter for runtime)
+*.md text eol=lf
+*.json text eol=lf
+*.po text eol=lf
+*.py text eol=lf
+
+# Binary files — no conversion
+dist/binaries/* binary
+dist/packages/*.ipk binary
+dist/*.ipk binary

@@ -163,6 +163,13 @@ start_main() {
     mkdir -p "$TMP_SING_BOX_FOLDER"
     mkdir -p "$TMP_RULESET_FOLDER"
 
+    # Configure dnsmasq to forward DNS to sing-box
+    local dont_touch_dhcp
+    config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
+    if [ "$dont_touch_dhcp" -eq 0 ]; then
+        dnsmasq_configure
+    fi
+
     # base
     route_table_rule_mark
     create_nft_rules
@@ -173,18 +180,20 @@ start_main() {
     config_foreach add_cron_job "section"
     /etc/init.d/sing-box start
 
-    log "Nice"
+    uci_set "obhod" "settings" "shutdown_correctly" 0
+    uci commit "obhod" && config_load "$OBHOD_CONFIG"
+
+    # Start background list update
     list_update &
     echo $! > /var/run/obhod_list_update.pid
 
-    log "Starting Watchdog (Go version)"
-    /usr/bin/obhoud watchdog -interval 30s &
-    echo $! > /var/run/obhod_watchdog.pid
+    log "Obhod setup complete. Watchdog is managed by procd."
 }
 
 stop_main() {
     log "Stopping the obhod"
 
+    # Stop background list update if running
     if [ -f /var/run/obhod_list_update.pid ]; then
         pid=$(cat /var/run/obhod_list_update.pid)
         if kill -0 "$pid" 2> /dev/null; then
@@ -194,18 +203,20 @@ stop_main() {
         rm -f /var/run/obhod_list_update.pid
     fi
 
-    if [ -f /var/run/obhod_watchdog.pid ]; then
-        pid=$(cat /var/run/obhod_watchdog.pid)
-        if kill -0 "$pid" 2> /dev/null; then
-            kill "$pid" 2> /dev/null
-            log "Stopped Watchdog"
-        fi
-        rm -f /var/run/obhod_watchdog.pid
-    fi
+    # Note: watchdog is managed by procd and killed automatically.
+    # We clean up any stale PID file from old manual launches just in case.
+    rm -f /var/run/obhod_watchdog.pid
 
     remove_cron_job
 
     rm -f "$TMP_RULESET_FOLDER"/*
+
+    # Restore dnsmasq before stopping sing-box
+    local dont_touch_dhcp
+    config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
+    if [ "$dont_touch_dhcp" -eq 0 ]; then
+        dnsmasq_restore
+    fi
 
     log "Flush nft"
     if nft list table inet "$NFT_TABLE_NAME" > /dev/null 2>&1; then
@@ -213,7 +224,7 @@ stop_main() {
     fi
 
     log "Flush ip rule"
-    if ip rule list | grep -q "obhod"; then
+    if ip rule list | grep -q "fwmark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK"; then
         ip rule del fwmark "$NFT_FAKEIP_MARK"/"$NFT_FAKEIP_MARK" table "$RT_TABLE_NAME" priority 105
     fi
 
@@ -224,31 +235,18 @@ stop_main() {
 
     log "Stop sing-box"
     /etc/init.d/sing-box stop
-}
-
-start() {
-    start_main
-
-    config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
-    if [ "$dont_touch_dhcp" -eq 0 ]; then
-        dnsmasq_configure
-    fi
-
-    uci_set "obhod" "settings" "shutdown_correctly" 0
-    uci commit "obhod" && config_load "$OBHOD_CONFIG"
-}
-
-stop() {
-    local dont_touch_dhcp
-    config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
-    if [ "$dont_touch_dhcp" -eq 0 ]; then
-        dnsmasq_restore
-    fi
-
-    stop_main
 
     uci_set "obhod" "settings" "shutdown_correctly" 1
     uci commit "obhod" && config_load "$OBHOD_CONFIG"
+}
+
+# CLI aliases for convenience (e.g., /usr/bin/obhod start from terminal)
+start() {
+    start_main
+}
+
+stop() {
+    stop_main
 }
 
 reload() {
@@ -259,8 +257,8 @@ reload() {
 
 restart() {
     log "Obhod restart"
-    stop
-    start
+    stop_main
+    start_main
 }
 
 # Migrations and validation funcs

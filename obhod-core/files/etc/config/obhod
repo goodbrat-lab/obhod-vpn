@@ -1,4 +1,5 @@
 config settings 'settings'
+        option enabled '1'
         option dns_type 'udp'
         option dns_server '77.88.8.8'
         option bootstrap_dns_server '77.88.8.8'
