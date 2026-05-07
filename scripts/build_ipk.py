@@ -133,7 +133,8 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 """
-    (ctrl_dir / "control").write_text(control_text)
+    # IMPORTANT: all text files must use LF (not CRLF) — opkg rejects CRLF in control
+    (ctrl_dir / "control").write_bytes(control_text.encode("utf-8"))
 
     postinst_text = """#!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
@@ -141,7 +142,7 @@ chmod +x /usr/bin/obhoud /usr/bin/obhod /etc/init.d/obhod 2>/dev/null
 /etc/init.d/obhod enable 2>/dev/null
 exit 0
 """
-    (ctrl_dir / "postinst").write_text(postinst_text)
+    (ctrl_dir / "postinst").write_bytes(postinst_text.encode("utf-8"))
 
     prerm_text = """#!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
@@ -150,7 +151,7 @@ exit 0
 grep -q "105 obhod" /etc/iproute2/rt_tables 2>/dev/null && sed -i "/105 obhod/d" /etc/iproute2/rt_tables
 exit 0
 """
-    (ctrl_dir / "prerm").write_text(prerm_text)
+    (ctrl_dir / "prerm").write_bytes(prerm_text.encode("utf-8"))
 
     control_tar = tmp_dir / "control.tar.gz"
     with tarfile.open(control_tar, "w:gz", format=tarfile.GNU_FORMAT) as tar:
@@ -181,9 +182,9 @@ def build_ipk(suffix: str, arch_ipk: str):
         data_tar    = build_data_tar(tmp_dir, binary_path)
         control_tar = build_control_tar(tmp_dir, arch_ipk, binary_path)
 
-        # debian-binary
+        # debian-binary must be LF only
         debian_binary = tmp_dir / "debian-binary"
-        debian_binary.write_text("2.0\n")
+        debian_binary.write_bytes(b"2.0\n")
 
         # Final .ipk = tar of {debian-binary, control.tar.gz, data.tar.gz}
         # MUST be GNU_FORMAT — busybox opkg cannot parse PAX headers

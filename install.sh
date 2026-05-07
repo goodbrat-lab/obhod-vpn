@@ -70,7 +70,7 @@ fi
 
 # 5. Install Obhod
 echo "Installing Obhod..."
-opkg install --force-reinstall /tmp/obhod.ipk
+opkg install --force-overwrite /tmp/obhod.ipk
 rm -f /tmp/obhod.ipk
 
 # 6. Post-install
