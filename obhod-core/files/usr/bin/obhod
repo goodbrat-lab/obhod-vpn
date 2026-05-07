@@ -177,8 +177,8 @@ start_main() {
     list_update &
     echo $! > /var/run/obhod_list_update.pid
 
-    log "Starting Watchdog"
-    /usr/bin/obhod-watchdog &
+    log "Starting Watchdog (Go version)"
+    /usr/bin/obhoud watchdog -interval 30s &
     echo $! > /var/run/obhod_watchdog.pid
 }
 

@@ -1,10 +1,17 @@
 #!/bin/bash
 
-# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - UNIVERSAL NAME
-VERSION="0.2.1"
+# ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - ARCH SPECIFIC
+VERSION="0.3.0"
 RELEASE="1"
 
-BUILD_DIR="/tmp/obhod_v0208_build"
+ARCH=$1
+if [ -z "$ARCH" ]; then
+    echo "Usage: $0 <arch>"
+    echo "Common architectures: mipsle_softfloat, mips_softfloat, arm64, arm_v7, amd64"
+    exit 1
+fi
+
+BUILD_DIR="/tmp/obhod_build_$ARCH"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/data" "$BUILD_DIR/control"
 
@@ -18,8 +25,15 @@ mkdir -p "$BUILD_DIR/data/etc/uci-defaults"
 # Copy core files
 cp "/root/Obhod project/obhod-core/files/usr/bin/obhod" "$BUILD_DIR/data/usr/bin/obhod"
 chmod +x "$BUILD_DIR/data/usr/bin/obhod"
-cp "/root/Obhod project/obhod-core/files/usr/bin/obhod-watchdog" "$BUILD_DIR/data/usr/bin/obhod-watchdog"
-chmod +x "$BUILD_DIR/data/usr/bin/obhod-watchdog"
+
+# Copy Go binary for specific architecture
+GO_BINARY="/root/Obhod project/dist/binaries/obhoud_linux_$ARCH"
+if [ ! -f "$GO_BINARY" ]; then
+    echo "Error: Go binary not found for $ARCH at $GO_BINARY"
+    exit 1
+fi
+cp "$GO_BINARY" "$BUILD_DIR/data/usr/bin/obhoud"
+chmod +x "$BUILD_DIR/data/usr/bin/obhoud"
 
 # Copy libraries
 cp "/root/Obhod project/obhod-core/files/usr/lib/"* "$BUILD_DIR/data/usr/lib/obhod/"
@@ -39,18 +53,27 @@ mkdir -p "$BUILD_DIR/data/usr/share/rpcd/acl.d"
 cp "/root/Obhod project/luci-app-obhod/root/usr/share/luci/menu.d/luci-app-obhod.json" "$BUILD_DIR/data/usr/share/luci/menu.d/"
 cp "/root/Obhod project/luci-app-obhod/root/usr/share/rpcd/acl.d/luci-app-obhod.json" "$BUILD_DIR/data/usr/share/rpcd/acl.d/"
 cp "/root/Obhod project/luci-app-obhod/root/etc/uci-defaults/50_luci-obhod" "$BUILD_DIR/data/etc/uci-defaults/"
+
+# Localization (Compile PO to LMO and install to both paths for compatibility)
 mkdir -p "$BUILD_DIR/data/usr/lib/lua/luci/i18n"
-cp "/root/Obhod project/luci-app-obhod/root/usr/lib/lua/luci/i18n/obhod.ru.lmo" "$BUILD_DIR/data/usr/lib/lua/luci/i18n/" 2>/dev/null || true
+mkdir -p "$BUILD_DIR/data/usr/share/luci/i18n"
+python3 "/root/Obhod project/scripts/compile_lmo.py" \
+    "/root/Obhod project/luci-app-obhod/po/ru/obhod.po" \
+    "$BUILD_DIR/data/usr/share/luci/i18n/obhod.ru.lmo"
+cp "$BUILD_DIR/data/usr/share/luci/i18n/obhod.ru.lmo" "$BUILD_DIR/data/usr/lib/lua/luci/i18n/obhod.ru.lmo"
 
 # 3. Control & Post-Install Script
+# Map OpenWrt arch names if needed (this ARCH is our binary suffix)
+PKG_ARCH=$(echo $ARCH | cut -d'_' -f1)
+
 cat <<EOF > "$BUILD_DIR/control/control"
 Package: obhod
 Version: $VERSION-$RELEASE
 Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-base, luci-compat, rpcd-mod-file, coreutils-base64
 Section: net
-Architecture: all
+Architecture: $PKG_ARCH
 Maintainer: Obhod Team
-Description: Obhod VPN (Universal Package)
+Description: Obhod VPN with Go Core ($ARCH)
 EOF
 
 cat <<EOF > "$BUILD_DIR/control/postinst"
@@ -66,11 +89,11 @@ EOF
 chmod +x "$BUILD_DIR/control/postinst"
 
 # 4. Assembly
-mkdir -p "/root/Obhod project/dist"
+mkdir -p "/root/Obhod project/dist/packages"
 cd "$BUILD_DIR/data" && tar -czf "../data.tar.gz" .
 cd "$BUILD_DIR/control" && tar -czf "../control.tar.gz" .
 cd "$BUILD_DIR"
 echo "2.0" > debian-binary
-tar -czf "/root/Obhod project/dist/obhod_universal.ipk" debian-binary data.tar.gz control.tar.gz
+tar -czf "/root/Obhod project/dist/packages/obhod_${VERSION}-${RELEASE}_${ARCH}.ipk" debian-binary data.tar.gz control.tar.gz
 
-echo "Built: obhod_universal.ipk"
+echo "Built: obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"

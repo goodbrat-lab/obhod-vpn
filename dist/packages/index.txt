@@ -1,0 +1,5 @@
+mipsle_softfloat:obhod_0.3.0-1_mipsle_softfloat.ipk
+mips_softfloat:obhod_0.3.0-1_mips_softfloat.ipk
+arm64:obhod_0.3.0-1_arm64.ipk
+arm_v7:obhod_0.3.0-1_arm_v7.ipk
+amd64:obhod_0.3.0-1_amd64.ipk

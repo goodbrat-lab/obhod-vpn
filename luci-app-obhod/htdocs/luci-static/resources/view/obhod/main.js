@@ -240,12 +240,12 @@ function validateVlessUrl(url) {
     if (!url.startsWith("vless://"))
       return {
         valid: false,
-        message: "Invalid VLESS URL: must start with vless://"
+        message: _("Invalid VLESS URL: must start with vless://")
       };
     if (/\s/.test(url))
       return {
         valid: false,
-        message: "Invalid VLESS URL: must not contain spaces"
+        message: _("Invalid VLESS URL: must not contain spaces")
       };
     const body = url.slice("vless://".length);
     const [mainPart] = body.split("#");
@@ -253,29 +253,29 @@ function validateVlessUrl(url) {
     if (!userHostPort)
       return {
         valid: false,
-        message: "Invalid VLESS URL: missing host and UUID"
+        message: _("Invalid VLESS URL: missing host and UUID")
       };
     const [userPart, hostPortPart] = userHostPort.split("@");
     if (!userPart)
-      return { valid: false, message: "Invalid VLESS URL: missing UUID" };
+      return { valid: false, message: _("Invalid VLESS URL: missing UUID") };
     if (!hostPortPart)
-      return { valid: false, message: "Invalid VLESS URL: missing server" };
+      return { valid: false, message: _("Invalid VLESS URL: missing server") };
     const [host, port] = hostPortPart.split(":");
     if (!host)
-      return { valid: false, message: "Invalid VLESS URL: missing hostname" };
+      return { valid: false, message: _("Invalid VLESS URL: missing hostname") };
     if (!port)
-      return { valid: false, message: "Invalid VLESS URL: missing port" };
+      return { valid: false, message: _("Invalid VLESS URL: missing port") };
     const cleanedPort = port.replace("/", "");
     const portNum = Number(cleanedPort);
     if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535)
       return {
         valid: false,
-        message: "Invalid VLESS URL: invalid port number"
+        message: _("Invalid VLESS URL: invalid port number")
       };
     if (!queryString)
       return {
         valid: false,
-        message: "Invalid VLESS URL: missing query parameters"
+        message: _("Invalid VLESS URL: missing query parameters")
       };
     const params = parseQueryString(queryString);
     const validTypes = [
@@ -293,29 +293,29 @@ function validateVlessUrl(url) {
     if (!params.type || !validTypes.includes(params.type))
       return {
         valid: false,
-        message: "Invalid VLESS URL: unsupported or missing type"
+        message: _("Invalid VLESS URL: unsupported or missing type")
       };
     if (!params.security || !validSecurities.includes(params.security))
       return {
         valid: false,
-        message: "Invalid VLESS URL: unsupported or missing security"
+        message: _("Invalid VLESS URL: unsupported or missing security")
       };
     if (params.security === "reality") {
       if (!params.pbk)
         return {
           valid: false,
-          message: "Invalid VLESS URL: missing pbk for reality"
+          message: _("Invalid VLESS URL: missing pbk for reality")
         };
       if (!params.fp)
         return {
           valid: false,
-          message: "Invalid VLESS URL: missing fp for reality"
+          message: _("Invalid VLESS URL: missing fp for reality")
         };
     }
     if (params.flow === "xtls-rprx-vision-udp443") {
       return {
         valid: false,
-        message: "Invalid VLESS URL: flow xtls-rprx-vision-udp443 is not supported"
+        message: _("Invalid VLESS URL: flow xtls-rprx-vision-udp443 is not supported")
       };
     }
     return { valid: true, message: _("Valid") };
@@ -356,25 +356,25 @@ function validateTrojanUrl(url) {
     if (!userHostPort)
       return {
         valid: false,
-        message: "Invalid Trojan URL: missing credentials and host"
+        message: _("Invalid Trojan URL: missing credentials and host")
       };
     if (!userPart)
-      return { valid: false, message: "Invalid Trojan URL: missing password" };
+      return { valid: false, message: _("Invalid Trojan URL: missing password") };
     if (!hostPortPart)
       return {
         valid: false,
-        message: "Invalid Trojan URL: missing hostname and port"
+        message: _("Invalid Trojan URL: missing hostname and port")
       };
     const [host, port] = hostPortPart.split(":");
     if (!host)
-      return { valid: false, message: "Invalid Trojan URL: missing hostname" };
+      return { valid: false, message: _("Invalid Trojan URL: missing hostname") };
     if (!port)
-      return { valid: false, message: "Invalid Trojan URL: missing port" };
+      return { valid: false, message: _("Invalid Trojan URL: missing port") };
     const portNum = Number(port);
     if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535)
       return {
         valid: false,
-        message: "Invalid Trojan URL: invalid port number"
+        message: _("Invalid Trojan URL: invalid port number")
       };
   } catch (_e) {
     return { valid: false, message: _("Invalid Trojan URL: parsing failed") };
