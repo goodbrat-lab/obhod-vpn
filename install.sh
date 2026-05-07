@@ -13,7 +13,8 @@ echo "  Obhod VPN Installer v${VERSION}"
 echo "=========================================="
 
 # 1. Detect architecture (opkg canonical name)
-ARCH=$(opkg print-architecture | awk '{print $2}' | grep -v "all" | head -n1)
+# opkg print-architecture lists pseudo-archs first (all, noarch), then real ones
+ARCH=$(opkg print-architecture | awk '{print $2}' | grep -vE "^(all|noarch)$" | head -n1)
 echo "Detected architecture: $ARCH"
 
 # 2. Map to package name
