@@ -83,6 +83,32 @@ def build_data_tar(tmp_dir: Path, binary_path: Path) -> Path:
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 files[f] = dest
 
+    # --- LuCI UI files (menu entry + JS views + ACL) ---
+    LUCI_SRC = BASE_DIR / "luci-app-obhod"
+
+    # JS view files → /www/luci-static/resources/view/obhod/
+    js_view_src = LUCI_SRC / "htdocs/luci-static/resources/view/obhod"
+    if js_view_src.exists():
+        for f in js_view_src.iterdir():
+            if f.is_file():
+                dest = data_dir / "www/luci-static/resources/view/obhod" / f.name
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                files[f] = dest
+
+    # Menu descriptor → /usr/share/luci/menu.d/
+    menu_src = LUCI_SRC / "root/usr/share/luci/menu.d/luci-app-obhod.json"
+    if menu_src.exists():
+        dest = data_dir / "usr/share/luci/menu.d/luci-app-obhod.json"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        files[menu_src] = dest
+
+    # ACL → /usr/share/rpcd/acl.d/
+    acl_src = LUCI_SRC / "root/usr/share/rpcd/acl.d/luci-app-obhod.json"
+    if acl_src.exists():
+        dest = data_dir / "usr/share/rpcd/acl.d/luci-app-obhod.json"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        files[acl_src] = dest
+
     for src, dst in files.items():
         if not src.exists():
             print(f"  WARNING: missing source file: {src}")
@@ -140,6 +166,9 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
 [ -n "${IPKG_INSTROOT}" ] && exit 0
 chmod +x /usr/bin/obhoud /usr/bin/obhod /etc/init.d/obhod 2>/dev/null
 /etc/init.d/obhod enable 2>/dev/null
+# Clear LuCI cache so the menu entry appears immediately
+rm -rf /tmp/luci-indexcache* /tmp/luci-modulecache/ 2>/dev/null
+/etc/init.d/rpcd restart 2>/dev/null
 exit 0
 """
     (ctrl_dir / "postinst").write_bytes(postinst_text.encode("utf-8"))
