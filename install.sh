@@ -45,20 +45,7 @@ PKG_URL="${REPO_RAW}/dist/packages/${PKG_NAME}"
 
 echo "Package: $PKG_NAME"
 
-# 3. Download
-echo "Downloading..."
-wget --no-check-certificate -q --show-progress -O /tmp/obhod.ipk "$PKG_URL" 2>/dev/null || \
-wget --no-check-certificate -O /tmp/obhod.ipk "$PKG_URL"
-
-if [ ! -s /tmp/obhod.ipk ]; then
-    echo "ERROR: Download failed or file is empty!"
-    echo "URL: $PKG_URL"
-    exit 1
-fi
-
-echo "Downloaded: $(wc -c < /tmp/obhod.ipk) bytes"
-
-# 4. Check dependencies
+# 3. Update package lists first (before downloading .ipk to avoid false warnings)
 echo "Updating package lists..."
 opkg update 2>/dev/null || true
 
@@ -68,10 +55,25 @@ if ! opkg list-installed | grep -q "^sing-box "; then
     opkg install sing-box || echo "WARNING: could not install sing-box, please install manually"
 fi
 
+# 4. Download (use unique name to avoid opkg scanning it)
+IPK_TMP="/tmp/obhod_$$.ipk"
+echo "Downloading $PKG_NAME..."
+wget --no-check-certificate -q --show-progress -O "$IPK_TMP" "$PKG_URL" 2>/dev/null || \
+wget --no-check-certificate -O "$IPK_TMP" "$PKG_URL"
+
+if [ ! -s "$IPK_TMP" ]; then
+    echo "ERROR: Download failed or file is empty!"
+    echo "URL: $PKG_URL"
+    exit 1
+fi
+
+echo "Downloaded: $(wc -c < "$IPK_TMP") bytes"
+
 # 5. Install Obhod
 echo "Installing Obhod..."
-opkg install --force-overwrite /tmp/obhod.ipk
-rm -f /tmp/obhod.ipk
+opkg install --force-overwrite "$IPK_TMP"
+rm -f "$IPK_TMP"
+
 
 # 6. Post-install
 echo ""
