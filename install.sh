@@ -1,64 +1,86 @@
 #!/bin/sh
 
-# Obhod VPN One-Line Installer (Architecture-Aware) v0.3.0
-# Usage: sh <(wget -qO- "https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh?$(date +%s)")
+# Obhod VPN Installer v0.3.0
+# Usage: sh <(wget -qO- "https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh")
 
 set -e
 
-echo "--- Obhod VPN Installer v0.3.0 (with Go Core) ---"
+REPO_RAW="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main"
+VERSION="0.3.0-1"
 
-# 1. Detect Architecture
-ARCH_OPENWRT=$(opkg print-architecture | head -n 1 | awk '{print $2}')
-echo "Detected OpenWrt architecture: $ARCH_OPENWRT"
+echo "=========================================="
+echo "  Obhod VPN Installer v${VERSION}"
+echo "=========================================="
 
-# Map OpenWrt architecture to our package suffix
-case "$ARCH_OPENWRT" in
-    "mipsel_24kc"|"mipsel_74kc"|"mipsle")
-        ARCH_SUFFIX="mipsle_softfloat"
-        ;;
-    "mips_24kc"|"mips_74kc"|"mips")
-        ARCH_SUFFIX="mips_softfloat"
-        ;;
-    "aarch64_generic"|"arm64")
-        ARCH_SUFFIX="arm64"
-        ;;
-    "arm_cortex-a7_neon-vfpv4"|"arm_cortex-a15_neon-vfpv4"|"arm_v7")
-        ARCH_SUFFIX="arm_v7"
-        ;;
-    "x86_64"|"amd64")
-        ARCH_SUFFIX="amd64"
-        ;;
+# 1. Detect architecture (opkg canonical name)
+ARCH=$(opkg print-architecture | awk '{print $2}' | grep -v "all" | head -n1)
+echo "Detected architecture: $ARCH"
+
+# 2. Map to package name
+case "$ARCH" in
+    mipsel_24kc|mipsel_74kc|mipsel_mips32)
+        PKG_ARCH="mipsel_24kc" ;;
+    mips_24kc|mips_74kc|mips_mips32)
+        PKG_ARCH="mips_24kc" ;;
+    aarch64_cortex-a53|aarch64_cortex-a72|aarch64_generic)
+        PKG_ARCH="aarch64_cortex-a53" ;;
+    arm_cortex-a7_neon-vfpv4|arm_cortex-a15_neon-vfpv4|arm_cortex-a9)
+        PKG_ARCH="arm_cortex-a7_neon-vfpv4" ;;
+    x86_64)
+        PKG_ARCH="x86_64" ;;
     *)
-        echo "Warning: Unknown architecture $ARCH_OPENWRT. Attempting universal/mipsle fallback..."
-        ARCH_SUFFIX="mipsle_softfloat"
-        ;;
+        echo ""
+        echo "WARNING: Unknown architecture '$ARCH'"
+        echo "Available packages: mipsel_24kc, mips_24kc, aarch64_cortex-a53,"
+        echo "                    arm_cortex-a7_neon-vfpv4, x86_64"
+        echo ""
+        echo "Set PKG_ARCH manually and re-run:"
+        echo "  PKG_ARCH=mipsel_24kc sh <(wget -qO- $REPO_RAW/install.sh)"
+        exit 1 ;;
 esac
 
-echo "Selected binary variant: $ARCH_SUFFIX"
+PKG_NAME="obhod_${VERSION}_${PKG_ARCH}.ipk"
+PKG_URL="${REPO_RAW}/dist/packages/${PKG_NAME}"
 
-# 2. Base URL (pointing to GitHub dist/packages)
-BASE_URL="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/packages"
+echo "Package: $PKG_NAME"
 
-# 3. Download the specific package
-# Note: In production, you would push the built packages to the GitHub repo.
-# Filename pattern: obhod_0.3.0-1_<ARCH_SUFFIX>.ipk
-PKG_NAME="obhod_0.3.0-1_${ARCH_SUFFIX}.ipk"
-PKG_URL="${BASE_URL}/${PKG_NAME}"
-
-echo "Downloading package: $PKG_NAME"
+# 3. Download
+echo "Downloading..."
+wget --no-check-certificate -q --show-progress -O /tmp/obhod.ipk "$PKG_URL" 2>/dev/null || \
 wget --no-check-certificate -O /tmp/obhod.ipk "$PKG_URL"
 
 if [ ! -s /tmp/obhod.ipk ]; then
-    echo "Error: Download failed or file is empty. Check your internet connection or GitHub repo state."
+    echo "ERROR: Download failed or file is empty!"
+    echo "URL: $PKG_URL"
     exit 1
 fi
 
-# 4. Install
-echo "Installing Obhod VPN..."
-opkg update
-# Force dependencies for 24.xx+
-opkg install --force-reinstall /tmp/obhod.ipk
+echo "Downloaded: $(wc -c < /tmp/obhod.ipk) bytes"
 
-echo "--- Installation Complete ---"
-echo "Please refresh your browser (Ctrl+F5). Menu: Services -> Obhod"
-echo "Watchdog (Go core) is now active."
+# 4. Check dependencies
+echo "Updating package lists..."
+opkg update 2>/dev/null || true
+
+# Install sing-box if not present
+if ! opkg list-installed | grep -q "^sing-box "; then
+    echo "Installing sing-box..."
+    opkg install sing-box || echo "WARNING: could not install sing-box, please install manually"
+fi
+
+# 5. Install Obhod
+echo "Installing Obhod..."
+opkg install --force-reinstall /tmp/obhod.ipk
+rm -f /tmp/obhod.ipk
+
+# 6. Post-install
+echo ""
+echo "=========================================="
+echo "  Obhod installed successfully!"
+echo "=========================================="
+echo ""
+echo "  Next steps:"
+echo "  1. Edit /etc/config/obhod — set your VPN proxy_string"
+echo "  2. Enable: /etc/init.d/obhod enable"
+echo "  3. Start:  /etc/init.d/obhod start"
+echo "  4. Check logs: logread | grep obhod"
+echo ""
