@@ -10,13 +10,13 @@ REPO_RAW="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main"
 VERSION="0.3.0-5"
 
 echo "=========================================="
-echo "  Obhod VPN Installer v${VERSION}"
+echo "  Установщик Obhod VPN v${VERSION}"
 echo "=========================================="
 
 # 1. Detect architecture (opkg canonical name)
 # opkg print-architecture lists pseudo-archs first (all, noarch), then real ones
 ARCH=$(opkg print-architecture | awk '{print $2}' | grep -vE "^(all|noarch)$" | head -n1)
-echo "Detected architecture: $ARCH"
+echo "Определена архитектура: $ARCH"
 
 # 2. Map to package name
 case "$ARCH" in
@@ -32,11 +32,11 @@ case "$ARCH" in
         PKG_ARCH="x86_64" ;;
     *)
         echo ""
-        echo "WARNING: Unknown architecture '$ARCH'"
-        echo "Available packages: mipsel_24kc, mips_24kc, aarch64_cortex-a53,"
+        echo "ВНИМАНИЕ: Неизвестная архитектура '$ARCH'"
+        echo "Доступные пакеты: mipsel_24kc, mips_24kc, aarch64_cortex-a53,"
         echo "                    arm_cortex-a7_neon-vfpv4, x86_64"
         echo ""
-        echo "Set PKG_ARCH manually and re-run:"
+        echo "Задайте PKG_ARCH вручную и запустите снова:"
         echo "  PKG_ARCH=mipsel_24kc sh <(wget -qO- $REPO_RAW/install.sh)"
         exit 1 ;;
 esac
@@ -44,34 +44,34 @@ esac
 PKG_NAME="obhod_${VERSION}_${PKG_ARCH}.ipk"
 PKG_URL="${REPO_RAW}/dist/packages/${PKG_NAME}"
 
-echo "Package: $PKG_NAME"
+echo "Пакет: $PKG_NAME"
 
 # 3. Update package lists first (before downloading .ipk to avoid false warnings)
-echo "Updating package lists..."
+echo "Обновление списков пакетов..."
 opkg update 2>/dev/null || true
 
 # Install sing-box if not present
 if ! opkg list-installed | grep -q "^sing-box "; then
-    echo "Installing sing-box..."
-    opkg install sing-box || echo "WARNING: could not install sing-box, please install manually"
+    echo "Установка sing-box..."
+    opkg install sing-box || echo "ВНИМАНИЕ: не удалось установить sing-box, пожалуйста, установите вручную"
 fi
 
 # 4. Download (use unique name to avoid opkg scanning it)
 IPK_TMP="/tmp/obhod_$$.ipk"
-echo "Downloading $PKG_NAME..."
+echo "Скачивание $PKG_NAME..."
 wget --no-check-certificate -q --show-progress -O "$IPK_TMP" "$PKG_URL" 2>/dev/null || \
 wget --no-check-certificate -O "$IPK_TMP" "$PKG_URL"
 
 if [ ! -s "$IPK_TMP" ]; then
-    echo "ERROR: Download failed or file is empty!"
+    echo "ОШИБКА: Сбой скачивания или файл пуст!"
     echo "URL: $PKG_URL"
     exit 1
 fi
 
-echo "Downloaded: $(wc -c < "$IPK_TMP") bytes"
+echo "Скачано: $(wc -c < "$IPK_TMP") байт"
 
 # 5. Install Obhod
-echo "Installing Obhod..."
+echo "Установка Obhod..."
 opkg install --force-overwrite "$IPK_TMP"
 rm -f "$IPK_TMP"
 
@@ -79,12 +79,12 @@ rm -f "$IPK_TMP"
 # 6. Post-install
 echo ""
 echo "=========================================="
-echo "  Obhod installed successfully!"
+echo "  Obhod успешно установлен!"
 echo "=========================================="
 echo ""
-echo "  Next steps:"
-echo "  1. Edit /etc/config/obhod — set your VPN proxy_string"
-echo "  2. Enable: /etc/init.d/obhod enable"
-echo "  3. Start:  /etc/init.d/obhod start"
-echo "  4. Check logs: logread | grep obhod"
+echo "  Дальнейшие шаги:"
+echo "  1. Откройте веб-интерфейс (LuCI) в меню: Сервисы -> Obhod"
+echo "  2. Добавьте вашу подписку или ссылку на прокси"
+echo "  3. Поставьте галочку \"Включить\" и нажмите \"Сохранить и применить\""
+echo "  4. Проверьте логи: logread | grep obhod"
 echo ""
