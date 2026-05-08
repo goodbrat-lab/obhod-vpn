@@ -7,7 +7,7 @@
 set -e
 
 REPO_RAW="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main"
-VERSION="0.3.0-2"
+VERSION="0.3.0-3"
 
 echo "=========================================="
 echo "  Obhod VPN Installer v${VERSION}"

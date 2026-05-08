@@ -134,7 +134,6 @@ function createSectionContent(section) {
     _("vless://, ss://, trojan://, socks4/5://, hy2/hysteria2:// links")
   );
   o.depends("proxy_config_type", "urltest");
-  o.depends("proxy_config_type", "subscription");
   o.rmempty = false;
   o.validate = function (section_id, value) {
     // Optional
