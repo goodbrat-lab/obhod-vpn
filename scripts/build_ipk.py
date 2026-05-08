@@ -14,7 +14,7 @@ from pathlib import Path
 
 # --- Config ---
 VERSION = "0.3.0"
-RELEASE = "1"
+RELEASE = "2"
 
 BASE_DIR = Path(__file__).parent.parent.resolve()
 CORE_FILES = BASE_DIR / "obhod-core" / "files"

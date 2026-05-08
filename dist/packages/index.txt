@@ -1,5 +1,5 @@
-obhod_0.3.0-1_mipsel_24kc.ipk
-obhod_0.3.0-1_mips_24kc.ipk
-obhod_0.3.0-1_aarch64_cortex-a53.ipk
-obhod_0.3.0-1_arm_cortex-a7_neon-vfpv4.ipk
-obhod_0.3.0-1_x86_64.ipk
+obhod_0.3.0-2_mipsel_24kc.ipk
+obhod_0.3.0-2_mips_24kc.ipk
+obhod_0.3.0-2_aarch64_cortex-a53.ipk
+obhod_0.3.0-2_arm_cortex-a7_neon-vfpv4.ipk
+obhod_0.3.0-2_x86_64.ipk
