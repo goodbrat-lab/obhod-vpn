@@ -14,7 +14,7 @@ from pathlib import Path
 
 # --- Config ---
 VERSION = "0.3.0"
-RELEASE = "3"
+RELEASE = "5"
 
 BASE_DIR = Path(__file__).parent.parent.resolve()
 CORE_FILES = BASE_DIR / "obhod-core" / "files"
@@ -79,7 +79,7 @@ def build_data_tar(tmp_dir: Path, binary_path: Path) -> Path:
         for f in lib_src.rglob("*"):
             if f.is_file():
                 rel = f.relative_to(lib_src)
-                dest = data_dir / "usr/lib" / rel
+                dest = data_dir / "usr/lib/obhod" / rel
                 dest.parent.mkdir(parents=True, exist_ok=True)
                 files[f] = dest
 

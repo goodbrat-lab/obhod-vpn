@@ -83,13 +83,29 @@ check_requirements() {
     fi
 }
 
+_append_proxy_link() {
+    local link="$1"
+    if [ -z "$_proxy_links" ]; then
+        _proxy_links="$link"
+    else
+        _proxy_links="$_proxy_links $link"
+    fi
+}
+
 _check_outbound_section() {
     local section="$1"
-    local proxy_string interface outbound_json urltest_proxy_links subscription_url
+    local proxy_string interface outbound_json urltest_proxy_links subscription_url selector_proxy_links
 
     config_get proxy_string "$section" "proxy_string"
-    config_get selector_proxy_links "$section" "selector_proxy_links"
-    config_get urltest_proxy_links "$section" "urltest_proxy_links"
+    
+    _proxy_links=""
+    config_list_foreach "$section" "selector_proxy_links" _append_proxy_link
+    selector_proxy_links="$_proxy_links"
+    
+    _proxy_links=""
+    config_list_foreach "$section" "urltest_proxy_links" _append_proxy_link
+    urltest_proxy_links="$_proxy_links"
+    
     config_get outbound_json "$section" "outbound_json"
     config_get interface "$section" "interface"
     config_get subscription_url "$section" "subscription_url"
@@ -699,7 +715,11 @@ configure_outbound_handler() {
         selector)
             log "Detected proxy configuration type: selector" "debug"
             local selector_proxy_links udp_over_tcp i outbound_tags outbound_tag default_outbound
-            config_get selector_proxy_links "$section" "selector_proxy_links"
+            
+            _proxy_links=""
+            config_list_foreach "$section" "selector_proxy_links" _append_proxy_link
+            selector_proxy_links="$_proxy_links"
+            
             config_get udp_over_tcp "$section" "enable_udp_over_tcp"
 
             if [ -z "$selector_proxy_links" ]; then
@@ -785,7 +805,11 @@ configure_outbound_handler() {
             log "Detected proxy configuration type: urltest" "debug"
             local urltest_proxy_links udp_over_tcp i urltest_tag selector_tag outbound_tag outbound_tags \
                 urltest_outbounds selector_outbounds urltest_check_interval urltest_tolerance urltest_testing_url
-            config_get urltest_proxy_links "$section" "urltest_proxy_links"
+                
+            _proxy_links=""
+            config_list_foreach "$section" "urltest_proxy_links" _append_proxy_link
+            urltest_proxy_links="$_proxy_links"
+            
             config_get udp_over_tcp "$section" "enable_udp_over_tcp"
             config_get urltest_check_interval "$section" "urltest_check_interval" "3m"
             config_get urltest_tolerance "$section" "urltest_tolerance" 50
