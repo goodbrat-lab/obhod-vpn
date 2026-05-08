@@ -1641,8 +1641,16 @@ get_download_detour_tag() {
     if [ "$download_lists_via_proxy" -eq 1 ]; then
         local download_lists_via_proxy_section section_outbound_tag
         config_get download_lists_via_proxy_section "settings" "download_lists_via_proxy_section"
-        section_outbound_tag="$(get_outbound_tag_by_section "$download_lists_via_proxy_section")"
-        echo "$section_outbound_tag"
+        if [ -z "$download_lists_via_proxy_section" ]; then
+            download_lists_via_proxy_section="$(get_first_outbound_section)"
+        fi
+        
+        if [ -n "$download_lists_via_proxy_section" ]; then
+            section_outbound_tag="$(get_outbound_tag_by_section "$download_lists_via_proxy_section")"
+            echo "$section_outbound_tag"
+        else
+            echo ""
+        fi
     else
         echo ""
     fi
@@ -1650,23 +1658,19 @@ get_download_detour_tag() {
 
 _determine_first_outbound_section() {
     local section="$1"
-
     local connection_type
     config_get connection_type "$section" "connection_type"
-
-    if [ "$connection_type" = "proxy" ] || [ "$connection_type" = "vpn" ]; then
-        [ -z "$first_section" ] && first_section="$1"
+    
+    if [ "$connection_type" = "proxy" ] || [ "$connection_type" = "vpn" ] || [ "$connection_type" = "urltest" ] || [ "$connection_type" = "selector" ]; then
+        [ -z "$first_outbound_section" ] && first_outbound_section="$section"
     fi
 }
 
 get_first_outbound_section() {
-    local first_section=""
-
+    export first_outbound_section=""
     config_foreach _determine_first_outbound_section "section"
-
-    echo "$first_section"
+    echo "$first_outbound_section"
 }
-
 get_sections_by_connection_type() {
     local connection_type="$1"
 
