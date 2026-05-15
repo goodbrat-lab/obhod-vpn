@@ -7,7 +7,7 @@
 set -e
 
 REPO_RAW="https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main"
-VERSION="0.3.0-5"
+VERSION="0.3.0-6"
 
 echo "=========================================="
 echo "  Установщик Obhod VPN v${VERSION}"
@@ -72,7 +72,7 @@ echo "Скачано: $(wc -c < "$IPK_TMP") байт"
 
 # 5. Install Obhod
 echo "Установка Obhod..."
-opkg install --force-overwrite "$IPK_TMP"
+opkg install --force-reinstall --force-overwrite --force-architecture "$IPK_TMP"
 rm -f "$IPK_TMP"
 
 
