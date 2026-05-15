@@ -72,7 +72,7 @@ echo "Скачано: $(wc -c < "$IPK_TMP") байт"
 
 # 5. Install Obhod
 echo "Установка Obhod..."
-opkg install --force-reinstall --force-overwrite --force-architecture "$IPK_TMP"
+opkg install --force-reinstall --force-overwrite --add-arch "${PKG_ARCH}:200" "$IPK_TMP"
 rm -f "$IPK_TMP"
 
 
