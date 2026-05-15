@@ -129,19 +129,64 @@ fetch_subscription() {
     local output_file="$2"
     log "Fetching subscription from $url"
     
-    local data
-    data=$(curl -sL -m 15 "$url")
-    if [ $? -ne 0 ] || [ -z "$data" ]; then
-        log "Failed to fetch subscription from $url" "error"
+    local data http_code tmpfile
+    tmpfile=$(mktemp)
+    
+    # Download with detailed error info: -w for http_code, -o for body
+    http_code=$(curl -sL -m 30 -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
+    local curl_exit=$?
+    
+    if [ $curl_exit -ne 0 ]; then
+        log "Failed to fetch subscription from $url (curl exit code: $curl_exit)" "error"
+        rm -f "$tmpfile"
         return 1
     fi
-
-    # Decode base64 if needed (simple check for base64 characters and padding)
-    if echo "$data" | grep -q "^[A-Za-z0-9+/]*=\{0,2\}$"; then
-        echo "$data" | base64 -d > "$output_file"
-    else
-        echo "$data" > "$output_file"
+    
+    if [ "$http_code" != "200" ]; then
+        log "Subscription fetch returned HTTP $http_code for $url" "error"
+        rm -f "$tmpfile"
+        return 1
     fi
+    
+    data=$(cat "$tmpfile")
+    rm -f "$tmpfile"
+    
+    if [ -z "$data" ]; then
+        log "Subscription response body is empty from $url" "error"
+        return 1
+    fi
+    
+    # Detect whether content is already plain-text proxy links or Base64-encoded.
+    # If the content contains known proxy protocol prefixes, it's plain text.
+    # Otherwise, attempt Base64 decoding.
+    if echo "$data" | grep -qiE '^(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
+        log "Subscription content detected as plain-text proxy links" "debug"
+        echo "$data" > "$output_file"
+    else
+        log "Subscription content does not contain proxy URIs, attempting Base64 decode" "debug"
+        local decoded
+        # Handle URL-safe Base64 (replace - with + and _ with /), then decode.
+        # Also handle missing padding.
+        decoded=$(echo "$data" | tr -d '\r\n ' | tr -- '-_' '+/' | base64 -d 2>/dev/null)
+        if [ $? -eq 0 ] && [ -n "$decoded" ] && echo "$decoded" | grep -qiE '(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
+            log "Base64 decoded successfully, found proxy links" "debug"
+            echo "$decoded" > "$output_file"
+        else
+            # Fallback: try treating it as plain text anyway
+            log "Base64 decode did not produce valid proxy links, using raw content" "warn"
+            echo "$data" > "$output_file"
+        fi
+    fi
+    
+    # Convert CRLF to LF
+    if [ -f "$output_file" ]; then
+        tr -d '\r' < "$output_file" > "${output_file}.tmp" && mv "${output_file}.tmp" "$output_file"
+    fi
+    
+    local link_count
+    link_count=$(grep -cE '^(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://' "$output_file" 2>/dev/null || echo 0)
+    log "Subscription fetched: $link_count proxy links found" "info"
+    
     return 0
 }
 
@@ -758,12 +803,17 @@ configure_outbound_handler() {
             
             local tmp_sub="/tmp/obhod_sub_$section.txt"
             if fetch_subscription "$sub_url" "$tmp_sub"; then
-                sub_links=$(cat "$tmp_sub" | tr '\n' ' ')
+                # Filter only lines that look like proxy links
+                sub_links=$(grep -iE '^(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://' "$tmp_sub" | tr '\n' ' ')
                 
                 if [ -z "$sub_links" ]; then
+                    log "Subscription for $section contains no valid proxy links. Raw content (first 200 chars): $(head -c 200 "$tmp_sub")" "error"
+                    rm -f "$tmp_sub"
                     log "Subscription for $section is empty. Aborted." "fatal"
                     exit 1
                 fi
+                
+                rm -f "$tmp_sub"
 
                 local urltest_tag selector_tag outbound_tags urltest_outbounds selector_outbounds
                 local urltest_check_interval urltest_tolerance urltest_testing_url
@@ -773,20 +823,37 @@ configure_outbound_handler() {
                 config_get urltest_testing_url "$section" "urltest_testing_url" "https://www.gstatic.com/generate_204"
 
                 local i=1
+                local failed_count=0
                 outbound_tags=""
                 for link in $sub_links; do
                     link=$(echo "$link" | xargs)
                     [ -z "$link" ] && continue
                     
                     local current_tag="$section-sub-$i"
-                    config=$(sing_box_cf_add_proxy_outbound "$config" "$section" "$link" "0" "$current_tag")
-                    if [ -z "$outbound_tags" ]; then
-                        outbound_tags="$current_tag"
+                    local new_config
+                    new_config=$(sing_box_cf_add_proxy_outbound "$config" "$section" "$link" "0" "$current_tag" 2>&1)
+                    if [ $? -eq 0 ] && [ -n "$new_config" ]; then
+                        config="$new_config"
+                        if [ -z "$outbound_tags" ]; then
+                            outbound_tags="$current_tag"
+                        else
+                            outbound_tags="$outbound_tags,$current_tag"
+                        fi
                     else
-                        outbound_tags="$outbound_tags,$current_tag"
+                        log "Failed to parse subscription link #$i for $section: ${link:0:80}..." "warn"
+                        failed_count=$((failed_count + 1))
                     fi
                     i=$((i + 1))
                 done
+                
+                if [ -z "$outbound_tags" ]; then
+                    log "No valid proxy outbounds created from subscription for $section ($failed_count failures). Aborted." "fatal"
+                    exit 1
+                fi
+                
+                if [ "$failed_count" -gt 0 ]; then
+                    log "Subscription for $section: $failed_count link(s) failed to parse, skipped" "warn"
+                fi
                 
                 urltest_tag="$(get_outbound_tag_by_section "$section-urltest")"
                 selector_tag="$(get_outbound_tag_by_section "$section")"

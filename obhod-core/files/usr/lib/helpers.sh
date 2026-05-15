@@ -122,7 +122,10 @@ comma_string_to_json_array() {
 # Decodes a URL-encoded string
 url_decode() {
     local encoded="$1"
-    printf '%b' "$(echo "$encoded" | sed 's/+/ /g; s/%/\\x/g')"
+    # Note: we do NOT convert '+' to space here. In URIs, '+' as space
+    # is only valid in application/x-www-form-urlencoded (query strings).
+    # Converting '+' in the full URL would corrupt Base64 in SS:// userinfo.
+    printf '%b' "$(echo "$encoded" | sed 's/%/\\x/g')"
 }
 
 # Returns the scheme (protocol) part of a URL
