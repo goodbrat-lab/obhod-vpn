@@ -8,7 +8,15 @@ MAX_FAILS=3
 
 while true; do
     # Check if WAN is actually up before blaming Obhod
-    if ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; then
+    wan_up=0
+    for ip in 1.1.1.1 8.8.8.8 9.9.9.9 208.67.222.222; do
+        if ping -c 1 -W 1 "$ip" >/dev/null 2>&1; then
+            wan_up=1
+            break
+        fi
+    done
+
+    if [ "$wan_up" -eq 1 ]; then
         # WAN is up, now check if DNS/Proxy is working
         if ! ping -c 1 -W 2 google.com >/dev/null 2>&1; then
             FAIL_COUNT=$((FAIL_COUNT + 1))
