@@ -45,8 +45,9 @@ ls -lh "$BASE_DIR/dist/packages/"*.ipk
 # Step 5: Automatic Publishing to GitHub
 echo ""
 echo "Step 5: Publishing to GitHub..."
+VERSION=$(grep "OBHOD_VERSION=" "$BASE_DIR/obhod-core/files/usr/lib/constants.sh" | cut -d'"' -f2)
 git add .
-git commit -m "Build and release: Obhod v1.0.0 (Professional Edition)" || echo "No changes to commit"
+git commit -m "Build and release: Obhod v$VERSION" || echo "No changes to commit"
 git push origin main || echo "Warning: git push failed."
 
 echo "========================================="

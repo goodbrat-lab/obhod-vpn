@@ -17,8 +17,16 @@ for pkg in *.ipk; do
     [ -e "$pkg" ] || continue
     # Get filename
     filename=$(basename "$pkg")
-    # Extract control file from IPK
-    ar p "$pkg" control.tar.gz | tar -xOzf - ./control >> Packages
+    
+    # Extract control file from IPK (Support both 'ar' and 'tar' formats)
+    if ar t "$pkg" >/dev/null 2>&1; then
+        ar p "$pkg" control.tar.gz | tar -xOzf - ./control 2>/dev/null || \
+        ar p "$pkg" control.tar.gz | tar -xOzf - control >> Packages
+    else
+        tar -xOzf "$pkg" control.tar.gz 2>/dev/null | tar -xOzf - ./control 2>/dev/null || \
+        tar -xOzf "$pkg" control.tar.gz 2>/dev/null | tar -xOzf - control >> Packages
+    fi
+    
     # Add Filename and Size
     echo "Filename: $filename" >> Packages
     echo "Size: $(stat -c%s "$pkg")" >> Packages
