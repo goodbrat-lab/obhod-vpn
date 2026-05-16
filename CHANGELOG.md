@@ -1,4 +1,10 @@
 # CHANGELOG - Obhod Project
+## [v0.4.8] - 2026-05-16
+### Added
+- **Auto-Setup Wizard**: Integrated a new network detection engine with a user-friendly 'Quick Setup' button on the dashboard.
+- **Network Environment Analysis**: The system now automatically identifies WAN interfaces, local IPs, and DNS servers to suggest the best configuration.
+- **UX Improvements**: Redesigned dashboard grid to accommodate diagnostic widgets and the setup assistant.
+
 ## [v0.4.3] - 2026-05-16
 ### Added
 - **Log Viewer 2.0**: Completely redesigned log viewing experience with syntax highlighting.

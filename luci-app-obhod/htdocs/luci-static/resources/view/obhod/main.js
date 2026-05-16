@@ -1907,7 +1907,20 @@ function render() {
       E("div", { class: "pdk_dashboard-page__widgets-section" }, [
         E(
           "div",
+          { id: "dashboard-widget-auto-setup" },
+          renderWidget({ 
+              loading: false, 
+              failed: false, 
+              title: _("Setup"), 
+              items: [
+                  { key: _("Wizard"), value: E("button", { class: "cbi-button cbi-button-action", click: handleAutoSetup }, _("Quick Setup")) }
+              ] 
+          })
+        ),
+        E(
+          "div",
           { id: "dashboard-widget-traffic" },
+
           renderWidget({ loading: true, failed: false, title: "", items: [] })
         ),
         E(
@@ -2113,6 +2126,60 @@ async function connectToClashSockets() {
 async function handleChooseOutbound(selector, tag) {
   await ObhodShellMethods.setClashApiGroupProxy(selector, tag);
   await fetchDashboardSections();
+}
+
+async function handleAutoSetup() {
+    ui.showModal(_("Network Detection"), [
+        E("div", { class: "spinning" }, _("Detecting network environment..."))
+    ]);
+    
+    const res = await ObhodShellMethods.getAutoSetup();
+    ui.hideModal();
+
+    if (!res.success) {
+        ui.addNotification(null, E("p", _("Detection failed")), "error");
+        return;
+    }
+
+    const info = res.data;
+    const body = E("div", {}, [
+        E("p", {}, _("Detected the following settings for your router:")),
+        E("ul", { style: "margin-bottom: 15px" }, [
+            E("li", {}, `${_("WAN Interface")}: ${info.wan_interface || _("Not found")}`),
+            E("li", {}, `${_("Local IP")}: ${info.local_ip}`),
+            E("li", {}, `${_("DNS Servers")}: ${info.dns_resolvers.join(", ")}`),
+            E("li", {}, `${_("IPv6 Support")}: ${info.is_ipv6_ready ? _("Yes") : _("No")}`)
+        ]),
+        E("p", {}, _("Would you like to apply these settings and enable basic routing?"))
+    ]);
+
+    ui.showModal(_("Quick Setup"), [
+        body,
+        E("div", { class: "right" }, [
+            E("button", {
+                class: "btn",
+                click: ui.hideModal
+            }, _("Cancel")),
+            E("button", {
+                class: "btn cbi-button-positive",
+                click: async () => {
+                    ui.showModal(_("Applying..."), [ E("div", { class: "spinning" }) ]);
+                    
+                    await uci.load("obhod");
+                    if (!uci.get("obhod", "settings", "dns_server")) {
+                        uci.set("obhod", "settings", "dns_server", info.dns_resolvers[0] || "8.8.8.8");
+                    }
+                    
+                    await uci.save();
+                    await uci.apply();
+                    
+                    ui.hideModal();
+                    ui.addNotification(null, E("p", _("Settings applied successfully!")), "info");
+                    fetchServicesInfo();
+                }
+            }, _("Apply Settings"))
+        ])
+    ]);
 }
 async function handleTestGroupLatency(tag) {
   store.set({
@@ -2451,7 +2518,7 @@ var styles = `
     
 .pdk_dashboard-page {
     width: 100%;
-    --dashboard-grid-columns: 5;
+    --dashboard-grid-columns: 6;
 }
 
 @media (max-width: 900px) {
