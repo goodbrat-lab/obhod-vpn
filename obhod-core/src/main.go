@@ -12,11 +12,12 @@ import (
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/config"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/subscription"
+	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/sysinfo"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/watchdog"
 	"encoding/json"
 )
 
-var version = "0.3.7"
+var version = "0.4.5"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
@@ -59,6 +60,22 @@ func main() {
 		// Start subscription updater in background
 		go subscription.StartUpdater("")
 		watchdog.Start(ctx, *interval, *mark)
+	case "auto-setup":
+		info, err := sysinfo.GetNetworkInfo()
+		if err != nil {
+			logger.Error("sysinfo", "main", "Failed to detect network: %v", err)
+			os.Exit(1)
+		}
+		data, _ := json.MarshalIndent(info, "", "  ")
+		fmt.Println(string(data))
+	case "health":
+		health, err := sysinfo.GetSystemHealth()
+		if err != nil {
+			logger.Error("sysinfo", "main", "Failed to check health: %v", err)
+			os.Exit(1)
+		}
+		data, _ := json.MarshalIndent(health, "", "  ")
+		fmt.Println(string(data))
 	case "update-subscriptions":
 		updateSubCmd.Parse(os.Args[2:])
 		err := subscription.UpdateManual(*cacheFile)
@@ -103,6 +120,9 @@ func printUsage() {
 	fmt.Println("Usage: obhoud <command> [options]")
 	fmt.Println("\nCommands:")
 	fmt.Println("  watchdog             Start connectivity monitoring and scheduled updates")
+	// Using dash in commands for consistency
+	fmt.Println("  auto-setup           Detect network settings and suggest configuration")
+	fmt.Println("  health               Check system health and status")
 	fmt.Println("  update-subscriptions Update all proxy subscriptions manually")
 	fmt.Println("  generate-config      Generate sing-box configuration from UCI")
 	fmt.Println("\nOptions for watchdog:")
