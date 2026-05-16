@@ -6,7 +6,7 @@
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPTS_DIR")"
 
-VERSION="0.3.2"
+VERSION=$(grep "OBHOD_VERSION=" "$BASE_DIR/obhod-core/files/usr/lib/constants.sh" | cut -d'"' -f2)
 RELEASE="1"
 ARCH="all"
 
