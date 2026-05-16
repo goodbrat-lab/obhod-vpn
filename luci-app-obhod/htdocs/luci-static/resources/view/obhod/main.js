@@ -619,8 +619,9 @@ var Obhod;
     AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
     AvailableMethods2["HEALTH"] = "health";
     AvailableMethods2["AUTO_SETUP"] = "auto_setup";
+    AvailableMethods2["BACKUP"] = "backup";
+    AvailableMethods2["RESTORE"] = "restore";
     })(AvailableMethods = Obhod2.AvailableMethods || (Obhod2.AvailableMethods = {}));
-
   let AvailableClashAPIMethods;
   ((AvailableClashAPIMethods2) => {
     AvailableClashAPIMethods2["GET_PROXIES"] = "get_proxies";
@@ -650,8 +651,32 @@ var ObhodShellMethods = {
   ),
   getHealth: async () => callBaseMethod(Obhod.AvailableMethods.HEALTH),
   getAutoSetup: async () => callBaseMethod(Obhod.AvailableMethods.AUTO_SETUP),
+  backup: async () => callBaseMethod(Obhod.AvailableMethods.BACKUP),
+  restore: async (file) => callBaseMethod(Obhod.AvailableMethods.RESTORE, [file]),
   getClashApiProxies: async () => callBaseMethod(Obhod.AvailableMethods.CLASH_API, [
+  ...
+  async function handleBackup() {
+   ui.showModal(_("Backing up..."), [ E("div", { class: "spinning" }) ]);
+   const res = await ObhodShellMethods.backup();
+   ui.hideModal();
 
+   if (res.success) {
+       const path = res.data.trim();
+       fs.read(path).then(blob => {
+           const url = window.URL.createObjectURL(blob);
+           const a = document.createElement('a');
+           a.href = url;
+           a.download = `obhod_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.tar.gz`;
+           document.body.appendChild(a);
+           a.click();
+           window.URL.revokeObjectURL(url);
+           document.body.removeChild(a);
+           ui.addNotification(null, E("p", _("Backup downloaded successfully")), "info");
+       });
+   } else {
+       ui.addNotification(null, E("p", _("Backup failed")), "error");
+   }
+  }
     Obhod.AvailableClashAPIMethods.GET_PROXIES
   ]),
   getClashApiProxyLatency: async (tag) => callBaseMethod(
@@ -1913,9 +1938,11 @@ function render() {
               failed: false, 
               title: _("Setup"), 
               items: [
-                  { key: _("Wizard"), value: E("button", { class: "cbi-button cbi-button-action", click: handleAutoSetup }, _("Quick Setup")) }
+                  { key: _("Wizard"), value: E("button", { class: "cbi-button cbi-button-action", click: handleAutoSetup }, _("Quick Setup")) },
+                  { key: _("Backup"), value: E("button", { class: "cbi-button cbi-button-action", click: handleBackup }, _("Download Backup")) }
               ] 
-          })
+              })
+
         ),
         E(
           "div",

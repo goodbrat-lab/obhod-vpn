@@ -2969,6 +2969,8 @@ Available commands:
     validate                Validate configuration
     main                    Run main obhod process
     list_update             Update domain lists
+    backup                  Create configuration backup
+    restore [file]          Restore configuration from backup
     check_proxy             Check proxy connectivity
     check_nft               Check NFT rules
     check_nft_rules         Check NFT rules status
@@ -3011,6 +3013,35 @@ main)
     ;;
 list_update)
     list_update
+    ;;
+backup)
+    log "Creating system backup..." "info" "system" "backup"
+    BACKUP_FILE="/tmp/obhod_backup.tar.gz"
+    tar -czf "$BACKUP_FILE" /etc/config/obhod /tmp/obhod/subscriptions.json 2>/dev/null
+    if [ $? -eq 0 ]; then
+        echo "$BACKUP_FILE"
+        log "Backup created successfully: $BACKUP_FILE" "info" "system" "backup"
+    else
+        log "Backup failed!" "error" "system" "backup"
+        exit 1
+    fi
+    ;;
+restore)
+    FILE="$2"
+    if [ -f "$FILE" ]; then
+        log "Restoring system from backup: $FILE" "info" "system" "restore"
+        tar -xzf "$FILE" -C / 2>/dev/null
+        if [ $? -eq 0 ]; then
+            log "Restore successful. Reloading service..." "info" "system" "restore"
+            /etc/init.d/obhod reload
+        else
+            log "Restore failed! Invalid archive?" "error" "system" "restore"
+            exit 1
+        fi
+    else
+        log "Restore failed: File not found" "error" "system" "restore"
+        exit 1
+    fi
     ;;
 check_proxy)
     check_proxy
