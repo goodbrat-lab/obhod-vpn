@@ -28,6 +28,9 @@ type SettingsUCI struct {
 	EnableYacd               bool
 	EnableYacdWanAccess      bool
 	YacdSecretKey            string
+	TelegramToken            string
+	TelegramChatID           string
+	TelegramEnabled          bool
 }
 
 type SectionUCI struct {
@@ -128,6 +131,12 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 		s.EnableYacdWanAccess = value == "1"
 	case "yacd_secret_key":
 		s.YacdSecretKey = value
+	case "telegram_token":
+		s.TelegramToken = value
+	case "telegram_chat_id":
+		s.TelegramChatID = value
+	case "telegram_enabled":
+		s.TelegramEnabled = value == "1"
 	}
 }
 

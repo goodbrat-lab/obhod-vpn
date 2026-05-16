@@ -467,6 +467,16 @@ function createSettingsContent(section) {
 
     return validation.message;
   };
+
+  o = section.option(form.Flag, "telegram_enabled", _("Enable Telegram Alerts"));
+  o.rmempty = false;
+
+  o = section.option(form.Value, "telegram_token", _("Telegram Bot Token"));
+  o.depends("telegram_enabled", "1");
+  o.password = true;
+
+  o = section.option(form.Value, "telegram_chat_id", _("Telegram Chat ID"));
+  o.depends("telegram_enabled", "1");
 }
 
 const EntryPoint = {
