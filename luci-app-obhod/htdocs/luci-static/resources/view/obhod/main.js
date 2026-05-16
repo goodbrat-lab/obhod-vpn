@@ -621,14 +621,14 @@ var Obhod;
     AvailableMethods2["AUTO_SETUP"] = "auto_setup";
     AvailableMethods2["BACKUP"] = "backup";
     AvailableMethods2["RESTORE"] = "restore";
-    })(AvailableMethods = Obhod2.AvailableMethods || (Obhod2.AvailableMethods = {}));
+  })(Obhod2.AvailableMethods || (Obhod2.AvailableMethods = {}));
   let AvailableClashAPIMethods;
   ((AvailableClashAPIMethods2) => {
     AvailableClashAPIMethods2["GET_PROXIES"] = "get_proxies";
     AvailableClashAPIMethods2["GET_PROXY_LATENCY"] = "get_proxy_latency";
     AvailableClashAPIMethods2["GET_GROUP_LATENCY"] = "get_group_latency";
     AvailableClashAPIMethods2["SET_GROUP_PROXY"] = "set_group_proxy";
-  })(AvailableClashAPIMethods = Obhod2.AvailableClashAPIMethods || (Obhod2.AvailableClashAPIMethods = {}));
+  })(Obhod2.AvailableClashAPIMethods || (Obhod2.AvailableClashAPIMethods = {}));
 })(Obhod || (Obhod = {}));
 
 // src/obhod/methods/shell/index.ts
