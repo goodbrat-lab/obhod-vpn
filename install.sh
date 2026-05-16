@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Universal Installer for Obhod VPN v0.3.1-3 (Apk Support)
+# Universal Installer for Obhod VPN v0.3.1-4 (Apk Support)
 # High compatibility with OpenWrt standard architecture names and OpenWrt 25.xx (OneWrt/apk).
 
 set -e
@@ -8,11 +8,11 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="0.3.1-3"
+VERSION="0.3.1-4"
 LUCI_PKG="luci-app-obhod_${VERSION}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v0.3.1-3    "
+echo "      Obhod VPN - Universal Installer v0.3.1-4    "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
