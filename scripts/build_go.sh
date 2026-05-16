@@ -47,6 +47,12 @@ build() {
         echo "ERROR: Build failed for $os/$arch ($variant), exit code $exit_code"
         exit "$exit_code"
     fi
+
+    if command -v upx > /dev/null; then
+        echo "  -> Compressing with UPX..."
+        upx -9 "$DIST_DIR/$output_name" > /dev/null 2>&1 || echo "  -> UPX failed, continuing..."
+    fi
+
     echo "  -> $DIST_DIR/$output_name ($(du -h "$DIST_DIR/$output_name" | cut -f1))"
 }
 

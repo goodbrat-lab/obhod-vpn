@@ -174,6 +174,17 @@ Filename: luci-app-obhod_0.4.3-1_all.ipk
 Size: 43139
 SHA256sum: 4996769e965698bb144eec568b7fb8a5a911f6fd615af76dfb0f8d43442c4c80
 
+Package: luci-app-obhod
+Version: 0.4.4-1
+Depends: obhod, luci-base, luci-compat, rpcd-mod-file
+Section: luci
+Architecture: all
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: LuCI web interface for Obhod VPN
+Filename: luci-app-obhod_0.4.4-1_all.ipk
+Size: 43140
+SHA256sum: 4f62961801b668cd379c9371afb7a521c8ac6b379a246404b17ca7e787172693
+
 Package: obhod
 Version: 0.3.0-3
 Architecture: aarch64_cortex-a53
@@ -1353,4 +1364,59 @@ Description: Obhod VPN - selective routing for OpenWrt (x86_64)
 Filename: obhod_0.4.3-1_x86_64.ipk
 Size: 2391036
 SHA256sum: 88c12e1962d7519dae790bbcc08ee21adcc7700c64e714b3d9e696728f82cdc7
+
+Package: obhod
+Version: 0.4.4-1
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-base, luci-compat, rpcd-mod-file, coreutils-base64
+Section: net
+Architecture: aarch64
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: Obhod VPN - selective routing for OpenWrt (aarch64_cortex-a53)
+Filename: obhod_0.4.4-1_aarch64_cortex-a53.ipk
+Size: 2081539
+SHA256sum: 5814becc0e15894aeb429d3b4c1e0d654b17607a9f52194904364ad1a22cf89c
+
+Package: obhod
+Version: 0.4.4-1
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-base, luci-compat, rpcd-mod-file, coreutils-base64
+Section: net
+Architecture: arm
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: Obhod VPN - selective routing for OpenWrt (arm_cortex-a7_neon-vfpv4)
+Filename: obhod_0.4.4-1_arm_cortex-a7_neon-vfpv4.ipk
+Size: 2053705
+SHA256sum: d5287300b915db0212a8cfe671a2335aa3fa5ec688d62188d88e02eb2b54fff9
+
+Package: obhod
+Version: 0.4.4-1
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-base, luci-compat, rpcd-mod-file, coreutils-base64
+Section: net
+Architecture: mips
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: Obhod VPN - selective routing for OpenWrt (mips_24kc)
+Filename: obhod_0.4.4-1_mips_24kc.ipk
+Size: 2055106
+SHA256sum: 93adad2adec47904911e3c154c3863cdf5787a0d76caf419eeda01fbfd40069f
+
+Package: obhod
+Version: 0.4.4-1
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-base, luci-compat, rpcd-mod-file, coreutils-base64
+Section: net
+Architecture: mipsel
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: Obhod VPN - selective routing for OpenWrt (mipsel_24kc)
+Filename: obhod_0.4.4-1_mipsel_24kc.ipk
+Size: 2049349
+SHA256sum: 51a21f075f29950371ab32fbe67bc6dc1ab4cc96086778a4b1879e84b32168e0
+
+Package: obhod
+Version: 0.4.4-1
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, bind-dig, luci-base, luci-compat, rpcd-mod-file, coreutils-base64
+Section: net
+Architecture: x86
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: Obhod VPN - selective routing for OpenWrt (x86_64)
+Filename: obhod_0.4.4-1_x86_64.ipk
+Size: 2273290
+SHA256sum: eebbe1e33db4953d83376cec79e69f0cb706a1490a483a6cae424916ea4ea074
 
