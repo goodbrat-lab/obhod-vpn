@@ -146,6 +146,17 @@ fetch_subscription() {
     http_code=$(curl -sL -m 30 -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
     local curl_exit=$?
     
+    if [ $curl_exit -eq 6 ]; then
+        log "DNS resolution failed for subscription URL, attempting bootstrap DNS" "warn" "$component" "$context"
+        local domain=$(echo "$url" | awk -F[/:] '{print $4}')
+        local resolved_ip=$(nslookup "$domain" 1.1.1.1 2>/dev/null | grep -A 1 "Name:" | grep "Address" | awk '{print $2}' | head -n 1)
+        if [ -n "$resolved_ip" ]; then
+            log "Resolved $domain to $resolved_ip via 1.1.1.1. Retrying..." "info" "$component" "$context"
+            http_code=$(curl -sL -m 30 --resolve "$domain:443:$resolved_ip" --resolve "$domain:80:$resolved_ip" -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
+            curl_exit=$?
+        fi
+    fi
+
     if [ $curl_exit -ne 0 ]; then
         log "Failed to fetch subscription from $url (curl exit code: $curl_exit)" "error" "$component" "$context"
         rm -f "$tmpfile"
@@ -249,16 +260,12 @@ start_main() {
     mkdir -p "$TMP_SING_BOX_FOLDER"
     mkdir -p "$TMP_RULESET_FOLDER"
 
-    # Configure dnsmasq to forward DNS to sing-box
-    export OBHOD_LOG_COMPONENT="network"
-    local dont_touch_dhcp
-    config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
-    if [ "$dont_touch_dhcp" -eq 0 ]; then
-        log "Configuring dnsmasq..." "debug"
-        dnsmasq_configure
-    fi
+    # 1. Generate sing-box configuration (Uses original system DNS to download lists/subscriptions)
+    log "Generating sing-box configuration..."
+    export OBHOD_LOG_COMPONENT="config"
+    sing_box_init_config
 
-    # base
+    # 2. Base network setup
     log "Setting up routing table and fwmarks..." "debug"
     route_table_rule_mark
     log "Applying nftables rules..." "debug"
@@ -266,11 +273,7 @@ start_main() {
     log "Configuring sing-box service..." "debug"
     sing_box_configure_service
 
-    # sing-box
-    log "Generating sing-box configuration..."
-    export OBHOD_LOG_COMPONENT="config"
-    sing_box_init_config
-    
+    # 3. Start sing-box service
     log "Starting sing-box service..."
     export OBHOD_LOG_COMPONENT="init"
     config_foreach add_cron_job "section"
@@ -280,6 +283,15 @@ start_main() {
     if ! /etc/init.d/sing-box running 2>/dev/null; then
         log "Sing-box failed to start. Last logs:" "error"
         log "$(logread -e sing-box | tail -n 5)" "error"
+    fi
+
+    # 4. Configure dnsmasq to forward DNS to sing-box (AFTER sing-box is up)
+    export OBHOD_LOG_COMPONENT="network"
+    local dont_touch_dhcp
+    config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
+    if [ "$dont_touch_dhcp" -eq 0 ]; then
+        log "Configuring dnsmasq..." "debug"
+        dnsmasq_configure
     fi
 
     uci_set "obhod" "settings" "shutdown_correctly" 0

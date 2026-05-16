@@ -43,7 +43,7 @@ log() {
     timestamp=$(date +"%Y-%m-%d %H:%M:%S")
     
     local level_upper
-    level_upper=$(echo "$level" | tr '[:lower:]' '[:upper:]')
+    level_upper=$(echo "$level" | tr 'a-z' 'A-Z')
 
     # Standardized format: [timestamp] [LEVEL] [component] [context] message
     local formatted_msg="[$timestamp] [$level_upper] [$component] [$context] $message"
