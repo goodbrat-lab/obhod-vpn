@@ -1,5 +1,13 @@
 # CHANGELOG - Obhod Project
-## [v0.4.1] - 2026-05-16
+## [v0.4.3] - 2026-05-16
+### Added
+- **Log Viewer 2.0**: Completely redesigned log viewing experience with syntax highlighting.
+- **Color Coding**: Different colors for INFO, WARN, ERROR, and DEBUG levels for easier issue identification.
+- **Advanced Filtering**: Added real-time text search and log level selection.
+- **Download Support**: New button to download complete system logs as a text file for off-line analysis.
+
+## [v0.4.2] - 2026-05-16
+
 ### Added
 - **Flexible DNS Strategy**: Users can now choose their preferred DNS resolution strategy (IPv4 Only, Prefer IPv4, Prefer IPv6, IPv6 Only) directly in LuCI settings.
 - **Full Stage 8.2 Completion**: Finalized multi-tunnel support and custom user rules integration in the Go core.
