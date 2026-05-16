@@ -1,5 +1,11 @@
 # CHANGELOG - Obhod Project
 
+## [v1.0.2] - 2026-05-16
+### Fixed
+- **Sing-box 1.12+ Compatibility**: Updated DNS configuration schema to use `server` instead of `address`.
+- **DNS Resolver**: Renamed `address_resolver` to `domain_resolver` in DNS server configurations.
+- **Generator**: Updated Go core to generate configuration files compatible with modern sing-box versions.
+
 ## [v1.0.1] - 2026-05-16
 ### Fixed
 - **Critical Installer Bug**: Corrected `.ipk` extraction logic in `install.sh` for OpenWrt 25+ (apk).

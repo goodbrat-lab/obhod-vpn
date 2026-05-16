@@ -28,8 +28,8 @@ type DNSServerConfig struct {
 	Tag             string   `json:"tag,omitempty"`
 	Server          string   `json:"server,omitempty"`
 	ServerPort      int      `json:"server_port,omitempty"`
-	AddressResolver string   `json:"address_resolver,omitempty"`
-	Strategy        string   `json:"strategy,omitempty"`
+	DomainResolver  string   `json:"domain_resolver,omitempty"`
+	DomainStrategy  string   `json:"domain_strategy,omitempty"`
 	Detour          string   `json:"detour,omitempty"`
 }
 
