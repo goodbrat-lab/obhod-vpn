@@ -20,13 +20,10 @@ build() {
     local os=$1
     local arch=$2
     local variant=$3 # GOMIPS or GOARM value (e.g. "softfloat" or "v7")
-    local output_name="obhoud_${os}_${arch}"
+    local suffix=$4  # OpenWrt architecture name (e.g. "aarch64_cortex-a53")
+    local output_name="obhoud_${os}_${suffix}"
 
-    if [ -n "$variant" ]; then
-        output_name="${output_name}_${variant}"
-    fi
-
-    echo "Building for $os/$arch $variant -> $output_name"
+    echo "Building for $os/$arch $variant (Target: $suffix) -> $output_name"
 
     cd "$SRC_DIR" || { echo "Error: cannot cd to $SRC_DIR"; exit 1; }
 
@@ -52,12 +49,12 @@ build() {
     echo "  -> $DIST_DIR/$output_name ($(du -h "$DIST_DIR/$output_name" | cut -f1))"
 }
 
-# Common OpenWrt architectures
-build "linux" "mipsle" "softfloat"   # Xiaomi, TP-Link (32-bit LE MIPS)
-build "linux" "mips"   "softfloat"   # Some Asus, D-Link (32-bit BE MIPS)
-build "linux" "arm64"  ""            # Qualcomm IPQ, Raspberry Pi (64-bit ARM)
-build "linux" "arm"    "v7"          # Older routers (32-bit ARMv7)
-build "linux" "amd64"  ""            # x86_64 (PC/VM)
+# Common OpenWrt architectures (Mapping Go builds to OpenWrt arch names)
+build "linux" "mipsle" "softfloat" "mipsel_24kc"
+build "linux" "mips"   "softfloat" "mips_24kc"
+build "linux" "arm64"  ""          "aarch64_cortex-a53"
+build "linux" "arm"    "v7"        "arm_cortex-a7_neon-vfpv4"
+build "linux" "amd64"  ""          "x86_64"
 
 echo ""
 echo "=== All binaries built successfully ==="

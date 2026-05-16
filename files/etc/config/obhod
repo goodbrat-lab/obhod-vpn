@@ -2,7 +2,7 @@ config obhod 'settings'
     # Enable or disable the obhod service (0 = disabled, 1 = enabled)
     option enabled '1'
 
-    # Log level for sing-box (debug, info, warn, error, fatal, trace)
+    # Log level for sing-box and obhod (debug, info, warn, error, fatal)
     option log_level 'info'
 
     # How often to update remote domain/subnet lists

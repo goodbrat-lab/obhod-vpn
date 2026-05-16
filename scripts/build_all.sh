@@ -1,52 +1,39 @@
 #!/bin/bash
 
-# BUILD EVERYTHING: Go binaries + .ipk packages for all architectures
-# Usage: ./scripts/build_all.sh  (from any working directory)
+# Build all packages for all supported architectures
+# Automatically compiles Go, packages IPKs, and pushes to GitHub.
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPTS_DIR")"
 
 echo "=================================================="
-echo "  Obhod Full Build"
+echo "  Obhod Full Build & Auto-Publish"
 echo "  Base: $BASE_DIR"
 echo "=================================================="
 
-# Step 1: Compile Go daemon for all architectures
+# Ensure Go is in PATH
+export PATH=$PATH:/usr/local/go/bin
+
+# Step 1: Building Go binaries
 echo ""
 echo "Step 1: Building Go binaries (obhoud)..."
-bash "$SCRIPTS_DIR/build_go.sh"
-if [ $? -ne 0 ]; then
-    echo "ERROR: Go build failed. Aborting."
-    exit 1
-fi
+./scripts/build_go.sh || { echo "ERROR: Go build failed."; exit 1; }
 
-# Step 2: Package for each architecture
+# Step 2: Building .ipk packages
 echo ""
 echo "Step 2: Building .ipk packages..."
-ARCHS=("mipsle_softfloat" "mips_softfloat" "arm64" "arm_v7" "amd64")
+# Architecture list matches OpenWrt standard names used in build_go.sh
+ARCH_LIST="mipsel_24kc mips_24kc aarch64_cortex-a53 arm_cortex-a7_neon-vfpv4 x86_64"
 
-for arch in "${ARCHS[@]}"; do
-    echo ""
-    bash "$SCRIPTS_DIR/package_full.sh" "$arch"
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Packaging failed for $arch. Aborting."
-        exit 1
-    fi
+for ARCH in $ARCH_LIST; do
+    ./scripts/package_full.sh "$ARCH" || { echo "ERROR: Packaging failed for $ARCH."; exit 1; }
 done
 
-# Step 3: Update dist index
-echo ""
-echo "Step 3: Updating dist/packages/index.txt..."
-INDEX_FILE="$BASE_DIR/dist/packages/index.txt"
-rm -f "$INDEX_FILE"
-for arch in "${ARCHS[@]}"; do
-    filename=$(ls "$BASE_DIR/dist/packages/" 2>/dev/null | grep "_${arch}.ipk" | head -n1)
-    if [ -n "$filename" ]; then
-        echo "$arch:$filename" >> "$INDEX_FILE"
-    fi
-done
-echo "Index written to: $INDEX_FILE"
-cat "$INDEX_FILE"
+# Step 3: LuCI Package
+./scripts/package_luci.sh || { echo "ERROR: LuCI packaging failed."; exit 1; }
+
+# Step 4: Update Index
+./scripts/update_index.sh || { echo "ERROR: Index update failed."; exit 1; }
 
 echo ""
 echo "========================================="
@@ -55,14 +42,14 @@ echo "  Packages: $BASE_DIR/dist/packages/"
 echo "========================================="
 ls -lh "$BASE_DIR/dist/packages/"*.ipk
 
-# Step 4: Automatic Publishing to GitHub
+# Step 5: Automatic Publishing to GitHub
 echo ""
-echo "Step 4: Publishing to GitHub..."
-git add "$BASE_DIR/CHANGELOG.md" "$BASE_DIR/install.sh" "$BASE_DIR/obhod-core" "$BASE_DIR/luci-app-obhod" "$BASE_DIR/dist" "$BASE_DIR/PROGRESS.md" "$BASE_DIR/GEMINI.md" "$BASE_DIR/README.md" "$BASE_DIR/scripts"
-git commit -m "Automated build and release: Obhod v0.3.1-1" || echo "No changes to commit"
-git push origin main || echo "Warning: git push failed. Check your network/credentials."
+echo "Step 5: Publishing to GitHub..."
+git add .
+git commit -m "Build and release: Obhod v0.3.1-1 (Standard Arch Names)" || echo "No changes to commit"
+git push origin main || echo "Warning: git push failed."
 
 echo "========================================="
 echo "  RELEASE PUBLISHED TO GITHUB"
-echo "  Installer: sh <(wget -O - https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)"
+echo "  Installer: sh <(wget -q -O - https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)"
 echo "========================================="
