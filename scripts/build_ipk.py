@@ -13,10 +13,17 @@ import hashlib
 from pathlib import Path
 
 # --- Config ---
-VERSION = "0.3.0"
-RELEASE = "6"
-
+# Dynamically get version from constants.sh
 BASE_DIR = Path(__file__).parent.parent.resolve()
+CONSTANTS_FILE = BASE_DIR / "obhod-core" / "files" / "usr/lib" / "constants.sh"
+VERSION = "0.3.3"
+with open(CONSTANTS_FILE, "r") as f:
+    for line in f:
+        if "OBHOD_VERSION=" in line:
+            VERSION = line.split('"')[1]
+            break
+
+RELEASE = "1"
 CORE_FILES = BASE_DIR / "obhod-core" / "files"
 DIST_DIR = BASE_DIR / "dist"
 PACKAGES_DIR = DIST_DIR / "packages"
