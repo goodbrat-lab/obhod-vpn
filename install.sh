@@ -9,7 +9,8 @@ set -e
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
 VERSION="1.0.1"
-LUCI_PKG="luci-app-obhod_${VERSION}_all.ipk"
+RELEASE="1"
+LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
 echo "      Obhod VPN - Universal Installer v1.0.1      "
@@ -35,7 +36,7 @@ if [ "$OPKG_WORKS" -eq 0 ] && [ ! -x "$APK_CMD" ]; then
     echo "CRITICAL ERROR: No package manager found (opkg/apk)."
     echo "Please install Obhod manually by downloading the packages:"
     echo "1. Download Luci: $REPO_URL/$LUCI_PKG"
-    echo "2. Download Core: $REPO_URL/obhod_${VERSION}_[ARCH].ipk"
+    echo "2. Download Core: $REPO_URL/obhod_${VERSION}-${RELEASE}_[ARCH].ipk"
     exit 1
 fi
 
@@ -69,7 +70,7 @@ if [ -z "$ARCH" ]; then
     esac
 fi
 
-CORE_PKG="obhod_${VERSION}_${ARCH}.ipk"
+CORE_PKG="obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
 echo "Architecture detected: $ARCH"
 echo "Targeting package: $CORE_PKG"
 
@@ -115,8 +116,8 @@ download_file() {
     local dest="$2"
     echo "  -> Downloading: $url"
     if command -v curl >/dev/null 2>&1; then
-        if ! curl -sL --connect-timeout 15 -o "$dest" "$url"; then
-            echo "Error: curl failed to download $url"
+        if ! curl -sfL --connect-timeout 15 -o "$dest" "$url"; then
+            echo "Error: curl failed to download $url (check your internet or if the version exists)"
             return 1
         fi
     elif command -v wget >/dev/null 2>&1; then
