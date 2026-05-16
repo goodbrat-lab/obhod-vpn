@@ -9,8 +9,8 @@ set -e
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPTS_DIR")"
 
-VERSION="0.3.1"
-RELEASE="5"
+VERSION="0.3.2"
+RELEASE="1"
 
 ARCH=$1
 if [ -z "$ARCH" ]; then
