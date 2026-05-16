@@ -39,7 +39,7 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 			Servers: []DNSServerConfig{},
 			Rules:   []DNSRuleConfig{},
 			Final:   "direct-out",
-			Strategy: "ipv4_only", // Performance & Leak prevention
+			Strategy: "ipv4_only", // Default for v0.3.9+
 		},
 		Route: &RouteConfig{
 			Rules:               []RouteRuleConfig{},
@@ -222,6 +222,7 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				Detour:  finalOutboundTag,
 			})
 
+			// 1. Community Lists
 			for _, service := range section.CommunityLists {
 				rulesetTag := "rs-" + service
 
@@ -237,7 +238,7 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 					rs := RuleSetConfig{
 						Type:           "remote",
 						Tag:            rulesetTag,
-						Format:         "binary", // Using SRS binary format
+						Format:         "binary",
 						URL:            getCommunityURL(service),
 						UpdateInterval: "1d",
 					}
@@ -255,6 +256,45 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 					Outbound: finalOutboundTag,
 				}
 				config.Route.Rules = append(config.Route.Rules, rule)
+			}
+
+			// 2. User Domains
+			if len(section.UserDomains) > 0 {
+				userTag := "user-domains-" + section.Name
+				rs := RuleSetConfig{
+					Type:   "inline",
+					Tag:    userTag,
+					Inline: map[string][]string{"domain": section.UserDomains},
+				}
+				config.Route.RuleSet = append(config.Route.RuleSet, rs)
+
+				config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
+					RuleSet: []string{userTag},
+					Server:  sectionDNSTag,
+				})
+
+				config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{
+					Inbound:  []string{"tproxy-in"},
+					RuleSet:  []string{userTag},
+					Outbound: finalOutboundTag,
+				})
+			}
+
+			// 3. User Subnets
+			if len(section.UserSubnets) > 0 {
+				userSubnetTag := "user-subnets-" + section.Name
+				rs := RuleSetConfig{
+					Type:   "inline",
+					Tag:    userSubnetTag,
+					Inline: map[string][]string{"ip_cidr": section.UserSubnets},
+				}
+				config.Route.RuleSet = append(config.Route.RuleSet, rs)
+
+				config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{
+					Inbound:  []string{"tproxy-in"},
+					RuleSet:  []string{userSubnetTag},
+					Outbound: finalOutboundTag,
+				})
 			}
 		}
 	}
