@@ -108,14 +108,39 @@ fi
 
 # 6. Download and Install Obhod
 cd /tmp
-echo "Downloading Obhod..."
-rm -f /tmp/obhod.ipk /tmp/luci.ipk
+echo "Downloading Obhod packages..."
 
-if ! wget -q -O "obhod.ipk" "$REPO_URL/$CORE_PKG"; then
-    echo "Error: Package $CORE_PKG not found for your architecture."
+download_file() {
+    local url="$1"
+    local dest="$2"
+    echo "  -> Downloading: $url"
+    if command -v curl >/dev/null 2>&1; then
+        if ! curl -sL --connect-timeout 15 -o "$dest" "$url"; then
+            echo "Error: curl failed to download $url"
+            return 1
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        if ! wget -q --no-check-certificate --timeout=15 -O "$dest" "$url"; then
+            echo "Error: wget failed to download $url"
+            return 1
+        fi
+    else
+        echo "Error: No download tool found (curl or wget)."
+        return 1
+    fi
+    return 0
+}
+
+rm -f /tmp/obhod.ipk /tmp/luci.ipk
+if ! download_file "$REPO_URL/$CORE_PKG" "obhod.ipk"; then
+    echo "CRITICAL ERROR: Failed to download $CORE_PKG"
     exit 1
 fi
-wget -q -O "luci.ipk" "$REPO_URL/$LUCI_PKG"
+
+if ! download_file "$REPO_URL/$LUCI_PKG" "luci.ipk"; then
+    echo "CRITICAL ERROR: Failed to download $LUCI_PKG"
+    exit 1
+fi
 
 echo "Installing Obhod packages..."
 if [ "$OPKG_WORKS" -eq 1 ]; then
@@ -128,12 +153,27 @@ elif [ -x "$APK_CMD" ]; then
         EXTRACT_DIR="/tmp/extract_$pkg"
         rm -rf "$EXTRACT_DIR"
         mkdir -p "$EXTRACT_DIR"
+        
+        # Check if files exist
+        if [ ! -f "/tmp/$pkg" ]; then
+            echo "Error: File /tmp/$pkg not found for extraction!"
+            exit 1
+        fi
+
         # ipk is a tar.gz containing data.tar.gz and control.tar.gz
-        tar -xzf "/tmp/$pkg" -C "$EXTRACT_DIR"
+        if ! tar -xzf "/tmp/$pkg" -C "$EXTRACT_DIR"; then
+            echo "Error: Failed to unpack $pkg"
+            exit 1
+        fi
+
         echo "  - Deploying files..."
-        tar -xzf "$EXTRACT_DIR/data.tar.gz" -C /
+        if ! tar -xzf "$EXTRACT_DIR/data.tar.gz" -C /; then
+            echo "Error: Failed to deploy data from $pkg"
+            exit 1
+        fi
+
         echo "  - Running post-install..."
-        tar -xzf "$EXTRACT_DIR/control.tar.gz" -C "$EXTRACT_DIR"
+        tar -xzf "$EXTRACT_DIR/control.tar.gz" -C "$EXTRACT_DIR" || true
         if [ -f "$EXTRACT_DIR/postinst" ]; then
             chmod +x "$EXTRACT_DIR/postinst"
             sh "$EXTRACT_DIR/postinst" || echo "Warning: postinst failed for $pkg"
