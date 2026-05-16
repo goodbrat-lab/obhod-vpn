@@ -17,8 +17,8 @@ Architecture: all
 Maintainer: Obhod Team <obhod@itdog.info>
 Description: LuCI web interface for Obhod VPN
 Filename: luci-app-obhod_0.3.1-1_all.ipk
-Size: 41993
-SHA256sum: 3ae3a11aa64313c2f4aedfb4709ba1334931f946c311b14f65905961c568f45e
+Size: 42002
+SHA256sum: cada2712acf3fd1fbc3bfdc44162ff0808e7ba48951cf64ab38b9c2e1f148ce1
 
 Package: obhod
 Version: 0.3.0-3
@@ -328,8 +328,8 @@ Architecture: aarch64
 Maintainer: Obhod Team <obhod@itdog.info>
 Description: Obhod VPN - selective routing for OpenWrt (aarch64_cortex-a53)
 Filename: obhod_0.3.1-1_aarch64_cortex-a53.ipk
-Size: 958369
-SHA256sum: 70b3108ba73931c1d9ac33a1077b54efc948591534d5191300f2efd8d90a6bcd
+Size: 958441
+SHA256sum: f1781d08b0b62cc202a05791d8b621a9a4b8714f1aa519f50870120ff7b56a50
 
 Package: obhod
 Version: 0.3.1-1
@@ -361,8 +361,8 @@ Architecture: arm
 Maintainer: Obhod Team <obhod@itdog.info>
 Description: Obhod VPN - selective routing for OpenWrt (arm_cortex-a7_neon-vfpv4)
 Filename: obhod_0.3.1-1_arm_cortex-a7_neon-vfpv4.ipk
-Size: 976597
-SHA256sum: 38db429b89d8a80915584e7aa9f7ab493dc51126d3116d27c6ca541522b88292
+Size: 976640
+SHA256sum: b7da63e4ce27c1898a8298b81acbc052c51576bd1ff71f11add0c7098525012b
 
 Package: obhod
 Version: 0.3.1-1
@@ -383,8 +383,8 @@ Architecture: mips
 Maintainer: Obhod Team <obhod@itdog.info>
 Description: Obhod VPN - selective routing for OpenWrt (mips_24kc)
 Filename: obhod_0.3.1-1_mips_24kc.ipk
-Size: 969008
-SHA256sum: 714b79c153202a94c1417947905ffd0e8e40ff9faa17f037c6230011c6767de7
+Size: 969140
+SHA256sum: 0195ad8dc6d41edb4df9c1656d71c65c3dd82c190fa163fbe437ab127c438427
 
 Package: obhod
 Version: 0.3.1-1
@@ -405,8 +405,8 @@ Architecture: mipsel
 Maintainer: Obhod Team <obhod@itdog.info>
 Description: Obhod VPN - selective routing for OpenWrt (mipsel_24kc)
 Filename: obhod_0.3.1-1_mipsel_24kc.ipk
-Size: 953379
-SHA256sum: f6ccd15821ce7dc59c765f8cd32d30c3095a4e01c706f64493d675f84f2031eb
+Size: 953392
+SHA256sum: e5fa3e9f9b3b4800b8711ae152b45f8f9473b066196414328d8ab31ae2fc3d92
 
 Package: obhod
 Version: 0.3.1-1
@@ -427,6 +427,6 @@ Architecture: x86
 Maintainer: Obhod Team <obhod@itdog.info>
 Description: Obhod VPN - selective routing for OpenWrt (x86_64)
 Filename: obhod_0.3.1-1_x86_64.ipk
-Size: 1021371
-SHA256sum: 50e7a3df3a5e0c6314f5e5ba29494ea311523bc5829be55de51812a845d09562
+Size: 1021337
+SHA256sum: a9127e0ebc3664e0657996dbb7593c83aa59365dc8c97eda5f4ac8df3edb91ef
 
