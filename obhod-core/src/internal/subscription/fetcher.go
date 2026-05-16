@@ -53,8 +53,8 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 	links := f.Parse(content)
 
 	if len(links) == 0 {
-		// Try Base64 decode
-		decoded, err := base64.StdEncoding.DecodeString(content)
+		// Try Base64 decode (with trim to handle whitespace/newlines)
+		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(content))
 		if err == nil {
 			links = f.Parse(string(decoded))
 		}

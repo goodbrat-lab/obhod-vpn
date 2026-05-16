@@ -122,10 +122,10 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 
 	// 1. Direct DNS (Bootstrap)
 	config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
-		Type:    "udp",
-		Tag:     "dns-direct",
-		Address: bootstrapServer,
-		Detour:  "direct-out",
+		Type:   "udp",
+		Tag:    "dns-direct",
+		Server: bootstrapServer,
+		Detour: "direct-out",
 	})
 
 	// 2. Default Tunnel DNS
@@ -136,8 +136,8 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	}
 
 	server := DNSServerConfig{
-		Tag:     mainTag,
-		Address: dnsServer,
+		Tag:    mainTag,
+		Server: dnsServer,
 	}
 
 	switch dnsType {
@@ -230,10 +230,10 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 
 			sectionDNSTag := "dns-" + section.Name
 			config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
-				Type:    "udp",
-				Tag:     sectionDNSTag,
-				Address: "8.8.8.8",
-				Detour:  finalOutboundTag,
+				Type:   "udp",
+				Tag:    sectionDNSTag,
+				Server: "8.8.8.8",
+				Detour: finalOutboundTag,
 			})
 
 			// 1. Community Lists

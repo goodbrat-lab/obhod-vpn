@@ -24,12 +24,13 @@ type DNSConfig struct {
 }
 
 type DNSServerConfig struct {
-	Type           string   `json:"type,omitempty"`
-	Tag            string   `json:"tag,omitempty"`
-	Address        string   `json:"address,omitempty"`
+	Type            string   `json:"type,omitempty"`
+	Tag             string   `json:"tag,omitempty"`
+	Server          string   `json:"server,omitempty"`
+	ServerPort      int      `json:"server_port,omitempty"`
 	AddressResolver string   `json:"address_resolver,omitempty"`
-	Strategy       string   `json:"strategy,omitempty"`
-	Detour         string   `json:"detour,omitempty"`
+	Strategy        string   `json:"strategy,omitempty"`
+	Detour          string   `json:"detour,omitempty"`
 }
 
 type DNSRuleConfig struct {
