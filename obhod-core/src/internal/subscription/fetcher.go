@@ -2,22 +2,34 @@ package subscription
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
 
 type Fetcher struct {
-	Client *http.Client
+	Client    *http.Client
+	CachePath string
 }
 
-func NewFetcher() *Fetcher {
+type CacheData struct {
+	LastUpdate time.Time           `json:"last_update"`
+	Sections   map[string][]string `json:"sections"`
+}
+
+func NewFetcher(cachePath string) *Fetcher {
+	if cachePath == "" {
+		cachePath = "/tmp/obhod/subscriptions.json"
+	}
 	return &Fetcher{
 		Client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		CachePath: cachePath,
 	}
 }
 
@@ -39,7 +51,7 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 
 	content := string(body)
 	links := f.Parse(content)
-	
+
 	if len(links) == 0 {
 		// Try Base64 decode
 		decoded, err := base64.StdEncoding.DecodeString(content)
@@ -59,10 +71,37 @@ func (f *Fetcher) Parse(content string) []string {
 		if line == "" {
 			continue
 		}
-		// Basic check for proxy schemes
 		if strings.Contains(line, "://") {
 			links = append(links, line)
 		}
 	}
 	return links
+}
+
+func (f *Fetcher) SaveCache(data *CacheData) error {
+	dir := f.CachePath[:strings.LastIndex(f.CachePath, "/")]
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	file, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(f.CachePath, file, 0644)
+}
+
+func (f *Fetcher) LoadCache() (*CacheData, error) {
+	file, err := os.ReadFile(f.CachePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var data CacheData
+	if err := json.Unmarshal(file, &data); err != nil {
+		return nil, err
+	}
+
+	return &data, nil
 }

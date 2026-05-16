@@ -11,11 +11,12 @@ import (
 
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/config"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
+	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/subscription"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/watchdog"
-    "encoding/json"
+	"encoding/json"
 )
 
-var version = "0.3.4"
+var version = "0.3.7"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
@@ -24,6 +25,9 @@ func main() {
 	
 	genConfigCmd := flag.NewFlagSet("generate-config", flag.ExitOnError)
 	outputFile := genConfigCmd.String("o", "", "Output file path (default: stdout)")
+
+	updateSubCmd := flag.NewFlagSet("update-subscriptions", flag.ExitOnError)
+	cacheFile := updateSubCmd.String("c", "/tmp/obhod/subscriptions.json", "Cache file path")
 
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal)")
 	
@@ -52,7 +56,16 @@ func main() {
 	switch os.Args[1] {
 	case "watchdog":
 		watchdogCmd.Parse(os.Args[2:])
+		// Start subscription updater in background
+		go subscription.StartUpdater("")
 		watchdog.Start(ctx, *interval, *mark)
+	case "update-subscriptions":
+		updateSubCmd.Parse(os.Args[2:])
+		err := subscription.UpdateManual(*cacheFile)
+		if err != nil {
+			logger.Error("config", "main", "Failed to update subscriptions: %v", err)
+			os.Exit(1)
+		}
 	case "generate-config":
 		genConfigCmd.Parse(os.Args[2:])
 		uci, err := config.LoadUCI()
@@ -89,8 +102,9 @@ func main() {
 func printUsage() {
 	fmt.Println("Usage: obhoud <command> [options]")
 	fmt.Println("\nCommands:")
-	fmt.Println("  watchdog         Start connectivity monitoring")
-	fmt.Println("  generate-config  Generate sing-box configuration from UCI")
+	fmt.Println("  watchdog             Start connectivity monitoring and scheduled updates")
+	fmt.Println("  update-subscriptions Update all proxy subscriptions manually")
+	fmt.Println("  generate-config      Generate sing-box configuration from UCI")
 	fmt.Println("\nOptions for watchdog:")
 	fmt.Println("  -interval duration    Check interval (default 30s)")
 	fmt.Println("  -mark int             Socket mark (fwmark) for direct WAN checks")

@@ -48,7 +48,17 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 			CacheFile: &CacheFileConfig{
 				Path: uci.Settings.CachePath,
 			},
+			ClashAPI: &ClashAPIConfig{},
 		},
+	}
+
+	if uci.Settings.EnableYacd {
+		config.Experimental.ClashAPI.ExternalController = "127.0.0.1:9090"
+		if uci.Settings.EnableYacdWanAccess {
+			config.Experimental.ClashAPI.ExternalController = "0.0.0.0:9090"
+		}
+		config.Experimental.ClashAPI.Secret = uci.Settings.YacdSecretKey
+		config.Experimental.ClashAPI.ExternalUI = "ui"
 	}
 
 	// 1. Inbounds
@@ -70,13 +80,14 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		Tag:  "direct-out",
 	})
 
-	fetcher := subscription.NewFetcher()
+	fetcher := subscription.NewFetcher("")
+	cache, _ := fetcher.LoadCache()
 
 	for _, section := range uci.Sections {
 		if !section.Enabled {
 			continue
 		}
-		processSection(config, section, fetcher)
+		processSection(config, section, fetcher, cache)
 	}
 
 	return config, nil
@@ -125,7 +136,7 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	config.DNS.Final = mainTag
 }
 
-func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscription.Fetcher) {
+func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscription.Fetcher, cache *subscription.CacheData) {
 	outboundTag := section.Name + "-out"
 
 	if section.ConnectionType == "proxy" {
@@ -139,36 +150,61 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 			}
 		case "subscription":
 			if section.SubscriptionURL != "" {
-				logger.Info("config", "generator", "Fetching subscription for %s...", section.Name)
-				links, err := fetcher.Fetch(section.SubscriptionURL)
-				if err != nil {
-					logger.Error("config", "generator", "Failed to fetch subscription for %s: %v", section.Name, err)
-				} else {
-					for i, link := range links {
-						tag := fmt.Sprintf("%s-%d", outboundTag, i)
-						outbound, err := parseProxyURL(link, tag)
-						if err == nil && outbound != nil {
-							outbounds = append(outbounds, *outbound)
-						}
+				var links []string
+				// 1. Check cache first
+				if cache != nil {
+					if cachedLinks, ok := cache.Sections[section.Name]; ok {
+						links = cachedLinks
+						logger.Info("config", "generator", "Using cached subscription for %s", section.Name)
 					}
+				}
+
+				// 2. If no cache, fetch (fallback)
+				if len(links) == 0 {
+					logger.Info("config", "generator", "Fetching subscription for %s (no cache)...", section.Name)
+					var err error
+					links, err = fetcher.Fetch(section.SubscriptionURL)
+					if err != nil {
+						logger.Error("config", "generator", "Failed to fetch subscription for %s: %v", section.Name, err)
+					}
+				}
+
+				for i, link := range links {
+					tag := fmt.Sprintf("%s-%d", outboundTag, i)
+					outbound, err := parseProxyURL(link, tag)
+					if err == nil && outbound != nil {
+						outbounds = append(outbounds, *outbound)
+					}
+				}
+			}
+		case "selector":
+			for i, link := range section.SelectorProxyLinks {
+				tag := fmt.Sprintf("%s-%d", outboundTag, i+1)
+				outbound, err := parseProxyURL(link, tag)
+				if err == nil && outbound != nil {
+					outbounds = append(outbounds, *outbound)
 				}
 			}
 		}
 
 		if len(outbounds) > 0 {
 			finalOutboundTag := outboundTag
-			
-			if len(outbounds) > 1 {
-				// Multiple outbounds from subscription -> create a group
+
+			if len(outbounds) > 1 || section.ProxyConfigType == "selector" {
+				// Create a group
 				var tags []string
 				for _, o := range outbounds {
 					config.Outbounds = append(config.Outbounds, o)
 					tags = append(tags, o.Tag)
 				}
-				
-				// Default to URLTest group
+
+				groupType := "urltest"
+				if section.ProxyConfigType == "selector" {
+					groupType = "selector"
+				}
+
 				group := OutboundConfig{
-					Type:      "urltest",
+					Type:      groupType,
 					Tag:       outboundTag,
 					Outbounds: tags,
 				}
@@ -180,7 +216,7 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 			// Add route rules for community lists
 			for _, service := range section.CommunityLists {
 				rulesetTag := "rs-" + service
-				
+
 				exists := false
 				for _, rs := range config.Route.RuleSet {
 					if rs.Tag == rulesetTag {

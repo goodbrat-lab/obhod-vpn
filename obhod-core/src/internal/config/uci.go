@@ -24,6 +24,9 @@ type SettingsUCI struct {
 	DNSType                  string
 	DNSServer                string
 	BootstrapDNSServer       string
+	EnableYacd               bool
+	EnableYacdWanAccess      bool
+	YacdSecretKey            string
 }
 
 type SectionUCI struct {
@@ -38,6 +41,7 @@ type SectionUCI struct {
 	UserSubnets             []string
 	MixedProxyEnabled       bool
 	MixedProxyPort          int
+	SelectorProxyLinks      []string
 }
 
 func LoadUCI() (*UCIConfig, error) {
@@ -115,6 +119,12 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 		s.DNSServer = value
 	case "bootstrap_dns_server":
 		s.BootstrapDNSServer = value
+	case "enable_yacd":
+		s.EnableYacd = value == "1"
+	case "enable_yacd_wan_access":
+		s.EnableYacdWanAccess = value == "1"
+	case "yacd_secret_key":
+		s.YacdSecretKey = value
 	}
 }
 
@@ -142,5 +152,7 @@ func parseSection(s *SectionUCI, keyParts []string, value string) {
 		s.UserSubnets = append(s.UserSubnets, value)
 	case "mixed_proxy_enabled":
 		s.MixedProxyEnabled = value == "1"
+	case "selector_proxy_links":
+		s.SelectorProxyLinks = append(s.SelectorProxyLinks, value)
 	}
 }
