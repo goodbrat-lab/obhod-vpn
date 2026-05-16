@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
+	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/subscription"
 	"net/url"
 	"strconv"
 	"strings"
@@ -69,11 +70,13 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		Tag:  "direct-out",
 	})
 
+	fetcher := subscription.NewFetcher()
+
 	for _, section := range uci.Sections {
 		if !section.Enabled {
 			continue
 		}
-		processSection(config, section)
+		processSection(config, section, fetcher)
 	}
 
 	return config, nil
@@ -122,31 +125,62 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	config.DNS.Final = mainTag
 }
 
-func processSection(config *SingBoxConfig, section SectionUCI) {
+func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscription.Fetcher) {
 	outboundTag := section.Name + "-out"
 
 	if section.ConnectionType == "proxy" {
-		var outbound *OutboundConfig
-		var err error
+		var outbounds []OutboundConfig
 
 		switch section.ProxyConfigType {
 		case "url":
-			outbound, err = parseProxyURL(section.ProxyString, outboundTag)
+			outbound, err := parseProxyURL(section.ProxyString, outboundTag)
+			if err == nil && outbound != nil {
+				outbounds = append(outbounds, *outbound)
+			}
+		case "subscription":
+			if section.SubscriptionURL != "" {
+				logger.Info("config", "generator", "Fetching subscription for %s...", section.Name)
+				links, err := fetcher.Fetch(section.SubscriptionURL)
+				if err != nil {
+					logger.Error("config", "generator", "Failed to fetch subscription for %s: %v", section.Name, err)
+				} else {
+					for i, link := range links {
+						tag := fmt.Sprintf("%s-%d", outboundTag, i)
+						outbound, err := parseProxyURL(link, tag)
+						if err == nil && outbound != nil {
+							outbounds = append(outbounds, *outbound)
+						}
+					}
+				}
+			}
 		}
 
-		if err != nil {
-			logger.Error("config", "generator", "Section %s: %v", section.Name, err)
-			return
-		}
-
-		if outbound != nil {
-			config.Outbounds = append(config.Outbounds, *outbound)
+		if len(outbounds) > 0 {
+			finalOutboundTag := outboundTag
+			
+			if len(outbounds) > 1 {
+				// Multiple outbounds from subscription -> create a group
+				var tags []string
+				for _, o := range outbounds {
+					config.Outbounds = append(config.Outbounds, o)
+					tags = append(tags, o.Tag)
+				}
+				
+				// Default to URLTest group
+				group := OutboundConfig{
+					Type:      "urltest",
+					Tag:       outboundTag,
+					Outbounds: tags,
+				}
+				config.Outbounds = append(config.Outbounds, group)
+			} else {
+				config.Outbounds = append(config.Outbounds, outbounds[0])
+			}
 
 			// Add route rules for community lists
 			for _, service := range section.CommunityLists {
 				rulesetTag := "rs-" + service
 				
-				// 1. Add rule-set definition if not already present
 				exists := false
 				for _, rs := range config.Route.RuleSet {
 					if rs.Tag == rulesetTag {
@@ -166,11 +200,10 @@ func processSection(config *SingBoxConfig, section SectionUCI) {
 					config.Route.RuleSet = append(config.Route.RuleSet, rs)
 				}
 
-				// 2. Add route rule
 				rule := RouteRuleConfig{
 					Inbound:  []string{"tproxy-in"},
 					RuleSet:  []string{rulesetTag},
-					Outbound: outboundTag,
+					Outbound: finalOutboundTag,
 				}
 				config.Route.Rules = append(config.Route.Rules, rule)
 			}
@@ -182,7 +215,6 @@ func getCommunityURL(service string) string {
 	if url, ok := communityListMap[service]; ok {
 		return url
 	}
-	// Fallback to a default structure if not in map
 	return fmt.Sprintf("https://github.com/itdoginfo/allow-domains/releases/latest/download/%s.srs", service)
 }
 

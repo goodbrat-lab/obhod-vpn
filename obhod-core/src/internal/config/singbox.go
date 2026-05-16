@@ -52,6 +52,10 @@ type OutboundConfig struct {
 	Type string `json:"type"`
 	Tag  string `json:"tag,omitempty"`
 
+	// Group fields
+	Outbounds []string `json:"outbounds,omitempty"`
+	Default   string   `json:"default,omitempty"`
+
 	// Common Proxy fields
 	Server     string `json:"server,omitempty"`
 	ServerPort int    `json:"server_port,omitempty"`

@@ -1,4 +1,10 @@
 # CHANGELOG - Obhod Project
+## [v0.3.5] - 2026-05-16
+### Added
+- **Native Subscription Support**: The Go core now handles fetching and parsing of proxy subscriptions (Base64 and Plain-text).
+- **Auto-failover Outbounds**: Implemented `urltest` groups in Go, automatically selecting the fastest proxy from a subscription list.
+- **Robust HTTP Fetcher**: Integrated a dedicated HTTP client with timeouts for more reliable list and subscription updates.
+
 ## [v0.3.4] - 2026-05-16
 ### Added
 - **Go-Powered Config Generator**: Migrated the core configuration generation logic from Bash/jq to the native Go daemon (`obhoud`).
