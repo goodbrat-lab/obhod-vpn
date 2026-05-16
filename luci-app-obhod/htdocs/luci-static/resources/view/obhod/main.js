@@ -1359,7 +1359,8 @@ var initialStore = {
   bandwidthWidget: {
     loading: true,
     failed: false,
-    data: { up: 0, down: 0 }
+    data: { up: 0, down: 0 },
+    history: []
   },
   trafficTotalWidget: {
     loading: true,
@@ -2004,14 +2005,20 @@ async function connectToClashSockets() {
     `${getClashWsUrl()}/traffic?token=${clashApiSecret}`,
     (msg) => {
       const parsedMsg = JSON.parse(msg);
+      const prev = store.get().bandwidthWidget;
+      const history = [...(prev.history || [])];
+      history.push({ up: parsedMsg.up, down: parsedMsg.down, time: Date.now() });
+      if (history.length > 60) history.shift();
       store.set({
         bandwidthWidget: {
           loading: false,
           failed: false,
-          data: { up: parsedMsg.up, down: parsedMsg.down }
+          data: { up: parsedMsg.up, down: parsedMsg.down },
+          history
         }
       });
     },
+
     (_err) => {
       logger.error(
         "[DASHBOARD]",
@@ -2155,6 +2162,38 @@ async function renderSectionsWidget() {
     container.replaceChildren(...renderedWidgets);
   });
 }
+function renderTrafficGraph(history) {
+    if (!history || history.length < 2) return E("div", {}, "");
+    
+    const width = 100;
+    const height = 30;
+    const maxVal = Math.max(...history.map(h => Math.max(h.up, h.down)), 1024);
+    
+    const getPath = (key, color) => {
+        const points = history.map((h, i) => {
+            const x = (i / (history.length - 1)) * width;
+            const y = height - (h[key] / maxVal) * height;
+            return `${x},${y}`;
+        }).join(" ");
+        return E("polyline", {
+            points: points,
+            fill: "none",
+            stroke: color,
+            "stroke-width": "1.5",
+            "stroke-linejoin": "round"
+        }, "");
+    };
+
+    return E("svg", {
+        viewBox: `0 0 ${width} ${height}`,
+        style: "width: 100%; height: 40px; margin-top: 10px; display: block;",
+        preserveAspectRatio: "none"
+    }, [
+        getPath("up", "var(--warning-color-medium, orange)"),
+        getPath("down", "var(--success-color-medium, green)")
+    ]);
+}
+
 async function renderBandwidthWidget() {
   logger.debug("[DASHBOARD]", "renderBandwidthWidget");
   const traffic = store.get().bandwidthWidget;
@@ -2177,7 +2216,9 @@ async function renderBandwidthWidget() {
       { key: _("Downlink"), value: `${prettyBytes(traffic.data.down)}/s` }
     ]
   });
+  renderedWidget.appendChild(renderTrafficGraph(traffic.history));
   container.replaceChildren(renderedWidget);
+
 }
 async function renderTrafficTotalWidget() {
   logger.debug("[DASHBOARD]", "renderTrafficTotalWidget");
