@@ -39,7 +39,7 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 			Servers: []DNSServerConfig{},
 			Rules:   []DNSRuleConfig{},
 			Final:   "direct-out",
-			Strategy: "ipv4_only", // Default for v0.3.9+
+			Strategy: uci.Settings.DNSStrategy,
 		},
 		Route: &RouteConfig{
 			Rules:               []RouteRuleConfig{},
@@ -75,6 +75,11 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 	})
 
 	// 2. DNS setup
+	dnsStrategy := uci.Settings.DNSStrategy
+	if dnsStrategy == "" {
+		dnsStrategy = "ipv4_only"
+	}
+	config.DNS.Strategy = dnsStrategy
 	setupDNS(config, uci)
 
 	// 3. Outbounds & Route Rules

@@ -19,6 +19,19 @@ function createSettingsContent(section) {
   o.rmempty = false;
 
   o = section.option(
+    form.ListValue,
+    "dns_strategy",
+    _("DNS Resolve Strategy"),
+    _("Select preferred IP version for DNS resolution"),
+  );
+  o.value("prefer_ipv4", _("Prefer IPv4"));
+  o.value("prefer_ipv6", _("Prefer IPv6"));
+  o.value("ipv4_only", _("IPv4 Only"));
+  o.value("ipv6_only", _("IPv6 Only"));
+  o.default = "ipv4_only";
+  o.rmempty = false;
+
+  o = section.option(
     form.Value,
     "dns_server",
     _("DNS Server"),

@@ -1,5 +1,11 @@
 # CHANGELOG - Obhod Project
-## [v0.3.5] - 2026-05-16
+## [v0.4.1] - 2026-05-16
+### Added
+- **Flexible DNS Strategy**: Users can now choose their preferred DNS resolution strategy (IPv4 Only, Prefer IPv4, Prefer IPv6, IPv6 Only) directly in LuCI settings.
+- **Full Stage 8.2 Completion**: Finalized multi-tunnel support and custom user rules integration in the Go core.
+
+## [v0.4.0] - 2026-05-16
+
 ### Added
 - **Native Subscription Support**: The Go core now handles fetching and parsing of proxy subscriptions (Base64 and Plain-text).
 - **Auto-failover Outbounds**: Implemented `urltest` groups in Go, automatically selecting the fastest proxy from a subscription list.

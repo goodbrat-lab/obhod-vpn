@@ -23,6 +23,7 @@ type SettingsUCI struct {
 	WatchdogInterval         string
 	DNSType                  string
 	DNSServer                string
+	DNSStrategy              string
 	BootstrapDNSServer       string
 	EnableYacd               bool
 	EnableYacdWanAccess      bool
@@ -117,6 +118,8 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 		s.DNSType = value
 	case "dns_server":
 		s.DNSServer = value
+	case "dns_strategy":
+		s.DNSStrategy = value
 	case "bootstrap_dns_server":
 		s.BootstrapDNSServer = value
 	case "enable_yacd":
