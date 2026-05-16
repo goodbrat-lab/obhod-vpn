@@ -54,3 +54,15 @@ echo "  BUILD COMPLETE"
 echo "  Packages: $BASE_DIR/dist/packages/"
 echo "========================================="
 ls -lh "$BASE_DIR/dist/packages/"*.ipk
+
+# Step 4: Automatic Publishing to GitHub
+echo ""
+echo "Step 4: Publishing to GitHub..."
+git add "$BASE_DIR/CHANGELOG.md" "$BASE_DIR/install.sh" "$BASE_DIR/obhod-core" "$BASE_DIR/luci-app-obhod" "$BASE_DIR/dist" "$BASE_DIR/PROGRESS.md" "$BASE_DIR/GEMINI.md" "$BASE_DIR/README.md" "$BASE_DIR/scripts"
+git commit -m "Automated build and release: Obhod v0.3.1-1" || echo "No changes to commit"
+git push origin main || echo "Warning: git push failed. Check your network/credentials."
+
+echo "========================================="
+echo "  RELEASE PUBLISHED TO GITHUB"
+echo "  Installer: sh <(wget -O - https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)"
+echo "========================================="

@@ -107,6 +107,56 @@ sing_box_cf_add_proxy_outbound() {
         config=$(_add_outbound_security "$config" "$tag" "$url")
         config=$(_add_outbound_transport "$config" "$tag" "$url")
         ;;
+    vmess)
+        local tag host port uuid security alter_id packet_encoding
+        tag=${custom_tag:-$(get_outbound_tag_by_section "$section")}
+        
+        # Check if it's V2RayN format (vmess://BASE64_JSON)
+        local vmess_data="${url#vmess://}"
+        if is_base64 "$vmess_data"; then
+            local decoded_json
+            decoded_json=$(base64_decode "$vmess_data")
+            host=$(echo "$decoded_json" | jq -r '.add // empty')
+            port=$(echo "$decoded_json" | jq -r '.port // empty')
+            uuid=$(echo "$decoded_json" | jq -r '.id // empty')
+            security=$(echo "$decoded_json" | jq -r '.scy // "auto"')
+            alter_id=$(echo "$decoded_json" | jq -r '.aid // 0')
+            
+            config=$(sing_box_cm_add_vmess_outbound "$config" "$tag" "$host" "$port" "$uuid" "$security" "$alter_id" "")
+            
+            # Transport for V2RayN format
+            local net path tls sni
+            net=$(echo "$decoded_json" | jq -r '.net // empty')
+            path=$(echo "$decoded_json" | jq -r '.path // empty')
+            tls=$(echo "$decoded_json" | jq -r '.tls // empty')
+            sni=$(echo "$decoded_json" | jq -r '.sni // empty')
+            
+            if [ "$tls" = "tls" ]; then
+                config=$(sing_box_cm_set_tls_for_outbound "$config" "$tag" "$sni" false null "" "" "")
+            fi
+            
+            case "$net" in
+            ws)
+                config=$(sing_box_cm_set_ws_transport_for_outbound "$config" "$tag" "$path" "" "")
+                ;;
+            grpc)
+                config=$(sing_box_cm_set_grpc_transport_for_outbound "$config" "$tag" "$path")
+                ;;
+            esac
+        else
+            # URI format: vmess://uuid@host:port?type=ws&path=...
+            host=$(url_get_host "$url")
+            port=$(url_get_port "$url")
+            uuid=$(url_get_userinfo "$url")
+            security=$(url_get_query_param "$url" "security")
+            alter_id=$(url_get_query_param "$url" "alterId")
+            packet_encoding=$(url_get_query_param "$url" "packetEncoding")
+            
+            config=$(sing_box_cm_add_vmess_outbound "$config" "$tag" "$host" "$port" "$uuid" "$security" "$alter_id" "$packet_encoding")
+            config=$(_add_outbound_security "$config" "$tag" "$url")
+            config=$(_add_outbound_transport "$config" "$tag" "$url")
+        fi
+        ;;
     ss)
         local userinfo tag host port method password udp_over_tcp
 

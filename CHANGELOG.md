@@ -1,4 +1,22 @@
 # CHANGELOG - Obhod Project
+## [v0.3.1] - 2026-05-16
+### Added
+- **Unified Logging System**: Implemented a comprehensive logging system across Bash, Go, and LuCI.
+- **Log Viewer**: Added a new "Logs" tab in the LuCI web interface with real-time updates and level-based filtering.
+- **Detailed Diagnostics**: Enhanced logging in `start_main`, `stop_main`, and subscription management for easier troubleshooting.
+- **Dependency Version Logging**: Obhod now logs versions of all critical dependencies (sing-box, nftables, etc.) on startup.
+- **Improved Go Watchdog Logging**: Detailed state transitions and recovery actions are now recorded in syslog.
+
+### Fixed
+- **CRITICAL**: Fixed DNS inbound type in sing-box config (changed from `direct` to `dns`). This was the main reason why VPN routing was not working.
+...
+- **CRITICAL**: Fixed ash compatibility for all shell libraries. Removed `[[ ... ]]` and `[[ ... =~ ... ]]` which are not supported in BusyBox ash, causing validation and list processing to fail.
+- Fixed routing loops by adding `routing_mark` to all sing-box outbounds.
+- Added full support for **VMess** outbounds (including URI and V2RayN Base64-JSON formats).
+- Improved subscription parsing robustness: added support for missing Base64 padding and allowed leading spaces in link detection.
+- Updated sing-box `sniff` rule for compatibility with 1.12+ (added `sniffer` list and `override_destination`).
+- Fixed `obhod restart` and `stop_main` cleanup logic.
+- Ensured `ObhodTable` is properly flushed before creation to avoid rule conflicts.
 
 ## [v0.1.0] - 2026-05-01
 

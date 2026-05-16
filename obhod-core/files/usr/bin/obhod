@@ -34,12 +34,16 @@ check_required_file "$OBHOD_LIB/rulesets.sh"
 config_load "$OBHOD_CONFIG"
 
 check_requirements() {
-    log "Check Requirements"
+    log "Checking system requirements..." "debug" "init" "requirements"
 
-    local sing_box_version jq_version coreutils_base64_version
+    local sing_box_version jq_version coreutils_base64_version nft_version dnsmasq_version
     sing_box_version="$(sing-box version | head -n1 | awk '{print $3}')"
     jq_version="$(jq --version | awk -F- '{print $2}')"
     coreutils_base64_version="$(base64 --version | head -n1 | awk '{print $4}')"
+    nft_version="$(nft -v | awk '{print $2}')"
+    dnsmasq_version="$(dnsmasq -v | head -n1 | awk '{print $3}')"
+
+    log "Dependency versions: sing-box=$sing_box_version, nftables=$nft_version, dnsmasq=$dnsmasq_version, jq=$jq_version, base64=$coreutils_base64_version" "info" "init" "requirements"
 
     if [ -z "$sing_box_version" ]; then
         log "Package 'sing-box' is not installed. Aborted." "error"
@@ -127,7 +131,9 @@ has_outbound_section() {
 fetch_subscription() {
     local url="$1"
     local output_file="$2"
-    log "Fetching subscription from $url"
+    local component="subscription"
+    local context="fetch"
+    log "Fetching subscription from $url" "info" "$component" "$context"
     
     local data http_code tmpfile
     tmpfile=$(mktemp)
@@ -137,114 +143,146 @@ fetch_subscription() {
     local curl_exit=$?
     
     if [ $curl_exit -ne 0 ]; then
-        log "Failed to fetch subscription from $url (curl exit code: $curl_exit)" "error"
+        log "Failed to fetch subscription from $url (curl exit code: $curl_exit)" "error" "$component" "$context"
         rm -f "$tmpfile"
         return 1
     fi
     
     if [ "$http_code" != "200" ]; then
-        log "Subscription fetch returned HTTP $http_code for $url" "error"
+        log "Subscription fetch returned HTTP $http_code for $url" "error" "$component" "$context"
         rm -f "$tmpfile"
         return 1
     fi
     
     data=$(cat "$tmpfile")
+    local size=${#data}
+    log "Downloaded $size bytes from subscription" "debug" "$component" "$context"
     rm -f "$tmpfile"
     
     if [ -z "$data" ]; then
-        log "Subscription response body is empty from $url" "error"
+        log "Subscription response body is empty from $url" "error" "$component" "$context"
         return 1
     fi
     
     # Detect whether content is already plain-text proxy links or Base64-encoded.
-    # If the content contains known proxy protocol prefixes, it's plain text.
-    # Otherwise, attempt Base64 decoding.
-    if echo "$data" | grep -qiE '^(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
-        log "Subscription content detected as plain-text proxy links" "debug"
+    # If the content contains known proxy protocol prefixes (allowing leading spaces), it's plain text.
+    if echo "$data" | grep -qiE '^[[:space:]]*(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
+        log "Subscription content detected as plain-text proxy links" "debug" "$component" "$context"
         echo "$data" > "$output_file"
     else
-        log "Subscription content does not contain proxy URIs, attempting Base64 decode" "debug"
-        local decoded
+        log "Subscription content does not contain proxy URIs, attempting Base64 decode" "debug" "$component" "$context"
+        local decoded cleaned_data
         # Handle URL-safe Base64 (replace - with + and _ with /), then decode.
-        # Also handle missing padding.
-        decoded=$(echo "$data" | tr -d '\r\n ' | tr -- '-_' '+/' | base64 -d 2>/dev/null)
+        # Remove any whitespace that could break decoding.
+        cleaned_data=$(echo "$data" | tr -d '\r\n[:space:]' | tr -- '-_' '+/')
+        
+        # Manually add padding if missing (some base64 decoders are picky)
+        local mod=$((${#cleaned_data} % 4))
+        if [ $mod -eq 2 ]; then
+            cleaned_data="${cleaned_data}=="
+        elif [ $mod -eq 3 ]; then
+            cleaned_data="${cleaned_data}="
+        fi
+        
+        decoded=$(echo "$cleaned_data" | base64 -d 2>/dev/null)
         if [ $? -eq 0 ] && [ -n "$decoded" ] && echo "$decoded" | grep -qiE '(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
-            log "Base64 decoded successfully, found proxy links" "debug"
+            log "Base64 decoded successfully, found proxy links" "debug" "$component" "$context"
             echo "$decoded" > "$output_file"
         else
             # Fallback: try treating it as plain text anyway
-            log "Base64 decode did not produce valid proxy links, using raw content" "warn"
+            log "Base64 decode did not produce valid proxy links, using raw content" "warn" "$component" "$context"
             echo "$data" > "$output_file"
         fi
     fi
     
-    # Convert CRLF to LF
+    # Convert CRLF to LF and remove trailing spaces from each line
     if [ -f "$output_file" ]; then
-        tr -d '\r' < "$output_file" > "${output_file}.tmp" && mv "${output_file}.tmp" "$output_file"
+        tr -d '\r' < "$output_file" | sed 's/[[:space:]]*$//' > "${output_file}.tmp" && mv "${output_file}.tmp" "$output_file"
     fi
     
     local link_count
-    link_count=$(grep -cE '^(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://' "$output_file" 2>/dev/null || echo 0)
-    log "Subscription fetched: $link_count proxy links found" "info"
+    link_count=$(grep -cE '^[[:space:]]*(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://' "$output_file" 2>/dev/null || echo 0)
+    log "Subscription fetched: $link_count proxy links found" "info" "$component" "$context"
     
     return 0
 }
 
 start_main() {
-    log "Starting obhod"
+    export OBHOD_LOG_COMPONENT="init"
+    export OBHOD_LOG_CONTEXT="start"
+    log "Starting obhod (version $OBHOD_VERSION)"
+
+    log "Checking system requirements..." "debug"
+    check_requirements
 
     log "Waiting for WAN interface to be ready..."
     local retry=0
     while ! ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; do
         retry=$((retry+1))
         if [ "$retry" -ge 120 ]; then
-            log "WAN not ready after 120 seconds, proceeding anyway..."
+            log "WAN not ready after 120 seconds, proceeding anyway..." "warn"
             break
         fi
         sleep 1
     done
-    log "WAN is ready (or wait timed out)."
+    log "WAN interface detected or wait timed out" "debug"
 
-    log "Clearing FakeIP cache to prevent stale IP issues..."
+    log "Clearing FakeIP cache..." "debug"
     rm -f /tmp/sing-box/cache.db
 
-    check_requirements
-
+    log "Applying migrations..." "debug"
     migration
 
+    log "Validating UCI services..." "debug"
     config_foreach process_validate_service "section"
 
+    log "Disabling br_netfilter..." "debug"
     br_netfilter_disable
 
-    # Sync time for DoH/DoT
+    log "Synchronizing system time..." "debug"
     /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
-
-    sleep 1
 
     mkdir -p "$TMP_SING_BOX_FOLDER"
     mkdir -p "$TMP_RULESET_FOLDER"
 
     # Configure dnsmasq to forward DNS to sing-box
+    export OBHOD_LOG_COMPONENT="network"
     local dont_touch_dhcp
     config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
     if [ "$dont_touch_dhcp" -eq 0 ]; then
+        log "Configuring dnsmasq..." "debug"
         dnsmasq_configure
     fi
 
     # base
+    log "Setting up routing table and fwmarks..." "debug"
     route_table_rule_mark
+    log "Applying nftables rules..." "debug"
     create_nft_rules
+    log "Configuring sing-box service..." "debug"
     sing_box_configure_service
 
     # sing-box
+    log "Generating sing-box configuration..."
+    export OBHOD_LOG_COMPONENT="config"
     sing_box_init_config
+    
+    log "Starting sing-box service..."
+    export OBHOD_LOG_COMPONENT="init"
     config_foreach add_cron_job "section"
     /etc/init.d/sing-box start
+    
+    # Check if sing-box actually started
+    if ! /etc/init.d/sing-box running 2>/dev/null; then
+        log "Sing-box failed to start. Last logs:" "error"
+        log "$(logread -e sing-box | tail -n 5)" "error"
+    fi
 
     uci_set "obhod" "settings" "shutdown_correctly" 0
     uci commit "obhod" && config_load "$OBHOD_CONFIG"
 
     # Start background list update
+    log "Starting background list update..." "debug"
     list_update &
     echo $! > /var/run/obhod_list_update.pid
 
@@ -252,14 +290,16 @@ start_main() {
 }
 
 stop_main() {
-    log "Stopping the obhod"
+    export OBHOD_LOG_COMPONENT="init"
+    export OBHOD_LOG_CONTEXT="stop"
+    log "Stopping obhod..."
 
     # Stop background list update if running
     if [ -f /var/run/obhod_list_update.pid ]; then
         pid=$(cat /var/run/obhod_list_update.pid)
         if kill -0 "$pid" 2> /dev/null; then
             kill "$pid" 2> /dev/null
-            log "Stopped list_update"
+            log "Stopped list_update" "debug"
         fi
         rm -f /var/run/obhod_list_update.pid
     fi
@@ -276,29 +316,33 @@ stop_main() {
     local dont_touch_dhcp
     config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
     if [ "$dont_touch_dhcp" -eq 0 ]; then
+        log "Restoring dnsmasq configuration..." "debug"
         dnsmasq_restore
     fi
 
-    log "Flush nft"
+    log "Cleaning up networking (nft, ip rule/route)..." "debug"
+    export OBHOD_LOG_COMPONENT="network"
     if nft list table inet "$NFT_TABLE_NAME" > /dev/null 2>&1; then
         nft delete table inet "$NFT_TABLE_NAME"
     fi
 
-    log "Flush ip rule"
-    if ip rule list | grep -q "fwmark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK"; then
-        ip rule del fwmark "$NFT_FAKEIP_MARK"/"$NFT_FAKEIP_MARK" table "$RT_TABLE_NAME" priority 105
-    fi
+    log "Flush ip rule" "debug"
+    while ip rule list | grep -q "fwmark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK"; do
+        ip -4 rule del fwmark "$NFT_FAKEIP_MARK"/"$NFT_FAKEIP_MARK" table "$RT_TABLE_NAME" priority 105
+    done
 
-    log "Flush ip route"
+    log "Flush ip route" "debug"
     if ip route list table "$RT_TABLE_NAME" > /dev/null 2>&1; then
         ip route flush table "$RT_TABLE_NAME"
     fi
 
-    log "Stop sing-box"
+    log "Stopping sing-box service..." "debug"
+    export OBHOD_LOG_COMPONENT="init"
     /etc/init.d/sing-box stop
 
     uci_set "obhod" "settings" "shutdown_correctly" 1
     uci commit "obhod" && config_load "$OBHOD_CONFIG"
+    log "Obhod stopped successfully"
 }
 
 # CLI aliases for convenience (e.g., /usr/bin/obhod start from terminal)
@@ -390,6 +434,7 @@ nft_init_interfaces_set() {
 
 create_nft_rules() {
     log "Create nft table"
+    nft delete table inet "$NFT_TABLE_NAME" 2>/dev/null
     nft_create_table "$NFT_TABLE_NAME"
 
     log "Create localv4 set"
@@ -715,7 +760,7 @@ sing_box_configure_inbounds() {
             "$config" "$SB_TPROXY_INBOUND_TAG" "$SB_TPROXY_INBOUND_ADDRESS" "$SB_TPROXY_INBOUND_PORT" true true
     )
     config=$(
-        sing_box_cm_add_direct_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
+        sing_box_cm_add_dns_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
     )
 }
 
@@ -1458,10 +1503,15 @@ sing_box_save_config() {
 sing_box_config_check() {
     local config_path="$1"
 
-    if ! sing-box -c "$config_path" check > /dev/null 2>&1; then
-        log "Sing-box configuration $config_path is invalid. Aborted." "fatal"
+    if ! sing-box -c "$config_path" check > /tmp/sing-box-check.log 2>&1; then
+        local error_msg
+        error_msg=$(cat /tmp/sing-box-check.log)
+        log "Sing-box configuration is invalid. Error: ${error_msg:0:500}" "fatal" "config" "validation"
+        log "Problematic config snippet: $(head -c 200 "$config_path")" "error" "config" "validation"
+        rm -f /tmp/sing-box-check.log
         exit 1
     fi
+    rm -f /tmp/sing-box-check.log
 }
 
 import_community_subnet_lists() {

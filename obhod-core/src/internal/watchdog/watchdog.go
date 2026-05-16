@@ -15,7 +15,7 @@ const (
 )
 
 func Start(ctx context.Context, checkInterval time.Duration) {
-	logger.Info("Watchdog started with interval %v", checkInterval)
+	logger.Info("watchdog", "init", "Watchdog started with interval %v", checkInterval)
 	failCount := 0
 	singBoxRestartCount := 0
 
@@ -32,13 +32,13 @@ func Start(ctx context.Context, checkInterval time.Duration) {
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("Watchdog stopping: context cancelled")
+			logger.Info("watchdog", "lifecycle", "Watchdog stopping: context cancelled")
 			return
 		case <-ticker.C:
 			if !isWanUp() {
 				// WAN is physically down — not our problem, reset counters and wait
 				if failCount > 0 {
-					logger.Info("WAN is down, resetting DNS fail counter and pausing checks")
+					logger.Info("watchdog", "connectivity", "WAN is down, resetting DNS fail counter and pausing checks")
 					failCount = 0
 				}
 				continue
@@ -47,7 +47,9 @@ func Start(ctx context.Context, checkInterval time.Duration) {
 			if checkDns() {
 				// DNS is healthy
 				if failCount > 0 {
-					logger.Info("DNS connectivity restored after %d failures", failCount)
+					logger.Info("watchdog", "connectivity", "DNS connectivity restored after %d failures", failCount)
+				} else {
+					logger.Debug("watchdog", "connectivity", "DNS check successful")
 				}
 				failCount = 0
 				singBoxRestartCount = 0
@@ -56,7 +58,7 @@ func Start(ctx context.Context, checkInterval time.Duration) {
 
 			// DNS check failed
 			failCount++
-			logger.Error("DNS check failed (%d/%d): no response from 127.0.0.1:53", failCount, maxFails)
+			logger.Warn("watchdog", "connectivity", "DNS check failed (%d/%d): no response from 127.0.0.1:53", failCount, maxFails)
 
 			if failCount < maxFails {
 				continue
@@ -68,12 +70,12 @@ func Start(ctx context.Context, checkInterval time.Duration) {
 
 			if singBoxRestartCount <= singBoxRestarts {
 				// First attempts: restart only sing-box (faster, less disruptive)
-				logger.Error("DNS failure threshold reached. Restarting sing-box (attempt %d/%d)...",
+				logger.Error("watchdog", "recovery", "DNS failure threshold reached. Restarting sing-box (attempt %d/%d)...",
 					singBoxRestartCount, singBoxRestarts)
 				restartSingBox()
 			} else {
 				// Repeated failures after sing-box restarts — escalate to full obhod restart
-				logger.Error("DNS still failing after %d sing-box restarts. Escalating: full obhod restart...",
+				logger.Error("watchdog", "recovery", "DNS still failing after %d sing-box restarts. Escalating: full obhod restart...",
 					singBoxRestartCount-1)
 				singBoxRestartCount = 0
 				restartObhod()
@@ -87,6 +89,7 @@ func isWanUp() bool {
 	d := net.Dialer{Timeout: 2 * time.Second}
 	conn, err := d.Dial("tcp", "1.1.1.1:53")
 	if err != nil {
+		logger.Debug("watchdog", "wan", "WAN connectivity check failed: %v", err)
 		return false
 	}
 	conn.Close()
@@ -108,31 +111,32 @@ func checkDns() bool {
 	defer cancel()
 
 	_, err := r.LookupHost(ctx, "google.com")
+	if err != nil {
+		logger.Debug("watchdog", "dns", "DNS lookup failed: %v", err)
+	}
 	return err == nil
 }
 
 // restartSingBox restarts only the sing-box service.
-// This is the primary recovery action — fast and targeted.
 func restartSingBox() {
-	logger.Info("Executing: /etc/init.d/sing-box restart")
+	logger.Info("watchdog", "action", "Executing: /etc/init.d/sing-box restart")
 	cmd := exec.Command("/etc/init.d/sing-box", "restart")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		logger.Error("sing-box restart failed: %v | output: %s", err, string(output))
+		logger.Error("watchdog", "action", "sing-box restart failed: %v | output: %s", err, string(output))
 	} else {
-		logger.Info("sing-box restarted successfully")
+		logger.Info("watchdog", "action", "sing-box restarted successfully")
 	}
 }
 
-// restartObhod performs a full obhod restart (nft + sing-box + dnsmasq reconfiguration).
-// Used as escalation when sing-box restarts alone do not fix the DNS issue.
+// restartObhod performs a full obhod restart.
 func restartObhod() {
-	logger.Info("Executing: /usr/bin/obhod restart (full service restart)")
+	logger.Info("watchdog", "action", "Executing: /usr/bin/obhod restart (full service restart)")
 	cmd := exec.Command("/usr/bin/obhod", "restart")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		logger.Error("obhod restart failed: %v | output: %s", err, string(output))
+		logger.Error("watchdog", "action", "obhod restart failed: %v | output: %s", err, string(output))
 	} else {
-		logger.Info("obhod restarted successfully")
+		logger.Info("watchdog", "action", "obhod restarted successfully")
 	}
 }

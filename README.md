@@ -14,20 +14,27 @@
 
 ## Быстрый старт
 
-Вы можете установить последнюю версию прямо из репозитория одной командой в консоли роутера:
+Вы можете установить актуальную версию Obhod VPN (включая LuCI интерфейс) одной командой. Скрипт автоматически определит архитектуру вашего роутера и скачает нужные пакеты:
 
 ```bash
-# Для архитектуры ARM64 (Xiaomi AX3000T и др.)
-wget -O /tmp/obhod.ipk https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/obhod-full_0.1.1-1_aarch64_cortex-a53.ipk && opkg install /tmp/obhod.ipk
-
-# Для архитектуры MIPS
-wget -O /tmp/obhod.ipk https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/obhod-full_0.1.1-1_mips_24kc.ipk && opkg install /tmp/obhod.ipk
+sh <(wget -O - https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)
 ```
 
 После установки меню **Obhod VPN** появится в разделе **Services** автоматически. Подробная инструкция доступна в [INSTALL.md](./INSTALL.md).
 
-## Разница с Podkop
+## Диагностика и Логи
 
+Obhod оснащен продвинутой системой логирования для быстрого поиска проблем:
+1.  **Вкладка Logs**: Просматривайте логи в реальном времени прямо в LuCI. Поддерживается фильтрация по уровням (DEBUG, INFO, ERROR).
+2.  **Syslog**: Все события записываются в системный журнал OpenWrt. Чтение через консоль: `logread -e obho[ud]`.
+3.  **Debug-режим**: Если что-то не работает, включите расширенное логирование в LuCI (Settings -> Log Level) или через консоль:
+    ```bash
+    uci set obhod.settings.log_level='debug'
+    uci commit obhod
+    /etc/init.d/obhod restart
+    ```
+
+## Разница с Podkop
 Obhod был написан с нуля, чтобы решить фундаментальные проблемы оригинального Podkop:
 1.  **Потеря DNS после перезагрузки**: Obhod отслеживает состояние DNS и перезапускает прокси автоматически.
 2.  **Зависание FakeIP**: Принудительная очистка кеша при старте.

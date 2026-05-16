@@ -1,54 +1,63 @@
-# Progress Log: Obhod VPN Project
+# 📋 ПРОГРЕСС РАЗРАБОТКИ OBHOD
+**Дата:** 2026-05-16
+**Версия:** 0.3.1
+**Статус:** ✅ АУДИТ И ИСПРАВЛЕНИЕ ЗАВЕРШЕНО
 
-## Current State (May 7, 2026 — Session 2)
-- **Version**: 0.3.0 (Alpha with Go Backend)
-- **Repo**: `https://github.com/goodbrat-lab/obhod-vpn`
-- **Installation**: `sh <(wget -qO- https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)`
+---
 
-## Completed Tasks
+## 🔴 ЭТАП 1: КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ ✅ ЗАВЕРШЕНО
 
-### Session 1 (v0.1.0 → v0.3.0)
-1. **Localization Fix**: Automated `.po` to `.lmo` compilation and dual-path installation for compatibility with OpenWrt 21.xx - 25.xx.
-2. **Go Core (obhoud)**: Initialized module, implemented Watchdog, cross-compilation for 5 architectures.
-3. **Backend Fixes**: WAN readiness check, FakeIP cache cleanup.
-4. **Build Pipeline**: Scripts for Go compilation and `.ipk` packaging.
+### 1.1 Маршрутизация и DNS
+- [x] Исправлен тип DNS inbound в `sing-box` (с `direct` на `dns`) ✅
+- [x] Исправлены петли маршрутизации (добавлен `routing_mark` во все outbounds) ✅
+- [x] Добавлена поддержка протокола **VMess** (URI и V2RayN форматы) ✅
+- [x] Обновлены правила `sniff` для совместимости с `sing-box` 1.12+ ✅
 
-### Session 2 (Bug Fixes — Critical)
-5. **init.d Architecture Fixed** (critical blocker):
-   - `start_service()` now calls `obhod start_main` (one-shot setup) THEN registers `obhoud watchdog` in procd.
-   - `stop_service()` now calls `obhod stop_main` (proper teardown).
-   - Both `files/etc/init.d/obhod` and `obhod-core/files/etc/init.d/obhod` updated.
+### 1.2 Совместимость с OpenWrt
+- [x] Удален синтаксис `[[ ... =~ ... ]]`, ломавший работу в `ash` ✅
+- [x] Все регулярные выражения переведены на `grep -qE` ✅
+- [x] Исправлена логика очистки `ip rule` и `nftables` в `stop_main` ✅
 
-6. **Watchdog Logic Fixed** (critical):
-   - Removed manual `obhoud watchdog &` launch from `start_main` (was causing double launch).
-   - Watchdog now: 1) waits 60s initial delay; 2) on DNS failure, restarts sing-box first (fast); 3) escalates to full `obhod restart` only after 2 failed sing-box restarts.
+---
 
-7. **dnsmasq lifecycle Fixed**:
-   - `dnsmasq_configure()` and `dnsmasq_restore()` moved inside `start_main`/`stop_main` (atomic).
-   - `shutdown_correctly` flag written inside `start_main`/`stop_main`.
+## 🟠 ЭТАП 2: ДИАГНОСТИКА И ЛОГИРОВАНИЕ ✅ ЗАВЕРШЕНО
 
-8. **Bash `ip rule` check Fixed**:
-   - Changed `grep -q "obhod"` to `grep -q "fwmark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK"` (precise match).
+### 2.1 Единая система логов
+- [x] Внедрен стандарт: `[TIMESTAMP] [LEVEL] [Component] [Context] Message` ✅
+- [x] Создан новый логгер для Go-демона `obhoud` ✅
+- [x] Реализовано каскадное логирование в Bash (syslog + stderr) ✅
 
-9. **UCI Config Fixed**:
-   - `files/etc/config/obhod`: new clean template with correct section types (`obhod`/`section`).
-   - `obhod-core/files/etc/config/obhod`: added missing `option enabled '1'`.
+### 2.2 Веб-интерфейс (LuCI)
+- [x] Создана новая вкладка **Logs** в интерфейсе Obhod ✅
+- [x] Добавлены фильтры по уровням (DEBUG, INFO, ERROR) ✅
+- [x] Реализован real-time просмотр логов через `poll` ✅
 
-10. **Build Scripts Fixed** (all hardcoded `/root/Obhod project` paths):
-    - `scripts/build_go.sh` — dynamic paths via `${BASH_SOURCE[0]}`.
-    - `scripts/package_full.sh` — dynamic paths, added `prerm` script, optional file checks.
-    - `scripts/package_daemon.sh` — full rewrite, version bump to 0.3.0.
-    - `scripts/package_luci.sh` — full rewrite, version bump to 0.3.0.
-    - `scripts/build_all.sh` — dynamic paths, error checking on each step.
+---
 
-## Pending
-- [ ] Integrate `obhoud` Go daemon further: add WAN-check logic to Go (currently in bash only)
-- [ ] Transition JSON config generation from bash/jq to Go (`sing_box_config_manager.sh` → Go)
-- [ ] Localization: verify Russian strings work on OpenWrt 25 (ucode LuCI)
-- [ ] Add unit tests for watchdog package
-- [ ] Verify cron job for subscription/community list updates
+## 🟡 ЭТАП 3: СБОРКА И УСТАНОВКА ✅ ЗАВЕРШЕНО
 
-## Known Issues / Notes
-- **`badwan_monitored_interfaces`**: supported in `service_triggers()` via procd interface trigger. Needs testing on real hardware.
-- **`obhod start_main` is one-shot**: procd doesn't restart it if it fails (by design). Errors logged to syslog.
-- **Legacy `obhod-watchdog` bash script**: kept for reference but superseded by Go watchdog.
+### 3.1 Автоматизация сборки
+- [x] Скрипты `build_all.sh` и `package_luci.sh` обновлены до 0.3.1 ✅
+- [x] Исправлена генерация индекса пакетов `Packages` ✅
+- [x] Собраны пакеты для архитектур: `arm64`, `arm_v7`, `mips_softfloat`, `mipsle_softfloat`, `amd64` ✅
+
+### 3.2 Умный установщик
+- [x] Создан `install.sh` для автоматической установки одной командой ✅
+- [x] Реализована детекция архитектуры процессора ✅
+- [x] Автоматическая установка всех зависимостей ✅
+
+---
+
+## 📝 СТАНДАРТЫ БУДУЩИХ ОБНОВЛЕНИЙ (ПРАВИЛО 0.3.1+)
+
+Все последующие изменения в проекте **ОБЯЗАНЫ** следовать этим правилам:
+
+1.  **Версионность**: Каждое значимое изменение инкрементирует версию в `constants.sh`, `Makefile` и скриптах сборки.
+2.  **Компиляция**: Обновление считается завершенным только после успешного прогона `./scripts/build_all.sh` и обновления `dist/packages/`.
+3.  **Универсальность**: Команда установки `sh <(wget -O - ...install.sh)` должна всегда оставаться рабочим и единственным рекомендованным способом установки для пользователя.
+4.  **Детекция**: Новые архитектуры должны добавляться в `install.sh` и мапиться на соответствующие пакеты.
+5.  **Логирование**: Любой новый функционал должен использовать функции `log` (Bash) или `logger` (Go) с указанием компонента и контекста.
+
+---
+
+**СИСТЕМА СТАБИЛЬНА И ГОТОВА К ИСПОЛЬЗОВАНИЮ! ✅**

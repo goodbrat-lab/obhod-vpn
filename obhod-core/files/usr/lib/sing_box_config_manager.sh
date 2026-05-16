@@ -367,7 +367,7 @@ sing_box_cm_add_tproxy_inbound() {
 }
 
 #######################################
-# Add a Direct inbound to the inbounds section of a sing-box JSON configuration.
+# Add a DNS inbound to the inbounds section of a sing-box JSON configuration.
 # Arguments:
 #   config: string (JSON), sing-box configuration to modify
 #   tag: string, identifier for the inbound
@@ -376,9 +376,9 @@ sing_box_cm_add_tproxy_inbound() {
 # Outputs:
 #   Writes updated JSON configuration to stdout
 # Example:
-#   CONFIG=$(sing_box_cm_add_direct_inbound "$CONFIG" "dns-in" "127.0.0.42" 53)
+#   CONFIG=$(sing_box_cm_add_dns_inbound "$CONFIG" "dns-in" "127.0.0.42" 53)
 #######################################
-sing_box_cm_add_direct_inbound() {
+sing_box_cm_add_dns_inbound() {
     local config="$1"
     local tag="$2"
     local listen_address="$3"
@@ -389,10 +389,10 @@ sing_box_cm_add_direct_inbound() {
         --arg listen_address "$listen_address" \
         --argjson listen_port "$listen_port" \
         '.inbounds += [{
-			type: "direct",
+			type: "dns",
 			tag: $tag,
 			listen: $listen_address,
-			listen_port: $listen_port,
+			listen_port: $listen_port
 		}]'
 }
 
@@ -442,9 +442,11 @@ sing_box_cm_add_direct_outbound() {
 
     echo "$config" | jq \
         --arg tag "$tag" \
+        --argjson routing_mark "$((NFT_OUTBOUND_MARK))" \
         '.outbounds += [{
             type: "direct",
-            tag: $tag
+            tag: $tag,
+            routing_mark: $routing_mark
         }]'
 }
 
@@ -485,12 +487,14 @@ sing_box_cm_add_socks_outbound() {
         --arg password "$password" \
         --arg network "$network" \
         --arg udp_over_tcp "$udp_over_tcp" \
+        --argjson routing_mark "$((NFT_OUTBOUND_MARK))" \
         '.outbounds += [(
             {
               type: "socks",
               tag: $tag,
               server: $server_address,
-              server_port: ($server_port | tonumber)
+              server_port: ($server_port | tonumber),
+              routing_mark: $routing_mark
             }
             + (if $version != "" then {version: $version} else {} end)
             + (if $username != "" then {username: $username} else {} end)
@@ -549,6 +553,7 @@ sing_box_cm_add_shadowsocks_outbound() {
         --arg plugin_opts "$plugin_opts" \
         --arg network "$network" \
         --arg udp_over_tcp "$udp_over_tcp" \
+        --argjson routing_mark "$((NFT_OUTBOUND_MARK))" \
         '.outbounds += [(
             {
               type: "shadowsocks",
@@ -556,7 +561,8 @@ sing_box_cm_add_shadowsocks_outbound() {
               server: $server_address,
               server_port: ($server_port | tonumber),
               method: $method,
-              password: $password
+              password: $password,
+              routing_mark: $routing_mark
             }
             + (if $plugin != "" then {plugin: $plugin} else {} end)
             + (if $plugin_opts != "" then {plugin_opts: $plugin_opts} else {} end)
@@ -607,16 +613,66 @@ sing_box_cm_add_vless_outbound() {
         --arg flow "$flow" \
         --arg network "$network" \
         --arg packet_encoding "$packet_encoding" \
+        --argjson routing_mark "$((NFT_OUTBOUND_MARK))" \
         '.outbounds += [(
             {
               type: "vless",
               tag: $tag,
               server: $server_address,
               server_port: ($server_port | tonumber),
-              uuid: $uuid
+              uuid: $uuid,
+              routing_mark: $routing_mark
             }
             + (if $flow != "" then {flow: $flow} else {} end)
             + (if $network != "" then {network: $network} else {} end)
+            + (if $packet_encoding != "" then {packet_encoding: $packet_encoding} else {} end)
+        )]'
+}
+
+#######################################
+# Add a VMess outbound to the outbounds section of a sing-box JSON configuration.
+# Arguments:
+#   config: string (JSON), sing-box configuration to modify
+#   tag: string, identifier for the outbound
+#   server_address: string, IP address or hostname of the VMess server
+#   server_port: integer, port of the VMess server
+#   uuid: string, user UUID
+#   security: string, security method (auto, none, aes-128-gcm, chacha20-poly1305) (optional)
+#   alter_id: integer, alter ID (optional)
+#   packet_encoding: string, packet encoding method (optional)
+# Outputs:
+#   Writes updated JSON configuration to stdout
+#######################################
+sing_box_cm_add_vmess_outbound() {
+    local config="$1"
+    local tag="$2"
+    local server_address="$3"
+    local server_port="$4"
+    local uuid="$5"
+    local security="$6"
+    local alter_id="$7"
+    local packet_encoding="$8"
+
+    echo "$config" | jq \
+        --arg tag "$tag" \
+        --arg server_address "$server_address" \
+        --arg server_port "$server_port" \
+        --arg uuid "$uuid" \
+        --arg security "$security" \
+        --arg alter_id "$alter_id" \
+        --arg packet_encoding "$packet_encoding" \
+        --argjson routing_mark "$((NFT_OUTBOUND_MARK))" \
+        '.outbounds += [(
+            {
+              type: "vmess",
+              tag: $tag,
+              server: $server_address,
+              server_port: ($server_port | tonumber),
+              uuid: $uuid,
+              routing_mark: $routing_mark
+            }
+            + (if $security != "" then {security: $security} else {security: "auto"} end)
+            + (if $alter_id != "" then {alter_id: ($alter_id | tonumber)} else {} end)
             + (if $packet_encoding != "" then {packet_encoding: $packet_encoding} else {} end)
         )]'
 }
@@ -649,13 +705,15 @@ sing_box_cm_add_trojan_outbound() {
         --arg server_port "$server_port" \
         --arg password "$password" \
         --arg network "$network" \
+        --argjson routing_mark "$((NFT_OUTBOUND_MARK))" \
         '.outbounds += [(
         {
           type: "trojan",
           tag: $tag,
           server: $server_address,
           server_port: ($server_port | tonumber),
-          password: $password
+          password: $password,
+          routing_mark: $routing_mark
         }
         + (if $network != "" then {network: $network} else {} end)
     )]'
@@ -702,13 +760,15 @@ sing_box_cm_add_hysteria2_outbound() {
         --arg upload_mbps "$upload_mbps" \
         --arg download_mbps "$download_mbps" \
         --arg network "$network" \
+        --argjson routing_mark "$((NFT_OUTBOUND_MARK))" \
         '.outbounds += [(
         {
           type: "hysteria2",
           tag: $tag,
           server: $server_address,
           server_port: ($server_port | tonumber),
-          password: $password
+          password: $password,
+          routing_mark: $routing_mark
         }
         + (if $obfuscator_type != "" and $obfuscator_password != "" then {
             obfs: {
@@ -1230,7 +1290,9 @@ sing_box_cm_sniff_route_rule() {
         --argjson value "$value" \
         '.route.rules += [{
             action: "sniff",
-            ($key): $value
+            ($key): $value,
+            sniffer: ["http", "tls", "quic"],
+            override_destination: true
         }]'
 }
 

@@ -1,15 +1,14 @@
 # Check if string is valid IPv4
 is_ipv4() {
     local ip="$1"
-    local regex="^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$"
-    [[ "$ip" =~ $regex ]]
+    # Basic check using expr or grep for ash compatibility
+    echo "$ip" | grep -qE '^((25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])\.){3}(25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])$'
 }
 
 # Check if string is valid IPv4 with CIDR mask
 is_ipv4_cidr() {
     local ip="$1"
-    local regex="^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}(\/(3[0-2]|2[0-9]|1[0-9]|[0-9]))$"
-    [[ "$ip" =~ $regex ]]
+    echo "$ip" | grep -qE '^((25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])\.){3}(25[0-5]|(2[0-4]|1[0-9]|[1-9]|)[0-9])/(3[0-2]|[12][0-9]|[0-9])$'
 }
 
 is_ipv4_ip_or_ipv4_cidr() {
@@ -18,9 +17,7 @@ is_ipv4_ip_or_ipv4_cidr() {
 
 is_domain() {
     local str="$1"
-    local regex='^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$'
-
-    [[ "$str" =~ $regex ]]
+    echo "$str" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$'
 }
 
 is_domain_suffix() {
@@ -43,9 +40,7 @@ is_base64() {
 # Checks if the given string looks like a Shadowsocks userinfo
 is_shadowsocks_userinfo_format() {
     local str="$1"
-    local regex='^[^:]+:[^:]+(:[^:]+)?$'
-
-    [[ "$str" =~ $regex ]]
+    echo "$str" | grep -qE '^[^:]+:[^:]+(:[^:]+)?$'
 }
 
 # Compares the current package version with the required minimum
@@ -63,7 +58,7 @@ is_min_package_version() {
 file_exists() {
     local filepath="$1"
 
-    if [[ -f "$filepath" ]]; then
+    if [ -f "$filepath" ]; then
         return 0
     else
         return 1
@@ -159,7 +154,10 @@ url_get_port() {
     url="${url#*@}"
     url="${url%%[/?#]*}"
 
-    [[ "$url" == *:* ]] && echo "${url#*:}" || echo ""
+    case "$url" in
+    *:*) echo "${url#*:}" ;;
+    *) echo "" ;;
+    esac
 }
 
 # Extracts the path from a URL (without query or fragment; returns "/" if empty)

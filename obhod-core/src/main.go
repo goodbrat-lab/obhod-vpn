@@ -13,11 +13,12 @@ import (
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/watchdog"
 )
 
-var version = "0.1.0"
+var version = "0.3.1"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
 	interval := watchdogCmd.Duration("interval", 30*time.Second, "Check interval")
+	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal)")
 	
 	showVersion := flag.Bool("v", false, "Show version")
 	flag.Parse()
@@ -32,7 +33,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err := logger.Init()
+	err := logger.Init(*logLevel)
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
 		os.Exit(1)
@@ -46,7 +47,7 @@ func main() {
 		watchdogCmd.Parse(os.Args[2:])
 		watchdog.Start(ctx, *interval)
 	default:
-		logger.Error("Unknown command: %s", os.Args[1])
+		logger.Error("init", "main", "Unknown command: %s", os.Args[1])
 		printUsage()
 		os.Exit(1)
 	}

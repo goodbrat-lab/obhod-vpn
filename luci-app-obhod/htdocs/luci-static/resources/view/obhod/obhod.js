@@ -17,6 +17,9 @@
 // Diagnostic content
 "require view.obhod.diagnostic as diagnostic";
 
+// Logs content
+"require view.obhod.logs as logs";
+
 const EntryPoint = {
   async render() {
     main.injectGlobalStyles();
@@ -86,6 +89,21 @@ const EntryPoint = {
 
     // Render dashboard content
     dashboard.createDashboardContent(dashboardSection);
+
+    // Logs tab
+    const logsSection = obhodMap.section(
+      form.TypedSection,
+      "logs",
+      _("Logs"),
+    );
+    logsSection.anonymous = true;
+    logsSection.addremove = false;
+    logsSection.cfgsections = function () {
+      return ["settings"]; // Reusing settings section for mapping but view handles its own rendering
+    };
+
+    // Render logs content
+    logs.createLogsContent(logsSection);
 
     // Inject core service
     main.coreService();
