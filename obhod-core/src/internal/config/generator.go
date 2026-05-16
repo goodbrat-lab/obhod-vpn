@@ -103,16 +103,16 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 		bootstrapServer = "77.88.8.8"
 	}
 
-	// Bootstrap
+	// 1. Direct DNS (Bootstrap)
 	config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
 		Type:    "udp",
-		Tag:     "bootstrap-dns-server",
+		Tag:     "dns-direct",
 		Address: bootstrapServer,
 		Detour:  "direct-out",
 	})
 
-	// Main
-	mainTag := "dns-server"
+	// 2. Default Tunnel DNS
+	mainTag := "dns-proxy"
 	dnsType := uci.Settings.DNSType
 	if dnsType == "" {
 		dnsType = "udp"
@@ -121,7 +121,6 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	server := DNSServerConfig{
 		Tag:     mainTag,
 		Address: dnsServer,
-		Detour:  "direct-out",
 	}
 
 	switch dnsType {
@@ -133,7 +132,15 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 		server.Type = "udp"
 	}
 	config.DNS.Servers = append(config.DNS.Servers, server)
+	
+	// Default: use dns-proxy
 	config.DNS.Final = mainTag
+	
+	// Add rule to force system/bootstrap DNS to use dns-direct
+	config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
+		Server: "dns-direct",
+		// We'll add more specific rules later
+	})
 }
 
 func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscription.Fetcher, cache *subscription.CacheData) {
@@ -151,17 +158,12 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 		case "subscription":
 			if section.SubscriptionURL != "" {
 				var links []string
-				// 1. Check cache first
 				if cache != nil {
 					if cachedLinks, ok := cache.Sections[section.Name]; ok {
 						links = cachedLinks
-						logger.Info("config", "generator", "Using cached subscription for %s", section.Name)
 					}
 				}
-
-				// 2. If no cache, fetch (fallback)
 				if len(links) == 0 {
-					logger.Info("config", "generator", "Fetching subscription for %s (no cache)...", section.Name)
 					var err error
 					links, err = fetcher.Fetch(section.SubscriptionURL)
 					if err != nil {
@@ -191,7 +193,6 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 			finalOutboundTag := outboundTag
 
 			if len(outbounds) > 1 || section.ProxyConfigType == "selector" {
-				// Create a group
 				var tags []string
 				for _, o := range outbounds {
 					config.Outbounds = append(config.Outbounds, o)
@@ -213,7 +214,16 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				config.Outbounds = append(config.Outbounds, outbounds[0])
 			}
 
-			// Add route rules for community lists
+			// DNS Detouring: Create a dedicated DNS server for this section's proxy
+			sectionDNSTag := "dns-" + section.Name
+			config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
+				Type:    "udp", // Or same as main dns
+				Tag:     sectionDNSTag,
+				Address: "8.8.8.8", // Default to Google through proxy
+				Detour:  finalOutboundTag,
+			})
+
+			// Add route and DNS rules for community lists
 			for _, service := range section.CommunityLists {
 				rulesetTag := "rs-" + service
 
@@ -236,6 +246,13 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 					config.Route.RuleSet = append(config.Route.RuleSet, rs)
 				}
 
+				// 1. DNS Rule: If domain is in rule-set, use section's DNS (DNS Detouring)
+				config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
+					RuleSet: []string{rulesetTag},
+					Server:  sectionDNSTag,
+				})
+
+				// 2. Route Rule: If IP/domain is in rule-set, use section's outbound
 				rule := RouteRuleConfig{
 					Inbound:  []string{"tproxy-in"},
 					RuleSet:  []string{rulesetTag},
