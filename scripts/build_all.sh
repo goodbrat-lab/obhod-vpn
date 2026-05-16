@@ -46,7 +46,7 @@ ls -lh "$BASE_DIR/dist/packages/"*.ipk
 echo ""
 echo "Step 5: Publishing to GitHub..."
 git add .
-git commit -m "Build and release: Obhod v0.3.3 (Validation Support)" || echo "No changes to commit"
+git commit -m "Build and release: Obhod v1.0.0 (Professional Edition)" || echo "No changes to commit"
 git push origin main || echo "Warning: git push failed."
 
 echo "========================================="
