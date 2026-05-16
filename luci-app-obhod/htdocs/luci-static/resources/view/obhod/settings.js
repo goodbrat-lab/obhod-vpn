@@ -397,6 +397,31 @@ function createSettingsContent(section) {
   o.rmempty = false;
 
   o = section.option(
+    form.Value,
+    "watchdog_interval",
+    _("Watchdog Interval"),
+    _("The interval at which the watchdog checks the connection (default: 30s)"),
+  );
+  o.value("10s", "10 seconds");
+  o.value("30s", "30 seconds");
+  o.value("1m", "1 minute");
+  o.value("5m", "5 minutes");
+  o.default = "30s";
+  o.rmempty = false;
+  o.validate = function (section_id, value) {
+    if (!value) {
+      return _("Watchdog interval cannot be empty");
+    }
+
+    // Basic format validation: number followed by s, m, or h
+    if (!/^\d+[smh]$/.test(value)) {
+      return _("Invalid format (e.g., 30s, 1m, 1h)");
+    }
+
+    return true;
+  };
+
+  o = section.option(
     form.Flag,
     "exclude_ntp",
     _("Exclude NTP"),

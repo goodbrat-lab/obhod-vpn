@@ -13,11 +13,12 @@ import (
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/watchdog"
 )
 
-var version = "0.3.1"
+var version = "0.3.2"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
 	interval := watchdogCmd.Duration("interval", 30*time.Second, "Check interval")
+	mark := watchdogCmd.Int("mark", 0, "Socket mark (fwmark) for WAN checks (e.g. 2097152 for 0x00200000)")
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal)")
 	
 	showVersion := flag.Bool("v", false, "Show version")
@@ -45,7 +46,7 @@ func main() {
 	switch os.Args[1] {
 	case "watchdog":
 		watchdogCmd.Parse(os.Args[2:])
-		watchdog.Start(ctx, *interval)
+		watchdog.Start(ctx, *interval, *mark)
 	default:
 		logger.Error("init", "main", "Unknown command: %s", os.Args[1])
 		printUsage()
@@ -59,4 +60,5 @@ func printUsage() {
 	fmt.Println("  watchdog    Start connectivity monitoring")
 	fmt.Println("\nOptions for watchdog:")
 	fmt.Println("  -interval duration    Check interval (default 30s)")
+	fmt.Println("  -mark int             Socket mark (fwmark) for direct WAN checks")
 }

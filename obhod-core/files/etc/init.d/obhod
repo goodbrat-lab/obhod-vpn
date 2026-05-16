@@ -32,11 +32,17 @@ start_service() {
     fi
 
     # Step 2: Register the Go watchdog daemon with procd.
-    local log_level
+    local log_level watchdog_interval
     config_get log_level settings log_level "info"
+    config_get watchdog_interval settings watchdog_interval "30s"
+
+    # Source constants to get NFT_OUTBOUND_MARK
+    [ -f "/usr/lib/obhod/constants.sh" ] && . "/usr/lib/obhod/constants.sh"
+    # Convert hex to decimal for Go flag (0x00200000 -> 2097152)
+    local mark_dec=$(printf "%d" "${NFT_OUTBOUND_MARK:-0}")
 
     procd_open_instance "watchdog"
-    procd_set_param command "$PROG_DAEMON" -log-level "$log_level" watchdog -interval 30s
+    procd_set_param command "$PROG_DAEMON" -log-level "$log_level" watchdog -interval "$watchdog_interval" -mark "$mark_dec"
     procd_set_param respawn 3600 5 0
     procd_set_param stdout 1
     procd_set_param stderr 1

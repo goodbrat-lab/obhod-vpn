@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os/exec"
+	"syscall"
 	"time"
 
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
@@ -14,8 +15,8 @@ const (
 	singBoxRestarts = 2 // After this many sing-box restarts, escalate to full obhod restart
 )
 
-func Start(ctx context.Context, checkInterval time.Duration) {
-	logger.Info("watchdog", "init", "Watchdog started with interval %v", checkInterval)
+func Start(ctx context.Context, checkInterval time.Duration, mark int) {
+	logger.Info("watchdog", "init", "Watchdog started with interval %v, mark %d", checkInterval, mark)
 	failCount := 0
 	singBoxRestartCount := 0
 
@@ -35,7 +36,7 @@ func Start(ctx context.Context, checkInterval time.Duration) {
 			logger.Info("watchdog", "lifecycle", "Watchdog stopping: context cancelled")
 			return
 		case <-ticker.C:
-			if !isWanUp() {
+			if !isWanUp(mark) {
 				// WAN is physically down — not our problem, reset counters and wait
 				if failCount > 0 {
 					logger.Info("watchdog", "connectivity", "WAN is down, resetting DNS fail counter and pausing checks")
@@ -85,8 +86,25 @@ func Start(ctx context.Context, checkInterval time.Duration) {
 }
 
 // isWanUp checks physical internet connectivity by dialing a known stable IP.
-func isWanUp() bool {
-	d := net.Dialer{Timeout: 2 * time.Second}
+// It uses SO_MARK to bypass local routing/proxy rules if a mark is provided.
+func isWanUp(mark int) bool {
+	d := net.Dialer{
+		Timeout: 2 * time.Second,
+	}
+
+	if mark != 0 {
+		d.Control = func(network, address string, c syscall.RawConn) error {
+			return c.Control(func(fd uintptr) {
+				err := syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_MARK, mark)
+				if err != nil {
+					logger.Warn("watchdog", "wan", "Failed to set SO_MARK %d on socket: %v", mark, err)
+				} else {
+					logger.Debug("watchdog", "wan", "Successfully set SO_MARK %d for WAN check", mark)
+				}
+			})
+		}
+	}
+
 	conn, err := d.Dial("tcp", "1.1.1.1:53")
 	if err != nil {
 		logger.Debug("watchdog", "wan", "WAN connectivity check failed: %v", err)

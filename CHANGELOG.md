@@ -1,4 +1,12 @@
 # CHANGELOG - Obhod Project
+## [v0.3.2] - 2026-05-16
+### Added
+- **Configurable Watchdog Interval**: Users can now change the watchdog check interval directly in LuCI (Settings -> Watchdog Interval).
+- **Direct WAN Check Support**: Added `-mark` flag to `obhoud` daemon for socket marking.
+
+### Fixed
+- **Watchdog WAN Check Bypass**: Fixed a critical issue where watchdog connectivity checks would fail if routed through a broken VPN tunnel. The check now uses `SO_MARK` (0x00200000) to always go directly through the WAN.
+
 ## [v0.3.1] - 2026-05-16
 ### Added
 - **Unified Logging System**: Implemented a comprehensive logging system across Bash, Go, and LuCI.

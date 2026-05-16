@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=obhod
 
-PKG_VERSION := $(if $(OBHOD_VERSION),$(OBHOD_VERSION),0.$(shell date +%d%m%Y))
+PKG_VERSION := 0.3.2
 
 PKG_RELEASE:=1
 
