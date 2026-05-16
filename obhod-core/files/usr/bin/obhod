@@ -69,8 +69,12 @@ check_requirements() {
     fi
 
     if [ -z "$coreutils_base64_version" ]; then
-        log "Package 'coreutils-base64' is not installed. Aborted." "error"
-        exit 1
+        if command -v base64 >/dev/null 2>&1; then
+            log "Package 'coreutils-base64' is not installed, but system 'base64' command is available. Proceeding with caution." "warn"
+        else
+            log "Neither 'coreutils-base64' nor system 'base64' command is available. Aborted." "error"
+            exit 1
+        fi
     elif ! is_min_package_version "$coreutils_base64_version" "$COREUTILS_BASE64_REQUIRED_VERSION"; then
         log "Package 'coreutils-base64' version ($coreutils_base64_version) is lower than the required minimum ($COREUTILS_BASE64_REQUIRED_VERSION). This may cause issues when decoding base64 streams with missing padding, as automatic padding support is not available in older versions." "warn"
     fi
