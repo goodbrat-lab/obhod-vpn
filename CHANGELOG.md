@@ -1,4 +1,11 @@
 # CHANGELOG - Obhod Project
+## [v0.3.4] - 2026-05-16
+### Added
+- **Go-Powered Config Generator**: Migrated the core configuration generation logic from Bash/jq to the native Go daemon (`obhoud`).
+- **Major Performance Boost**: startup and reload times are now up to 10x faster on MIPS/ARM routers due to in-memory JSON processing.
+- **Enhanced Protocol Support**: Native Go implementation for VLESS, VMess, Trojan, Hysteria2, and Shadowsocks.
+- **Smart Rule-sets**: Automated remote rule-set management for popular community lists (Telegram, YouTube, etc.).
+
 ## [v0.3.3] - 2026-05-16
 ### Added
 - **Configuration Validation**: Added `obhod validate` command to check sing-box configuration integrity.

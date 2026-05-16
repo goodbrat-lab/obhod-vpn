@@ -9,16 +9,22 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/config"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/watchdog"
+    "encoding/json"
 )
 
-var version = "0.3.2"
+var version = "0.3.4"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
 	interval := watchdogCmd.Duration("interval", 30*time.Second, "Check interval")
 	mark := watchdogCmd.Int("mark", 0, "Socket mark (fwmark) for WAN checks (e.g. 2097152 for 0x00200000)")
+	
+	genConfigCmd := flag.NewFlagSet("generate-config", flag.ExitOnError)
+	outputFile := genConfigCmd.String("o", "", "Output file path (default: stdout)")
+
 	logLevel := flag.String("log-level", "info", "Log level (debug, info, warn, error, fatal)")
 	
 	showVersion := flag.Bool("v", false, "Show version")
@@ -47,6 +53,32 @@ func main() {
 	case "watchdog":
 		watchdogCmd.Parse(os.Args[2:])
 		watchdog.Start(ctx, *interval, *mark)
+	case "generate-config":
+		genConfigCmd.Parse(os.Args[2:])
+		uci, err := config.LoadUCI()
+		if err != nil {
+			logger.Error("config", "main", "Failed to load UCI: %v", err)
+			os.Exit(1)
+		}
+		sbConfig, err := config.Generate(uci)
+		if err != nil {
+			logger.Error("config", "main", "Failed to generate config: %v", err)
+			os.Exit(1)
+		}
+		data, err := json.MarshalIndent(sbConfig, "", "  ")
+		if err != nil {
+			logger.Error("config", "main", "Failed to marshal config: %v", err)
+			os.Exit(1)
+		}
+		if *outputFile != "" {
+			err = os.WriteFile(*outputFile, data, 0644)
+			if err != nil {
+				logger.Error("config", "main", "Failed to write config to %s: %v", *outputFile, err)
+				os.Exit(1)
+			}
+		} else {
+			fmt.Println(string(data))
+		}
 	default:
 		logger.Error("init", "main", "Unknown command: %s", os.Args[1])
 		printUsage()
@@ -57,8 +89,11 @@ func main() {
 func printUsage() {
 	fmt.Println("Usage: obhoud <command> [options]")
 	fmt.Println("\nCommands:")
-	fmt.Println("  watchdog    Start connectivity monitoring")
+	fmt.Println("  watchdog         Start connectivity monitoring")
+	fmt.Println("  generate-config  Generate sing-box configuration from UCI")
 	fmt.Println("\nOptions for watchdog:")
 	fmt.Println("  -interval duration    Check interval (default 30s)")
 	fmt.Println("  -mark int             Socket mark (fwmark) for direct WAN checks")
+	fmt.Println("\nOptions for generate-config:")
+	fmt.Println("  -o string             Output file path")
 }

@@ -8,7 +8,8 @@ BASE_DIR="$(dirname "$SCRIPTS_DIR")"
 
 SRC_DIR="$BASE_DIR/obhod-core/src"
 DIST_DIR="$BASE_DIR/dist/binaries"
-GO_BIN="${GO:-go}" # Use $GO env var or fall back to 'go' in PATH
+GO_BIN="/usr/local/go/bin/go"
+[ ! -f "$GO_BIN" ] && GO_BIN="go"
 
 echo "Base dir : $BASE_DIR"
 echo "Source   : $SRC_DIR"

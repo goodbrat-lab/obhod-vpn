@@ -748,6 +748,22 @@ sing_box_configure_service() {
 }
 
 sing_box_init_config() {
+    local config_path
+    config_get config_path "settings" "config_path" "/etc/sing-box/config.json"
+
+    if [ -x "/usr/bin/obhoud" ]; then
+        log "Generating configuration using Go core (v0.3.4)..." "info" "config" "generator"
+        if /usr/bin/obhoud generate-config -o "$config_path"; then
+            log "Configuration generated successfully via Go core ✅" "info" "config" "generator"
+            # We still run the check just to be 100% sure before sing-box sees it
+            sing_box_config_check "$config_path"
+            return 0
+        else
+            log "Go configuration generator failed! Falling back to legacy Bash logic..." "error" "config" "generator"
+        fi
+    fi
+
+    log "Using legacy Bash config generator (Slower)" "warn" "config" "generator"
     local config='{"log":{},"dns":{},"ntp":{},"certificate":{},"endpoints":[],"inbounds":[],"outbounds":[],"route":{},"services":[],"experimental":{}}'
 
     sing_box_configure_log
@@ -1518,16 +1534,32 @@ sing_box_save_config() {
 
 sing_box_config_check() {
     local config_path="$1"
+    local check_log="/tmp/sing-box-check.log"
 
-    if ! sing-box -c "$config_path" check > /tmp/sing-box-check.log 2>&1; then
+    if ! sing-box -c "$config_path" check > "$check_log" 2>&1; then
         local error_msg
-        error_msg=$(cat /tmp/sing-box-check.log)
-        log "Sing-box configuration is invalid. Error: ${error_msg:0:500}" "fatal" "config" "validation"
-        log "Problematic config snippet: $(head -c 200 "$config_path")" "error" "config" "validation"
-        rm -f /tmp/sing-box-check.log
+        error_msg=$(cat "$check_log")
+        
+        # Clean up the error message from sing-box FATAL prefix and paths
+        local clean_error
+        clean_error=$(echo "$error_msg" | sed 's/.*load config:.*: //g')
+
+        log "Sing-box configuration is invalid. ERROR: $clean_error" "fatal" "config" "validation"
+        
+        # If it's a JSON unmarshal error, try to show the problematic line
+        if echo "$error_msg" | grep -q "json: "; then
+            log "Hint: Check the JSON structure in your custom outbound or DNS settings." "error" "config" "validation"
+        fi
+
+        # Log to stderr as well for visibility in console
+        echo "================ CONFIG ERROR ================" >&2
+        echo "$error_msg" >&2
+        echo "==============================================" >&2
+        
+        rm -f "$check_log"
         exit 1
     fi
-    rm -f /tmp/sing-box-check.log
+    rm -f "$check_log"
 }
 
 import_community_subnet_lists() {
