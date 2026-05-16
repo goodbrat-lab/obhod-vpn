@@ -8,11 +8,11 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="1.0.0"
+VERSION="1.0.1"
 LUCI_PKG="luci-app-obhod_${VERSION}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.0.0      "
+echo "      Obhod VPN - Universal Installer v1.0.1      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -148,30 +148,70 @@ if [ "$OPKG_WORKS" -eq 1 ]; then
     $OPKG_CMD install "/tmp/luci.ipk" --force-reinstall --force-overwrite
 elif [ -x "$APK_CMD" ]; then
     echo "Installing via manual extraction (apk fallback)..."
+    
+    # 1. Check for 'ar' utility (required for .ipk which is an ar archive)
+    AR_CMD=$(command -v ar || echo "")
+    if [ -z "$AR_CMD" ]; then
+        if busybox ar --help >/dev/null 2>&1; then
+            AR_CMD="busybox ar"
+        else
+            echo "Utility 'ar' not found. Trying to install binutils..."
+            $APK_CMD add binutils || true
+            AR_CMD=$(command -v ar || echo "")
+        fi
+    fi
+
+    if [ -z "$AR_CMD" ]; then
+        echo "CRITICAL ERROR: 'ar' utility not found. Cannot extract .ipk packages."
+        echo "Please install 'binutils' or 'busybox' with ar support manually."
+        exit 1
+    fi
+
     for pkg in "obhod.ipk" "luci.ipk"; do
-        echo "Extracting $pkg..."
+        echo "Processing $pkg..."
         EXTRACT_DIR="/tmp/extract_$pkg"
         rm -rf "$EXTRACT_DIR"
         mkdir -p "$EXTRACT_DIR"
+        cd "$EXTRACT_DIR"
         
-        # ipk is a tar.gz containing data.tar.gz and control.tar.gz
-        if ! tar -xzf "/tmp/$pkg" -C "$EXTRACT_DIR"; then
-            echo "Error: Failed to unpack $pkg"
+        # .ipk is an 'ar' archive containing data.tar.gz, control.tar.gz and debian-binary
+        if ! $AR_CMD x "/tmp/$pkg"; then
+            echo "Error: Failed to unpack $pkg using $AR_CMD"
             exit 1
         fi
 
+        # 2. Extract and run pre-install script if exists
+        if [ -f "control.tar.gz" ]; then
+            tar -xzf "control.tar.gz" ./preinst 2>/dev/null || tar -xzf "control.tar.gz" preinst 2>/dev/null || true
+            if [ -f "./preinst" ]; then
+                echo "  - Running pre-install..."
+                chmod +x "./preinst"
+                sh "./preinst" || echo "Warning: preinst failed for $pkg"
+            fi
+        fi
+
+        # 3. Deploy data files
         echo "  - Deploying files..."
-        if ! tar -xzf "$EXTRACT_DIR/data.tar.gz" -C /; then
-            echo "Error: Failed to deploy data from $pkg"
+        if [ -f "data.tar.gz" ]; then
+            tar -xzf "data.tar.gz" -C /
+        elif [ -f "data.tar.xz" ]; then
+            tar -xJf "data.tar.xz" -C /
+        else
+            echo "Error: No data.tar.gz/xz found in $pkg"
             exit 1
         fi
 
-        echo "  - Running post-install..."
-        tar -xzf "$EXTRACT_DIR/control.tar.gz" -C "$EXTRACT_DIR" || true
-        if [ -f "$EXTRACT_DIR/postinst" ]; then
-            chmod +x "$EXTRACT_DIR/postinst"
-            sh "$EXTRACT_DIR/postinst" || echo "Warning: postinst failed for $pkg"
+        # 4. Extract and run post-install script if exists
+        if [ -f "control.tar.gz" ]; then
+            tar -xzf "control.tar.gz" ./postinst 2>/dev/null || tar -xzf "control.tar.gz" postinst 2>/dev/null || true
+            if [ -f "./postinst" ]; then
+                echo "  - Running post-install..."
+                chmod +x "./postinst"
+                sh "./postinst" || echo "Warning: postinst failed for $pkg"
+            fi
         fi
+        
+        cd /tmp
         rm -rf "$EXTRACT_DIR"
     done
 fi

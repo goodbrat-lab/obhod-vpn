@@ -18,7 +18,7 @@ for pkg in *.ipk; do
     # Get filename
     filename=$(basename "$pkg")
     # Extract control file from IPK
-    tar -xOzf "$pkg" control.tar.gz | tar -xOzf - ./control >> Packages
+    ar p "$pkg" control.tar.gz | tar -xOzf - ./control >> Packages
     # Add Filename and Size
     echo "Filename: $filename" >> Packages
     echo "Size: $(stat -c%s "$pkg")" >> Packages

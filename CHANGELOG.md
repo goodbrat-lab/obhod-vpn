@@ -1,4 +1,20 @@
 # CHANGELOG - Obhod Project
+
+## [v1.0.1] - 2026-05-16
+### Fixed
+- **Critical Installer Bug**: Corrected `.ipk` extraction logic in `install.sh` for OpenWrt 25+ (apk).
+- **Package Format**: Switched to standard `ar` archive format for `.ipk` packages to ensure maximum compatibility.
+- **Dependency Handling**: Added automatic detection and installation of `binutils` (ar) during manual setup.
+- **Script Execution**: Fixed `preinst`/`postinst` execution in the manual fallback installer.
+
+## [v1.0.0] - 2026-05-16
+### Added
+- **Major Release**: Professional Edition stable release.
+- **Go-Powered Core**: High-performance daemon for monitoring and config generation.
+- **Multi-Tunnel & Multi-List**: Advanced routing with multiple outbounds.
+- **Live Dashboard**: Real-time traffic visualization and health indicators.
+- **Telegram Integration**: Failure alerts and status notifications.
+
 ## [v0.4.9] - 2026-05-16
 ### Added
 - **Subscription Deduplication**: Added smart filtering to remove duplicate nodes from large subscriptions.

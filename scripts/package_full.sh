@@ -139,7 +139,8 @@ cd "$BUILD_DIR/control" && tar -czf "../control.tar.gz" .
 cd "$BUILD_DIR"
 echo "2.0" > debian-binary
 OUTPUT_FILE="$DIST_PKG_DIR/obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
-tar -czf "$OUTPUT_FILE" debian-binary data.tar.gz control.tar.gz
+# Standard .ipk is an 'ar' archive
+ar r "$OUTPUT_FILE" debian-binary control.tar.gz data.tar.gz
 
 echo "Built: $OUTPUT_FILE ($(du -h "$OUTPUT_FILE" | cut -f1))"
 
