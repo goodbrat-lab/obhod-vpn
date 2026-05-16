@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Universal Installer for Obhod VPN v0.3.1
+# Universal Installer for Obhod VPN v0.3.1-2 (Apk Support)
 # High compatibility with OpenWrt standard architecture names and OpenWrt 25.xx (OneWrt/apk).
 
 set -e
@@ -8,11 +8,11 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="0.3.1-1"
+VERSION="0.3.1-2"
 LUCI_PKG="luci-app-obhod_${VERSION}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v0.3.1      "
+echo "      Obhod VPN - Universal Installer v0.3.1-2    "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -24,7 +24,14 @@ echo "=================================================="
 OPKG_CMD=$(command -v opkg || echo "/bin/opkg")
 APK_CMD=$(command -v apk || echo "/usr/bin/apk")
 
-if [ ! -x "$OPKG_CMD" ] && [ ! -x "$APK_CMD" ]; then
+# Precise check: does opkg actually work?
+if ! $OPKG_CMD --version >/dev/null 2>&1; then
+    OPKG_WORKS=0
+else
+    OPKG_WORKS=1
+fi
+
+if [ "$OPKG_WORKS" -eq 0 ] && [ ! -x "$APK_CMD" ]; then
     echo "CRITICAL ERROR: No package manager found (opkg/apk)."
     echo "Please install Obhod manually by downloading the packages:"
     echo "1. Download Luci: $REPO_URL/$LUCI_PKG"
@@ -36,12 +43,12 @@ fi
 echo "Detecting architecture..."
 ARCH=""
 
-if [ -x "$OPKG_CMD" ]; then
+if [ "$OPKG_WORKS" -eq 1 ]; then
     ARCH=$($OPKG_CMD print-architecture | grep -vE 'all|noarch' | tail -n 1 | awk '{print $2}')
 fi
 
 if [ -z "$ARCH" ]; then
-    echo "Warning: opkg detection failed, falling back to uname -m mapping."
+    echo "Warning: opkg detection failed or missing, falling back to uname -m mapping."
     UNAME_M=$(uname -m)
     case "$UNAME_M" in
         aarch64) ARCH="aarch64_cortex-a53" ;;
@@ -69,26 +76,26 @@ echo "Targeting package: $CORE_PKG"
 # 4. Service Cleanup
 echo "Preparing system for clean installation..."
 /etc/init.d/obhod stop 2>/dev/null || true
-if [ -x "$OPKG_CMD" ]; then
+if [ "$OPKG_WORKS" -eq 1 ]; then
     $OPKG_CMD remove obhod luci-app-obhod --force-removal-of-dependent-packages 2>/dev/null || true
-elif [ -x "$APK_CMD" ]; then
-    # apk doesn't handle .ipk metadata, so we just try to stop the service
-    echo "Note: Using apk, manual removal of old files may be needed if previously installed."
 fi
 
 # 5. Dependency handling
 echo "Updating package lists..."
-if [ -x "$APK_CMD" ] && [ ! -x "$OPKG_CMD" ]; then
+if [ -x "$APK_CMD" ] && [ "$OPKG_WORKS" -eq 0 ]; then
     echo "Detected apk (OpenWrt 25+). Installing dependencies..."
     $APK_CMD update || echo "Warning: apk update failed."
     # Try to install opkg for better .ipk handling
     $APK_CMD add opkg || echo "Note: Could not install opkg via apk."
     if command -v opkg >/dev/null 2>&1; then
         OPKG_CMD=$(command -v opkg)
+        if $OPKG_CMD --version >/dev/null 2>&1; then
+            OPKG_WORKS=1
+        fi
     fi
 fi
 
-if [ -x "$OPKG_CMD" ]; then
+if [ "$OPKG_WORKS" -eq 1 ]; then
     $OPKG_CMD update || echo "Warning: opkg update failed."
     echo "Installing dependencies via opkg..."
     $OPKG_CMD install jq curl nftables coreutils-base64 kmod-nft-tproxy ca-bundle ca-certificates || true
@@ -111,7 +118,7 @@ fi
 wget -q -O "luci.ipk" "$REPO_URL/$LUCI_PKG"
 
 echo "Installing Obhod packages..."
-if [ -x "$OPKG_CMD" ]; then
+if [ "$OPKG_WORKS" -eq 1 ]; then
     $OPKG_CMD install "/tmp/obhod.ipk" --force-reinstall --force-overwrite
     $OPKG_CMD install "/tmp/luci.ipk" --force-reinstall --force-overwrite
 elif [ -x "$APK_CMD" ]; then
@@ -119,6 +126,7 @@ elif [ -x "$APK_CMD" ]; then
     for pkg in "obhod.ipk" "luci.ipk"; do
         echo "Extracting $pkg..."
         EXTRACT_DIR="/tmp/extract_$pkg"
+        rm -rf "$EXTRACT_DIR"
         mkdir -p "$EXTRACT_DIR"
         # ipk is a tar.gz containing data.tar.gz and control.tar.gz
         tar -xzf "/tmp/$pkg" -C "$EXTRACT_DIR"
@@ -132,6 +140,9 @@ elif [ -x "$APK_CMD" ]; then
         fi
         rm -rf "$EXTRACT_DIR"
     done
+else
+    echo "Error: No suitable way to install .ipk files."
+    exit 1
 fi
 
 # 7. Cleanup and Finish
@@ -146,7 +157,6 @@ if [ -f "/usr/bin/obhod" ]; then
     echo "           INSTALLATION SUCCESSFUL!               "
     echo "=================================================="
     echo "Obhod Version: $(/usr/bin/obhod show_version 2>/dev/null || echo $VERSION)"
-    # Try to find sing-box version
     SB_VER=$(sing-box version 2>/dev/null | head -n1 | awk '{print $3}')
     echo "Sing-box Version: ${SB_VER:-unknown}"
     echo "=================================================="
