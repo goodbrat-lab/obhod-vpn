@@ -65,14 +65,25 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 
 func (f *Fetcher) Parse(content string) []string {
 	var links []string
+	seen := make(map[string]bool)
 	lines := strings.Split(content, "\n")
+	
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
 		if strings.Contains(line, "://") {
-			links = append(links, line)
+			// Basic deduplication
+			if !seen[line] {
+				links = append(links, line)
+				seen[line] = true
+			}
+		}
+		
+		// Limit to 500 nodes per subscription to save RAM
+		if len(links) >= 500 {
+			break
 		}
 	}
 	return links

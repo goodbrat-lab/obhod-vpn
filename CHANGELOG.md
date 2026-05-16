@@ -1,4 +1,10 @@
 # CHANGELOG - Obhod Project
+## [v0.4.9] - 2026-05-16
+### Added
+- **Subscription Deduplication**: Added smart filtering to remove duplicate nodes from large subscriptions.
+- **RAM Protection**: Implemented a hard limit of 500 nodes per subscription to prevent configuration bloat and router crashes.
+- **Memory Optimization**: Enhanced Go core parsing logic to be more memory-efficient when handling large lists.
+
 ## [v0.4.8] - 2026-05-16
 ### Added
 - **Auto-Setup Wizard**: Integrated a new network detection engine with a user-friendly 'Quick Setup' button on the dashboard.

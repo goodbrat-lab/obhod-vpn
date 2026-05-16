@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-obhod
 
-PKG_VERSION := 0.4.7
+PKG_VERSION := 0.4.9
 
 PKG_RELEASE:=1
 
