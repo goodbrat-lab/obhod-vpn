@@ -617,7 +617,10 @@ var Obhod;
     AvailableMethods2["SHOW_SING_BOX_CONFIG"] = "show_sing_box_config";
     AvailableMethods2["CHECK_LOGS"] = "check_logs";
     AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
-  })(AvailableMethods = Obhod2.AvailableMethods || (Obhod2.AvailableMethods = {}));
+    AvailableMethods2["HEALTH"] = "health";
+    AvailableMethods2["AUTO_SETUP"] = "auto_setup";
+    })(AvailableMethods = Obhod2.AvailableMethods || (Obhod2.AvailableMethods = {}));
+
   let AvailableClashAPIMethods;
   ((AvailableClashAPIMethods2) => {
     AvailableClashAPIMethods2["GET_PROXIES"] = "get_proxies";
@@ -645,7 +648,10 @@ var ObhodShellMethods = {
   getSingBoxStatus: async () => callBaseMethod(
     Obhod.AvailableMethods.GET_SING_BOX_STATUS
   ),
+  getHealth: async () => callBaseMethod(Obhod.AvailableMethods.HEALTH),
+  getAutoSetup: async () => callBaseMethod(Obhod.AvailableMethods.AUTO_SETUP),
   getClashApiProxies: async () => callBaseMethod(Obhod.AvailableMethods.CLASH_API, [
+
     Obhod.AvailableClashAPIMethods.GET_PROXIES
   ]),
   getClashApiProxyLatency: async (tag) => callBaseMethod(
@@ -1377,6 +1383,11 @@ var initialStore = {
     failed: false,
     data: { singbox: 0, obhod: 0 }
   },
+  healthWidget: {
+    loading: true,
+    failed: false,
+    data: { singbox_running: false, daemon_running: false, issues: [] }
+  },
   sectionsWidget: {
     loading: true,
     failed: false,
@@ -1913,8 +1924,14 @@ function render() {
           "div",
           { id: "dashboard-widget-service-info" },
           renderWidget({ loading: true, failed: false, title: "", items: [] })
+        ),
+        E(
+          "div",
+          { id: "dashboard-widget-health-info" },
+          renderWidget({ loading: true, failed: false, title: "", items: [] })
         )
-      ]),
+        ]),
+
       // All outbounds
       E(
         "div",
@@ -1953,10 +1970,22 @@ function prettyBytes(n) {
 
 // src/obhod/fetchers/fetchServicesInfo.ts
 async function fetchServicesInfo() {
-  const [obhod, singbox] = await Promise.all([
+  const [obhod, singbox, health] = await Promise.all([
     ObhodShellMethods.getStatus(),
-    ObhodShellMethods.getSingBoxStatus()
+    ObhodShellMethods.getSingBoxStatus(),
+    ObhodShellMethods.getHealth()
   ]);
+  
+  if (health.success) {
+    store.set({
+      healthWidget: {
+        loading: false,
+        failed: false,
+        data: health.data
+      }
+    });
+  }
+
   if (!obhod.success || !singbox.success) {
     store.set({
       servicesInfoWidget: {
@@ -2194,6 +2223,26 @@ function renderTrafficGraph(history) {
     ]);
 }
 
+async function renderHealthWidget() {
+  const health = store.get().healthWidget;
+  const container = document.getElementById("dashboard-widget-health-info");
+  if (!container) return;
+  if (health.loading || health.failed) {
+    return container.replaceChildren(renderWidget({ loading: health.loading, failed: health.failed, title: "", items: [] }));
+  }
+
+  const items = [
+    { key: _("Sing-box"), value: health.data.singbox_running ? _("\u2714 OK") : _("\u2718 Error"), attributes: { class: health.data.singbox_running ? "pdk_dashboard-page__widgets-section__item__row--success" : "pdk_dashboard-page__widgets-section__item__row--error" } },
+    { key: _("Core Daemon"), value: health.data.daemon_running ? _("\u2714 OK") : _("\u2718 Error"), attributes: { class: health.data.daemon_running ? "pdk_dashboard-page__widgets-section__item__row--success" : "pdk_dashboard-page__widgets-section__item__row--error" } }
+  ];
+
+  if (health.data.issues && health.data.issues.length > 0) {
+      items.push({ key: _("Issues"), value: String(health.data.issues.length), attributes: { class: "pdk_dashboard-page__widgets-section__item__row--error" } });
+  }
+
+  container.replaceChildren(renderWidget({ loading: false, failed: false, title: _("System Health"), items }));
+}
+
 async function renderBandwidthWidget() {
   logger.debug("[DASHBOARD]", "renderBandwidthWidget");
   const traffic = store.get().bandwidthWidget;
@@ -2332,6 +2381,9 @@ async function onStoreUpdate(next, prev, diff) {
   if (diff.servicesInfoWidget) {
     renderServicesInfoWidget();
   }
+  if (diff.healthWidget) {
+    renderHealthWidget();
+  }
 }
 async function onPageMount() {
   onPageUnmount();
@@ -2399,7 +2451,7 @@ var styles = `
     
 .pdk_dashboard-page {
     width: 100%;
-    --dashboard-grid-columns: 4;
+    --dashboard-grid-columns: 5;
 }
 
 @media (max-width: 900px) {

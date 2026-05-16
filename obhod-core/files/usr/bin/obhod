@@ -3060,6 +3060,20 @@ get_sing_box_status)
 get_system_info)
     get_system_info
     ;;
+health)
+    if [ -x "/usr/bin/obhoud" ]; then
+        /usr/bin/obhoud health
+    else
+        echo '{"error":"obhoud binary not found"}'
+    fi
+    ;;
+auto_setup)
+    if [ -x "/usr/bin/obhoud" ]; then
+        /usr/bin/obhoud auto-setup
+    else
+        echo '{"error":"obhoud binary not found"}'
+    fi
+    ;;
 check_dns_available)
     check_dns_available
     ;;
