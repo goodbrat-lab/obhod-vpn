@@ -6,15 +6,12 @@ config obhod 'settings'
     option log_level 'info'
 
     # How often to update remote domain/subnet lists
-    # Allowed values: 1h, 3h, 12h, 1d, 3d
     option update_interval '1d'
 
     # Set to 1 to prevent obhod from modifying /etc/config/dhcp (dnsmasq).
-    # Only use if you manage dnsmasq manually.
     option dont_touch_dhcp '0'
 
     # Internal flag: tracks whether last shutdown was clean.
-    # Obhod manages this automatically — do not edit manually.
     option shutdown_correctly '1'
 
     # Path to sing-box configuration file written by obhod
@@ -26,34 +23,25 @@ config obhod 'settings'
     # Whether to exclude NTP traffic (UDP port 123) from the proxy (0/1)
     option exclude_ntp '0'
 
+config obhod 'dashboard'
+    # This section is required for the LuCI dashboard to render correctly.
+    # It stores UI preferences and temporary state.
+
+config section 'main'
+    # Default tunnel configuration.
+    option connection_type 'proxy'
+    option proxy_config_type 'url'
+    option proxy_string ''
+    option enabled '1'
+    list community_lists 'russia_outside'
+    list community_lists 'youtube'
+    list community_lists 'discord'
+
 # ==========================================================================
-# Define your VPN tunnels below.
-# Each 'section' block is one tunnel/proxy configuration.
-#
 # Supported proxy_config_type values:
 #   url         — single proxy URL (vless://, ss://, etc.)
 #   subscription — subscription URL returning a list of proxy links
 #   urltest     — multiple links, auto-selects fastest
 #   selector    — multiple links, manual selection via dashboard
 #   outbound    — raw sing-box outbound JSON
-#
-# Example VLESS tunnel:
-#
-# config section 'main'
-#     option proxy_config_type 'url'
-#     option connection_type 'proxy'
-#     option proxy_string 'vless://UUID@host:port?type=tcp&security=reality&...'
-#     option enable_udp_over_tcp '0'
-#     # Routing: which domains/subnets go through this tunnel
-#     list community_lists 'russia_outside'
-#
-# Example subscription tunnel:
-#
-# config section 'sub1'
-#     option proxy_config_type 'subscription'
-#     option connection_type 'proxy'
-#     option subscription_url 'https://your.subscription.url/sub'
-#     option subscription_update_interval '3m'
-#     option urltest_tolerance '50'
-#     list community_lists 'russia_outside'
 # ==========================================================================

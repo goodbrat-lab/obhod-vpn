@@ -7,7 +7,7 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPTS_DIR")"
 
 VERSION="0.3.1"
-RELEASE="2"
+RELEASE="3"
 ARCH="all"
 
 BUILD_DIR="/tmp/luci_obhod_build"

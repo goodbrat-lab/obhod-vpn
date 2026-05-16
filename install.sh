@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Universal Installer for Obhod VPN v0.3.1-2 (Apk Support)
+# Universal Installer for Obhod VPN v0.3.1-3 (Apk Support)
 # High compatibility with OpenWrt standard architecture names and OpenWrt 25.xx (OneWrt/apk).
 
 set -e
@@ -8,11 +8,11 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="0.3.1-2"
+VERSION="0.3.1-3"
 LUCI_PKG="luci-app-obhod_${VERSION}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v0.3.1-2    "
+echo "      Obhod VPN - Universal Installer v0.3.1-3    "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -154,12 +154,6 @@ elif [ -x "$APK_CMD" ]; then
         rm -rf "$EXTRACT_DIR"
         mkdir -p "$EXTRACT_DIR"
         
-        # Check if files exist
-        if [ ! -f "/tmp/$pkg" ]; then
-            echo "Error: File /tmp/$pkg not found for extraction!"
-            exit 1
-        fi
-
         # ipk is a tar.gz containing data.tar.gz and control.tar.gz
         if ! tar -xzf "/tmp/$pkg" -C "$EXTRACT_DIR"; then
             echo "Error: Failed to unpack $pkg"
@@ -180,15 +174,14 @@ elif [ -x "$APK_CMD" ]; then
         fi
         rm -rf "$EXTRACT_DIR"
     done
-else
-    echo "Error: No suitable way to install .ipk files."
-    exit 1
 fi
 
 # 7. Cleanup and Finish
 rm -f "obhod.ipk" "luci.ipk"
 
 echo "Finalizing..."
+rm -rf /tmp/luci-indexcache*
+rm -rf /tmp/luci-modulecache/
 /etc/init.d/rpcd restart 2>/dev/null || true
 /etc/init.d/uhttpd restart 2>/dev/null || true
 

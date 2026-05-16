@@ -16,6 +16,7 @@ function createSectionContent(section) {
   o.value("vpn", "VPN");
   o.value("block", "Block");
   o.value("exclusion", "Exclusion");
+  o.default = "proxy";
 
   o = section.option(
     form.ListValue,
@@ -42,6 +43,7 @@ function createSectionContent(section) {
   // Enable soft wrapping for multi-line proxy URLs (e.g., for URLTest proxy links)
   o.wrap = "soft";
   // Render as a textarea to allow multiple proxy URLs/configs
+  o.textarea = true;
   o.rmempty = false;
   o.sectionDescriptions = new Map();
   o.validate = function (section_id, value) {
