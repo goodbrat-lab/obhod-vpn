@@ -597,39 +597,36 @@ async function callBaseMethod(method, args = [], command = "/usr/bin/obhod") {
 }
 
 // src/obhod/types.ts
-var Obhod;
-((Obhod2) => {
-  let AvailableMethods;
-  ((AvailableMethods2) => {
-    AvailableMethods2["CHECK_DNS_AVAILABLE"] = "check_dns_available";
-    AvailableMethods2["CHECK_FAKEIP"] = "check_fakeip";
-    AvailableMethods2["CHECK_NFT_RULES"] = "check_nft_rules";
-    AvailableMethods2["GET_STATUS"] = "get_status";
-    AvailableMethods2["CHECK_SING_BOX"] = "check_sing_box";
-    AvailableMethods2["GET_SING_BOX_STATUS"] = "get_sing_box_status";
-    AvailableMethods2["CLASH_API"] = "clash_api";
-    AvailableMethods2["RESTART"] = "restart";
-    AvailableMethods2["START"] = "start";
-    AvailableMethods2["STOP"] = "stop";
-    AvailableMethods2["ENABLE"] = "enable";
-    AvailableMethods2["DISABLE"] = "disable";
-    AvailableMethods2["GLOBAL_CHECK"] = "global_check";
-    AvailableMethods2["SHOW_SING_BOX_CONFIG"] = "show_sing_box_config";
-    AvailableMethods2["CHECK_LOGS"] = "check_logs";
-    AvailableMethods2["GET_SYSTEM_INFO"] = "get_system_info";
-    AvailableMethods2["HEALTH"] = "health";
-    AvailableMethods2["AUTO_SETUP"] = "auto_setup";
-    AvailableMethods2["BACKUP"] = "backup";
-    AvailableMethods2["RESTORE"] = "restore";
-  })(Obhod2.AvailableMethods || (Obhod2.AvailableMethods = {}));
-  let AvailableClashAPIMethods;
-  ((AvailableClashAPIMethods2) => {
-    AvailableClashAPIMethods2["GET_PROXIES"] = "get_proxies";
-    AvailableClashAPIMethods2["GET_PROXY_LATENCY"] = "get_proxy_latency";
-    AvailableClashAPIMethods2["GET_GROUP_LATENCY"] = "get_group_latency";
-    AvailableClashAPIMethods2["SET_GROUP_PROXY"] = "set_group_proxy";
-  })(Obhod2.AvailableClashAPIMethods || (Obhod2.AvailableClashAPIMethods = {}));
-})(Obhod || (Obhod = {}));
+var Obhod = {
+  AvailableMethods: {
+    "CHECK_DNS_AVAILABLE": "check_dns_available",
+    "CHECK_FAKEIP": "check_fakeip",
+    "CHECK_NFT_RULES": "check_nft_rules",
+    "GET_STATUS": "get_status",
+    "CHECK_SING_BOX": "check_sing_box",
+    "GET_SING_BOX_STATUS": "get_sing_box_status",
+    "CLASH_API": "clash_api",
+    "RESTART": "restart",
+    "START": "start",
+    "STOP": "stop",
+    "ENABLE": "enable",
+    "DISABLE": "disable",
+    "GLOBAL_CHECK": "global_check",
+    "SHOW_SING_BOX_CONFIG": "show_sing_box_config",
+    "CHECK_LOGS": "check_logs",
+    "GET_SYSTEM_INFO": "get_system_info",
+    "HEALTH": "health",
+    "AUTO_SETUP": "auto_setup",
+    "BACKUP": "backup",
+    "RESTORE": "restore"
+  },
+  AvailableClashAPIMethods: {
+    "GET_PROXIES": "get_proxies",
+    "GET_PROXY_LATENCY": "get_proxy_latency",
+    "GET_GROUP_LATENCY": "get_group_latency",
+    "SET_GROUP_PROXY": "set_group_proxy"
+  }
+};
 
 // src/obhod/methods/shell/index.ts
 var ObhodShellMethods = {
