@@ -7,6 +7,8 @@ import (
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/subscription"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -27,7 +29,14 @@ var communityListMap = map[string]string{
 	"google_ai":    "https://github.com/itdoginfo/allow-domains/releases/latest/download/google_ai.srs",
 }
 
+const (
+	RulesDir = "/tmp/obhod/rules"
+)
+
 func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
+	// Ensure rules directory exists
+	os.MkdirAll(RulesDir, 0755)
+
 	config := &SingBoxConfig{
 		Log: &LogConfig{
 			Level:     uci.Settings.LogLevel,
@@ -263,13 +272,29 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				config.Route.Rules = append(config.Route.Rules, rule)
 			}
 
-			// 2. User Domains
+			// 2. User Domains (External Rule-set)
 			if len(section.UserDomains) > 0 {
 				userTag := "user-domains-" + section.Name
+				path := filepath.Join(RulesDir, userTag+".json")
+				
+				// RAM Optimization: Write to external file
+				ruleData := map[string]interface{}{
+					"version": 1,
+					"rules": []map[string]interface{}{
+						{
+							"domain": section.UserDomains,
+						},
+					},
+				}
+				if file, err := json.Marshal(ruleData); err == nil {
+					os.WriteFile(path, file, 0644)
+				}
+
 				rs := RuleSetConfig{
-					Type:   "inline",
+					Type:   "local",
 					Tag:    userTag,
-					Inline: map[string][]string{"domain": section.UserDomains},
+					Format: "source",
+					Path:   path,
 				}
 				config.Route.RuleSet = append(config.Route.RuleSet, rs)
 
@@ -285,13 +310,29 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				})
 			}
 
-			// 3. User Subnets
+			// 3. User Subnets (External Rule-set)
 			if len(section.UserSubnets) > 0 {
 				userSubnetTag := "user-subnets-" + section.Name
+				path := filepath.Join(RulesDir, userSubnetTag+".json")
+				
+				// RAM Optimization: Write to external file
+				ruleData := map[string]interface{}{
+					"version": 1,
+					"rules": []map[string]interface{}{
+						{
+							"ip_cidr": section.UserSubnets,
+						},
+					},
+				}
+				if file, err := json.Marshal(ruleData); err == nil {
+					os.WriteFile(path, file, 0644)
+				}
+
 				rs := RuleSetConfig{
-					Type:   "inline",
+					Type:   "local",
 					Tag:    userSubnetTag,
-					Inline: map[string][]string{"ip_cidr": section.UserSubnets},
+					Format: "source",
+					Path:   path,
 				}
 				config.Route.RuleSet = append(config.Route.RuleSet, rs)
 
