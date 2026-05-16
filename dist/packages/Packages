@@ -99,8 +99,8 @@ Size: 44982
 SHA256sum: 1730cc7ac45e116f5d03840caa11c50baf10694d0b125f08ff3b36bcc2b0b46f
 
 Filename: luci-app-obhod_1.0.1-1_all.ipk
-Size: 44922
-SHA256sum: e1dcd60412729eab8b0ecf0a97ad1f20084514e7d2c1ccfaa88a57105114cc58
+Size: 44914
+SHA256sum: 61e9421b35eae3b7de81f3af8731f5c3006c99a9c423eb35bf0e37beac5d2a50
 
 Filename: obhod_0.3.0-3_aarch64_cortex-a53.ipk
 Size: 1062516
@@ -683,22 +683,22 @@ Size: 2280526
 SHA256sum: 44e3c963a8f2db0769de0c34341a8505fc2a3a6ffb359ab6fc2478d1d9ae40c7
 
 Filename: obhod_1.0.1-1_aarch64_cortex-a53.ipk
-Size: 2088096
-SHA256sum: f98d2411f1a65dc86aa15ec2bee1c8bef33b8ad1582169c144d1d83a4c715dec
+Size: 2088094
+SHA256sum: 2ce65b938bd0652622e91b8d029be346cee9f0789215767b400c272d675eaefd
 
 Filename: obhod_1.0.1-1_arm_cortex-a7_neon-vfpv4.ipk
-Size: 2059754
-SHA256sum: d939eff2d0f990fb626b2201bb68503c53fd1711800000c9810f11d15e7e8da3
+Size: 2059660
+SHA256sum: 4f8ded0fc68bba98d6637fca0cc49e4f59b34ef272f912ee9ffed3cccea39fdc
 
 Filename: obhod_1.0.1-1_mips_24kc.ipk
-Size: 2060348
-SHA256sum: 82173741d048a28eda3536285d900cc258e3a6d55c75cca4d7a2faf6358159b3
+Size: 2060458
+SHA256sum: 978b5fc879c1ff90cdc3ca9b39fa590c5186f24cd0bd0960000be6efaf3ae65e
 
 Filename: obhod_1.0.1-1_mipsel_24kc.ipk
-Size: 2055280
-SHA256sum: b7b20c1b353dfad3fa5f0c5442147564ff15ffc5014e84d7d9fb3f1cbd600052
+Size: 2055264
+SHA256sum: 7ef5e07527c44394368e976d5a6bf9f354e2c31146df88b713f0154361b8a45b
 
 Filename: obhod_1.0.1-1_x86_64.ipk
-Size: 2280142
-SHA256sum: d63b54eaa8723b765a59de7c012aadf255a7be4bd0014305f3934ca7f4cd4a8e
+Size: 2280090
+SHA256sum: 9d9a620ed47843e7b46506bf4dc7cfed5d5fa2b7389be09a64b37de1f074c857
 

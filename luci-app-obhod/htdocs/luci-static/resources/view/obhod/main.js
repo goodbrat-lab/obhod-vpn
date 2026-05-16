@@ -651,29 +651,6 @@ var ObhodShellMethods = {
   backup: async () => callBaseMethod(Obhod.AvailableMethods.BACKUP),
   restore: async (file) => callBaseMethod(Obhod.AvailableMethods.RESTORE, [file]),
   getClashApiProxies: async () => callBaseMethod(Obhod.AvailableMethods.CLASH_API, [
-  ...
-  async function handleBackup() {
-   ui.showModal(_("Backing up..."), [ E("div", { class: "spinning" }) ]);
-   const res = await ObhodShellMethods.backup();
-   ui.hideModal();
-
-   if (res.success) {
-       const path = res.data.trim();
-       fs.read(path).then(blob => {
-           const url = window.URL.createObjectURL(blob);
-           const a = document.createElement('a');
-           a.href = url;
-           a.download = `obhod_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.tar.gz`;
-           document.body.appendChild(a);
-           a.click();
-           window.URL.revokeObjectURL(url);
-           document.body.removeChild(a);
-           ui.addNotification(null, E("p", _("Backup downloaded successfully")), "info");
-       });
-   } else {
-       ui.addNotification(null, E("p", _("Backup failed")), "error");
-   }
-  }
     Obhod.AvailableClashAPIMethods.GET_PROXIES
   ]),
   getClashApiProxyLatency: async (tag) => callBaseMethod(
@@ -721,6 +698,29 @@ var ObhodShellMethods = {
     Obhod.AvailableMethods.GET_SYSTEM_INFO
   )
 };
+
+async function handleBackup() {
+ ui.showModal(_("Backing up..."), [ E("div", { class: "spinning" }) ]);
+ const res = await ObhodShellMethods.backup();
+ ui.hideModal();
+
+ if (res.success) {
+     const path = res.data.trim();
+     fs.read(path).then(blob => {
+         const url = window.URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = `obhod_backup_${new Date().toISOString().replace(/[:.]/g, '-')}.tar.gz`;
+         document.body.appendChild(a);
+         a.click();
+         window.URL.revokeObjectURL(url);
+         document.body.removeChild(a);
+         ui.addNotification(null, E("p", _("Backup downloaded successfully")), "info");
+     });
+ } else {
+     ui.addNotification(null, E("p", _("Backup failed")), "error");
+ }
+}
 
 // src/obhod/methods/custom/getDashboardSections.ts
 async function getDashboardSections() {
