@@ -11,18 +11,20 @@ import (
 	"strings"
 )
 
-// Mapping of community list keys to their respective SRS URLs
+// Mapping of community list keys to their respective SRS URLs (Binary format)
 var communityListMap = map[string]string{
-	"twitter":      "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/twitter.lst",
-	"meta":         "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/meta.lst",
-	"telegram":     "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/telegram.lst",
-	"cloudflare":   "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/cloudflare.lst",
-	"hetzner":      "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/hetzner.lst",
-	"ovh":          "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/ovh.lst",
-	"digitalocean": "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/digitalocean.lst",
-	"cloudfront":   "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/cloudfront.lst",
-	"discord":      "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/discord.lst",
-	"roblox":       "https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Subnets/IPv4/roblox.lst",
+	"twitter":      "https://github.com/itdoginfo/allow-domains/releases/latest/download/twitter.srs",
+	"meta":         "https://github.com/itdoginfo/allow-domains/releases/latest/download/meta.srs",
+	"telegram":     "https://github.com/itdoginfo/allow-domains/releases/latest/download/telegram.srs",
+	"cloudflare":   "https://github.com/itdoginfo/allow-domains/releases/latest/download/cloudflare.srs",
+	"hetzner":      "https://github.com/itdoginfo/allow-domains/releases/latest/download/hetzner.srs",
+	"ovh":          "https://github.com/itdoginfo/allow-domains/releases/latest/download/ovh.srs",
+	"digitalocean": "https://github.com/itdoginfo/allow-domains/releases/latest/download/digitalocean.srs",
+	"cloudfront":   "https://github.com/itdoginfo/allow-domains/releases/latest/download/cloudfront.srs",
+	"discord":      "https://github.com/itdoginfo/allow-domains/releases/latest/download/discord.srs",
+	"roblox":       "https://github.com/itdoginfo/allow-domains/releases/latest/download/roblox.srs",
+	"youtube":      "https://github.com/itdoginfo/allow-domains/releases/latest/download/youtube.srs",
+	"google_ai":    "https://github.com/itdoginfo/allow-domains/releases/latest/download/google_ai.srs",
 }
 
 func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
@@ -37,6 +39,7 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 			Servers: []DNSServerConfig{},
 			Rules:   []DNSRuleConfig{},
 			Final:   "direct-out",
+			Strategy: "ipv4_only", // Performance & Leak prevention
 		},
 		Route: &RouteConfig{
 			Rules:               []RouteRuleConfig{},
@@ -133,13 +136,10 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	}
 	config.DNS.Servers = append(config.DNS.Servers, server)
 	
-	// Default: use dns-proxy
 	config.DNS.Final = mainTag
 	
-	// Add rule to force system/bootstrap DNS to use dns-direct
 	config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
 		Server: "dns-direct",
-		// We'll add more specific rules later
 	})
 }
 
@@ -214,16 +214,14 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				config.Outbounds = append(config.Outbounds, outbounds[0])
 			}
 
-			// DNS Detouring: Create a dedicated DNS server for this section's proxy
 			sectionDNSTag := "dns-" + section.Name
 			config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
-				Type:    "udp", // Or same as main dns
+				Type:    "udp",
 				Tag:     sectionDNSTag,
-				Address: "8.8.8.8", // Default to Google through proxy
+				Address: "8.8.8.8",
 				Detour:  finalOutboundTag,
 			})
 
-			// Add route and DNS rules for community lists
 			for _, service := range section.CommunityLists {
 				rulesetTag := "rs-" + service
 
@@ -239,20 +237,18 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 					rs := RuleSetConfig{
 						Type:           "remote",
 						Tag:            rulesetTag,
-						Format:         "source",
+						Format:         "binary", // Using SRS binary format
 						URL:            getCommunityURL(service),
 						UpdateInterval: "1d",
 					}
 					config.Route.RuleSet = append(config.Route.RuleSet, rs)
 				}
 
-				// 1. DNS Rule: If domain is in rule-set, use section's DNS (DNS Detouring)
 				config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
 					RuleSet: []string{rulesetTag},
 					Server:  sectionDNSTag,
 				})
 
-				// 2. Route Rule: If IP/domain is in rule-set, use section's outbound
 				rule := RouteRuleConfig{
 					Inbound:  []string{"tproxy-in"},
 					RuleSet:  []string{rulesetTag},
