@@ -1,4 +1,9 @@
 # CHANGELOG - Obhod Project
+## [v0.3.3] - 2026-05-16
+### Added
+- **Configuration Validation**: Added `obhod validate` command to check sing-box configuration integrity.
+- **Fail-safe Startup**: Integrated configuration validation into the startup process. The service will now refuse to start with an invalid configuration, preventing connectivity loss.
+
 ## [v0.3.2] - 2026-05-16
 ### Added
 - **Configurable Watchdog Interval**: Users can now change the watchdog check interval directly in LuCI (Settings -> Watchdog Interval).

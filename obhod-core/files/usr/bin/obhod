@@ -2917,6 +2917,14 @@ global_check() {
     fi
 }
 
+validate() {
+    log "Running configuration validation..." "info" "config" "validation"
+    # sing_box_init_config already generates and calls sing_box_config_check
+    sing_box_init_config
+    log "Configuration is VALID ✅" "info" "config" "validation"
+    echo "Configuration is VALID ✅"
+}
+
 show_help() {
     cat << EOF
 Usage: $0 COMMAND
@@ -2926,6 +2934,7 @@ Available commands:
     stop                    Stop obhod service
     reload                  Reload obhod configuration
     restart                 Restart obhod service
+    validate                Validate configuration
     main                    Run main obhod process
     list_update             Update domain lists
     check_proxy             Check proxy connectivity
@@ -2961,6 +2970,9 @@ reload)
     ;;
 restart)
     restart
+    ;;
+validate)
+    validate
     ;;
 main)
     main
