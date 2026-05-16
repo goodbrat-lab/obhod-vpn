@@ -1997,6 +1997,9 @@ async function fetchServicesInfo() {
         data: health.data
       }
     });
+    updateHeaderBadge(health.data);
+  } else {
+    updateHeaderBadge(null);
   }
 
   if (!obhod.success || !singbox.success) {
@@ -2452,6 +2455,30 @@ async function onStoreUpdate(next, prev, diff) {
     renderHealthWidget();
   }
 }
+function updateHeaderBadge(healthData) {
+    let badge = document.getElementById("obhod-header-badge");
+    if (!badge) {
+        const header = document.querySelector(".main-header > h2, .main-header > h1, h2:first-child");
+        if (!header) return;
+        badge = E("span", { id: "obhod-header-badge", class: "obhod-badge" }, "");
+        header.appendChild(badge);
+    }
+
+    if (!healthData) {
+        badge.textContent = _("Loading...");
+        badge.className = "obhod-badge obhod-badge--loading";
+        return;
+    }
+
+    if (healthData.singbox_running && healthData.daemon_running && (!healthData.issues || healthData.issues.length === 0)) {
+        badge.textContent = "Obhod: " + _("OK");
+        badge.className = "obhod-badge obhod-badge--ok";
+    } else {
+        badge.textContent = "Obhod: " + _("Issue");
+        badge.className = "obhod-badge obhod-badge--error";
+    }
+}
+
 async function onPageMount() {
   onPageUnmount();
   store.subscribe(onStoreUpdate);
@@ -4783,6 +4810,20 @@ var DiagnosticTab = {
 
 // src/styles.ts
 var GlobalStyles = `
+.obhod-badge {
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-left: 10px;
+    vertical-align: middle;
+    display: inline-block;
+    color: white;
+}
+.obhod-badge--ok { background-color: var(--success-color-medium, #4caf50); }
+.obhod-badge--error { background-color: var(--error-color-medium, #f44336); }
+.obhod-badge--loading { background-color: #9e9e9e; }
+
 ${DashboardTab.styles}
 ${DiagnosticTab.styles}
 ${PartialStyles}
