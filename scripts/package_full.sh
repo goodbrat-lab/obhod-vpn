@@ -4,6 +4,8 @@
 # Usage: ./scripts/package_full.sh <arch>
 # Example: ./scripts/package_full.sh arm64
 
+set -e
+
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPTS_DIR")"
 
@@ -47,6 +49,7 @@ chmod +x "$BUILD_DIR/data/usr/bin/obhoud"
 
 # Libraries (all .sh and .jq files from usr/lib)
 cp "$BASE_DIR/obhod-core/files/usr/lib/"* "$BUILD_DIR/data/usr/lib/obhod/"
+chmod +x "$BUILD_DIR/data/usr/lib/obhod/"*.sh
 # Remove any accidentally copied binaries from lib
 rm -f "$BUILD_DIR/data/usr/lib/obhod/obhod"
 rm -f "$BUILD_DIR/data/usr/lib/obhod/obhoud"
@@ -55,6 +58,7 @@ rm -f "$BUILD_DIR/data/usr/lib/obhod/obhoud"
 cp "$BASE_DIR/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"
 chmod +x "$BUILD_DIR/data/etc/init.d/obhod"
 cp "$BASE_DIR/files/etc/config/obhod" "$BUILD_DIR/data/etc/config/obhod"
+chmod 644 "$BUILD_DIR/data/etc/config/obhod"
 
 # --- 2. LuCI Files ---
 LUCI_VIEW_SRC="$BASE_DIR/luci-app-obhod/htdocs/luci-static/resources/view/obhod"
@@ -70,7 +74,8 @@ UCIDEFAULTS_SRC="$BASE_DIR/luci-app-obhod/root/etc/uci-defaults/50_luci-obhod"
 
 [ -f "$MENU_SRC" ] && { mkdir -p "$BUILD_DIR/data/usr/share/luci/menu.d"; cp "$MENU_SRC" "$BUILD_DIR/data/usr/share/luci/menu.d/"; }
 [ -f "$ACL_SRC"  ] && { mkdir -p "$BUILD_DIR/data/usr/share/rpcd/acl.d"; cp "$ACL_SRC" "$BUILD_DIR/data/usr/share/rpcd/acl.d/"; }
-[ -f "$UCIDEFAULTS_SRC" ] && cp "$UCIDEFAULTS_SRC" "$BUILD_DIR/data/etc/uci-defaults/"
+[ -f "$UCIDEFAULTS_SRC" ] && { cp "$UCIDEFAULTS_SRC" "$BUILD_DIR/data/etc/uci-defaults/"; chmod +x "$BUILD_DIR/data/etc/uci-defaults/50_luci-obhod"; }
+
 
 # Localization: compile .po -> .lmo and install to both paths for max compatibility
 PO_FILE="$BASE_DIR/luci-app-obhod/po/ru/obhod.po"
