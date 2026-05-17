@@ -83,6 +83,13 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		SniffOverrideDestination: true,
 	})
 
+	config.Inbounds = append(config.Inbounds, InboundConfig{
+		Type:       "dns",
+		Tag:        "dns-in",
+		Listen:     "127.0.0.42",
+		ListenPort: 53,
+	})
+
 	// 2. DNS setup
 	dnsStrategy := uci.Settings.DNSStrategy
 	if dnsStrategy == "" {
@@ -149,11 +156,38 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 		server.Type = "udp"
 	}
 	config.DNS.Servers = append(config.DNS.Servers, server)
+
+	// 3. FakeIP DNS
+	config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
+		Tag:     "fakeip-server",
+		Address: "fakeip",
+	})
+	
+	config.DNS.FakeIP = &DNSFakeIPConfig{
+		Enabled:    true,
+		Inet4Range: "198.18.0.0/15",
+	}
+	if config.Experimental.CacheFile != nil {
+		config.Experimental.CacheFile.StoreFakeIP = true
+	}
 	
 	config.DNS.Final = mainTag
 	
+	// 4. DNS Rules
 	config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
-		Server: "dns-direct",
+		Outbound: []string{"any"},
+		Server:   "dns-direct",
+	})
+	
+	// Reject known DoH/DoT probing domains or specific types by using block (or direct as fallback).
+	// In sing-box, we can just let them go direct or block. We'll use dns-direct for proxy internal resolution.
+	// But we need to make sure fakeip rule-sets route to fakeip-server!
+	// (The generator automatically adds community rulesets to use section DNS server which resolves them.
+	// Actually, the bash script routed fakeip-dns-rule-tag to fakeip-server.)
+	config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
+		Domain:     []string{"fakeip.podkop.fyi", "ip.podkop.fyi"},
+		Server:     "fakeip-server",
+		RewriteTTL: 60,
 	})
 }
 
@@ -261,7 +295,7 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 
 				config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
 					RuleSet: []string{rulesetTag},
-					Server:  sectionDNSTag,
+					Server:  "fakeip-server",
 				})
 
 				rule := RouteRuleConfig{
@@ -300,7 +334,7 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 
 				config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
 					RuleSet: []string{userTag},
-					Server:  sectionDNSTag,
+					Server:  "fakeip-server",
 				})
 
 				config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{

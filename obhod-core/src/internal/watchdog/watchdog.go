@@ -115,7 +115,7 @@ func checkDns() bool {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: 3 * time.Second}
-			return d.DialContext(ctx, "udp", "127.0.0.1:53")
+			return d.DialContext(ctx, "udp", "127.0.0.42:53")
 		},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

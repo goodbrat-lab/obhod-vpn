@@ -16,17 +16,24 @@ type LogConfig struct {
 }
 
 type DNSConfig struct {
-	Servers          []DNSServerConfig `json:"servers,omitempty"`
-	Rules            []DNSRuleConfig   `json:"rules,omitempty"`
-	Final            string            `json:"final,omitempty"`
-	Strategy         string            `json:"strategy,omitempty"`
-	IndependentCache bool              `json:"independent_cache,omitempty"`
+	Servers          []DNSServerConfig  `json:"servers,omitempty"`
+	Rules            []DNSRuleConfig    `json:"rules,omitempty"`
+	Final            string             `json:"final,omitempty"`
+	Strategy         string             `json:"strategy,omitempty"`
+	IndependentCache bool               `json:"independent_cache,omitempty"`
+	FakeIP           *DNSFakeIPConfig   `json:"fakeip,omitempty"`
+}
+
+type DNSFakeIPConfig struct {
+	Enabled    bool   `json:"enabled,omitempty"`
+	Inet4Range string `json:"inet4_range,omitempty"`
 }
 
 type DNSServerConfig struct {
 	Type            string   `json:"type,omitempty"`
 	Tag             string   `json:"tag,omitempty"`
 	Server          string   `json:"server,omitempty"`
+	Address         string   `json:"address,omitempty"`
 	ServerPort      int      `json:"server_port,omitempty"`
 	DomainResolver  string   `json:"domain_resolver,omitempty"`
 	DomainStrategy  string   `json:"domain_strategy,omitempty"`
@@ -34,10 +41,15 @@ type DNSServerConfig struct {
 }
 
 type DNSRuleConfig struct {
-	Inbound  []string `json:"inbound,omitempty"`
-	RuleSet  []string `json:"rule_set,omitempty"`
-	Server   string   `json:"server,omitempty"`
-	DisableCache bool `json:"disable_cache,omitempty"`
+	Inbound      []string `json:"inbound,omitempty"`
+	Outbound     []string `json:"outbound,omitempty"`
+	RuleSet      []string `json:"rule_set,omitempty"`
+	Server       string   `json:"server,omitempty"`
+	DisableCache bool     `json:"disable_cache,omitempty"`
+	QueryType    []string `json:"query_type,omitempty"`
+	DomainSuffix []string `json:"domain_suffix,omitempty"`
+	Domain       []string `json:"domain,omitempty"`
+	RewriteTTL   int      `json:"rewrite_ttl,omitempty"`
 }
 
 type InboundConfig struct {
