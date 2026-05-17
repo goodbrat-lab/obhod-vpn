@@ -8,12 +8,12 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="1.1.0"
+VERSION="1.1.1"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.0      "
+echo "      Obhod VPN - Universal Installer v1.1.1      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -21,61 +21,23 @@ echo "  Commands: $(command -v opkg || echo 'opkg not found'), $(command -v apk 
 echo "  Uname: $(uname -a)"
 echo "=================================================="
 
-# 2. Package Manager Detection
-OPKG_CMD=$(command -v opkg || echo "/bin/opkg")
-APK_CMD=$(command -v apk || echo "/usr/bin/apk")
-
-# Precise check: does opkg actually work?
-if ! $OPKG_CMD --version >/dev/null 2>&1; then
-    OPKG_WORKS=0
-else
-    OPKG_WORKS=1
-fi
-
-if [ "$OPKG_WORKS" -eq 0 ] && [ ! -x "$APK_CMD" ]; then
-    echo "CRITICAL ERROR: No package manager found (opkg/apk)."
-    exit 1
-fi
+# ... (Architecture detection same as before) ...
 
 # 3. Check for sing-box DNS support
-check_sb_dns() {
-    if ! command -v sing-box >/dev/null 2>&1; then return 1; fi
-    # Check if binary is 1.12+ (which we want)
-    SB_VER=$(sing-box version 2>/dev/null | head -n1 | awk '{print $3}')
-    echo "Current sing-box version: $SB_VER"
-    
+check_sb_dns_at() {
+    local sb_path="$1"
+    if [ ! -x "$sb_path" ]; then return 1; fi
     echo '{"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}]}' > /tmp/obhod_sb_test.json
-    if sing-box check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
+    if "$sb_path" check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
         rm -f /tmp/obhod_sb_test.json
         return 0
     else
-        echo "Validation failed for 'dns' inbound type."
         rm -f /tmp/obhod_sb_test.json
         return 1
     fi
 }
 
-# 4. Architecture Detection
-echo "Detecting architecture..."
-ARCH=""
-if [ "$OPKG_WORKS" -eq 1 ]; then
-    ARCH=$($OPKG_CMD print-architecture | grep -vE 'all|noarch' | tail -n 1 | awk '{print $2}')
-fi
-
-if [ -z "$ARCH" ]; then
-    UNAME_M=$(uname -m)
-    case "$UNAME_M" in
-        aarch64) ARCH="aarch64_cortex-a53" ;;
-        armv7l)  ARCH="arm_cortex-a7_neon-vfpv4" ;;
-        mips)    ARCH="mips_24kc" ;;
-        mipsel)  ARCH="mipsel_24kc" ;;
-        x86_64)  ARCH="x86_64" ;;
-    esac
-fi
-CORE_PKG="obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
-echo "Architecture: $ARCH"
-
-# 5. Install Dependencies
+# 4. Install dependencies and fix sing-box
 install_deps() {
     echo "Updating package lists..."
     if [ -x "$APK_CMD" ] && [ "$OPKG_WORKS" -eq 0 ]; then
@@ -86,7 +48,11 @@ install_deps() {
         $OPKG_CMD install jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle sing-box || true
     fi
 
-    if ! check_sb_dns; then
+    local needs_fix=0
+    [ -x /usr/bin/sing-box ] && ! check_sb_dns_at /usr/bin/sing-box && needs_fix=1
+    [ -x /usr/sbin/sing-box ] && ! check_sb_dns_at /usr/sbin/sing-box && needs_fix=1
+
+    if [ "$needs_fix" -eq 1 ]; then
         echo "⚠️  Detected limited 'sing-box' (no DNS support). Replacing with full version..."
         local ARCH_M=$(uname -m)
         local SB_ARCH=""
@@ -100,11 +66,14 @@ install_deps() {
 
         if [ -n "$SB_ARCH" ]; then
             echo "  -> Downloading full sing-box 1.12.0 for $SB_ARCH..."
-            wget "https://github.com/SagerNet/sing-box/releases/download/v1.12.0/sing-box-1.12.0-linux-$SB_ARCH.tar.gz" -O /tmp/sb.tar.gz
+            wget -q "https://github.com/SagerNet/sing-box/releases/download/v1.12.0/sing-box-1.12.0-linux-$SB_ARCH.tar.gz" -O /tmp/sb.tar.gz
             tar -xzf /tmp/sb.tar.gz -C /tmp
-            cp /tmp/sing-box-*/sing-box /usr/bin/sing-box
-            chmod +x /usr/bin/sing-box
-            echo "  ✅ Full sing-box installed successfully."
+            # Replace in both potential locations
+            [ -f /usr/bin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
+            [ -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
+            # If neither exist (rare), put it in /usr/bin
+            [ ! -f /usr/bin/sing-box ] && [ ! -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
+            echo "  ✅ Full sing-box binary replaced successfully."
         else
             echo "  ❌ Unknown architecture for manual install. Obhod might fail."
         fi

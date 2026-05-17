@@ -290,6 +290,16 @@ start_main() {
     # 1. Generate sing-box configuration (Uses original system DNS to download lists/subscriptions)
     log "Generating sing-box configuration..."
     export OBHOD_LOG_COMPONENT="config"
+
+    # Check if sing-box supports DNS inbound (it's required for Obhod)
+    echo '{"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}]}' > /tmp/obhod_sb_test.json
+    if ! sing-box check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
+        log "Sing-box does not support DNS inbounds. Obhod cannot start. Please install full version of sing-box." "fatal"
+        rm -f /tmp/obhod_sb_test.json
+        exit 1
+    fi
+    rm -f /tmp/obhod_sb_test.json
+
     sing_box_init_config
 
     # 2. Base network setup
@@ -813,7 +823,7 @@ sing_box_init_config() {
     config_get config_path "settings" "config_path" "/etc/sing-box/config.json"
 
     if [ -x "/usr/bin/obhoud" ]; then
-        log "Generating configuration using Go core (v0.3.4)..." "info" "config" "generator"
+        log "Generating configuration using Go core (v1.1.1)..." "info" "config" "generator"
         if /usr/bin/obhoud generate-config -o "$config_path"; then
             log "Configuration generated successfully via Go core ✅" "info" "config" "generator"
             # We still run the check just to be 100% sure before sing-box sees it
