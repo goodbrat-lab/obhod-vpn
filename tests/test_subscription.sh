@@ -49,9 +49,12 @@ trojan://mypassword@example.com:443?security=tls&sni=example.com#Server3"
 # Encode to Base64
 ENCODED_SUB=$(echo "$PLAIN_SUB" | base64 -w 0 2>/dev/null || echo "$PLAIN_SUB" | base64 2>/dev/null)
 
-# Create mock temp file
-TMPDIR_TEST=$(mktemp -d 2>/dev/null || echo "/tmp/obhod_test_$$")
-mkdir -p "$TMPDIR_TEST"
+# Create mock temp file - secure version
+TMPDIR_TEST=$(mktemp -d 2>/dev/null)
+if [ ! -d "$TMPDIR_TEST" ]; then
+    echo "Failed to create secure temp directory"
+    exit 1
+fi
 
 # Simulate what fetch_subscription does for Base64 content
 test_base64_decode() {

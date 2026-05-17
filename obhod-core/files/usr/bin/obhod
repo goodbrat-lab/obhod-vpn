@@ -36,14 +36,30 @@ config_load "$OBHOD_CONFIG"
 check_requirements() {
     log "Checking system requirements..." "debug" "init" "requirements"
 
-    local sing_box_version jq_version coreutils_base64_version nft_version dnsmasq_version
-    sing_box_version="$(sing-box version | head -n1 | awk '{print $3}')"
-    jq_version="$(jq --version | awk -F- '{print $2}')"
-    coreutils_base64_version="$(base64 --version | head -n1 | awk '{print $4}')"
-    nft_version="$(nft -v | awk '{print $2}')"
-    dnsmasq_version="$(dnsmasq -v | head -n1 | awk '{print $3}')"
+    # Check required commands first
+    local required_commands="sing-box jq base64 nft dnsmasq ping nslookup logread"
+    for cmd in $required_commands; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            log "Required command '$cmd' is not installed. Aborted." "error"
+            exit 1
+        fi
+    done
 
-    log "Dependency versions: sing-box=$sing_box_version, nftables=$nft_version, dnsmasq=$dnsmasq_version, jq=$jq_version, base64=$coreutils_base64_version" "info" "init" "requirements"
+    # If Go binary exists, check Go compiler
+    if [ -f "/usr/bin/obhoud" ]; then
+        if ! command -v go >/dev/null 2>&1; then
+            log "Warning: Go binary exists but Go compiler not found. Binary updates may fail." "warn"
+        fi
+    fi
+
+    local sing_box_version jq_version coreutils_base64_version nft_version dnsmasq_version
+    
+    # Get versions with error handling
+    sing_box_version="$(sing-box version 2>/dev/null | head -n1 | awk '{print $3}')"
+    jq_version="$(jq --version 2>/dev/null | awk -F- '{print $2}')"
+    coreutils_base64_version="$(base64 --version 2>/dev/null | head -n1 | awk '{print $4}')"
+    nft_version="$(nft -v 2>/dev/null | awk '{print $2}')"
+    dnsmasq_version="$(dnsmasq -v 2>/dev/null | head -n1 | awk '{print $3}')"
 
     if [ -z "$sing_box_version" ]; then
         log "Package 'sing-box' is not installed. Aborted." "error"
@@ -140,7 +156,13 @@ fetch_subscription() {
     log "Fetching subscription from $url" "info" "$component" "$context"
     
     local data http_code tmpfile
-    tmpfile=$(mktemp)
+    tmpfile=$(mktemp) || {
+        log "Failed to create temporary file for subscription" "error" "$component" "$context"
+        return 1
+    }
+    
+    # Set trap to cleanup on exit
+    trap 'rm -f "$tmpfile" 2>/dev/null' EXIT INT TERM
     
     # Download with detailed error info: -w for http_code, -o for body
     http_code=$(curl -sL -m 30 -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
@@ -150,10 +172,14 @@ fetch_subscription() {
         log "DNS resolution failed for subscription URL, attempting bootstrap DNS" "warn" "$component" "$context"
         local domain=$(echo "$url" | awk -F[/:] '{print $4}')
         local resolved_ip=$(nslookup "$domain" 1.1.1.1 2>/dev/null | grep -A 1 "Name:" | grep "Address" | awk '{print $2}' | head -n 1)
-        if [ -n "$resolved_ip" ]; then
+        if [ -n "$resolved_ip" ] && is_ipv4 "$resolved_ip"; then
             log "Resolved $domain to $resolved_ip via 1.1.1.1. Retrying..." "info" "$component" "$context"
             http_code=$(curl -sL -m 30 --resolve "$domain:443:$resolved_ip" --resolve "$domain:80:$resolved_ip" -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
             curl_exit=$?
+        else
+            log "Failed to resolve $domain via 1.1.1.1" "error" "$component" "$context"
+            rm -f "$tmpfile"
+            return 1
         fi
     fi
 
@@ -173,6 +199,7 @@ fetch_subscription() {
     local size=${#data}
     log "Downloaded $size bytes from subscription" "debug" "$component" "$context"
     rm -f "$tmpfile"
+    trap - EXIT INT TERM
     
     if [ -z "$data" ]; then
         log "Subscription response body is empty from $url" "error" "$component" "$context"
@@ -282,7 +309,14 @@ start_main() {
     # Check if sing-box actually started
     if ! /etc/init.d/sing-box running 2>/dev/null; then
         log "Sing-box failed to start. Last logs:" "error"
-        log "$(logread -e sing-box | tail -n 5)" "error"
+        # Get logs with timeout and error handling
+        if command -v timeout >/dev/null 2>&1 && command -v logread >/dev/null 2>&1; then
+            timeout 5 logread -e sing-box 2>/dev/null | tail -n 5 | while read -r line; do
+                log "$line" "error"
+            done
+        else
+            log "Unable to retrieve sing-box logs" "warn"
+        fi
     fi
 
     # 4. Configure dnsmasq to forward DNS to sing-box (AFTER sing-box is up)
@@ -300,7 +334,12 @@ start_main() {
     # Start background list update
     log "Starting background list update..." "debug"
     list_update &
-    echo $! > /var/run/obhod_list_update.pid
+    local bg_pid=$!
+    if echo "$bg_pid" > /var/run/obhod_list_update.pid 2>/dev/null; then
+        log "Background list update started with PID $bg_pid"
+    else
+        log "Failed to write PID file for background list update" "warn"
+    fi
 
     log "Obhod setup complete. Watchdog is managed by procd."
 }
@@ -609,6 +648,12 @@ add_cron_job() {
     config_get remote_subnet_lists "$section" "remote_subnet_lists"
     config_get update_interval "settings" "update_interval"
 
+    # Check if crontab is available
+    if ! command -v crontab >/dev/null 2>&1; then
+        log "crontab command not found, cannot create scheduled job" "warn"
+        return 1
+    fi
+
     case "$update_interval" in
     "1h")
         cron_job="13 * * * * /usr/bin/obhod list_update"
@@ -626,26 +671,42 @@ add_cron_job() {
         cron_job="13 9 */3 * * /usr/bin/obhod list_update"
         ;;
     *)
-        log "Invalid update_interval value: $update_interval"
-        return
+        log "Invalid update_interval value: $update_interval" "error"
+        return 1
         ;;
     esac
 
     if [ -n "$community_lists" ] ||
         [ -n "$remote_domain_lists" ] ||
         [ -n "$remote_subnet_lists" ]; then
+        # Remove existing job first
         remove_cron_job
-        crontab -l | {
-            cat
-            echo "$cron_job"
-        } | crontab -
-        log "The cron job has been created: $cron_job"
+        
+        # Add new job with error checking
+        if (crontab -l 2>/dev/null; echo "$cron_job") | crontab - 2>/dev/null; then
+            log "The cron job has been created: $cron_job"
+        else
+            log "Failed to create cron job: $cron_job" "error"
+            return 1
+        fi
     fi
 }
 
 remove_cron_job() {
-    (crontab -l | grep -v "/usr/bin/obhod list_update") | crontab -
-    log "The cron job removed"
+    # Check if crontab is available
+    if ! command -v crontab >/dev/null 2>&1; then
+        log "crontab command not found, cannot remove scheduled job" "warn"
+        return 1
+    fi
+
+    # Remove job with error checking
+    if (crontab -l 2>/dev/null | grep -v "/usr/bin/obhod list_update") | crontab - 2>/dev/null; then
+        log "The cron job removed"
+    else
+        # Fallback for empty crontab
+        crontab -r 2>/dev/null || true
+        log "The cron job removed (or no jobs existed)"
+    fi
 }
 
 list_update() {
@@ -669,7 +730,7 @@ list_update() {
         sleep $delay
     done
 
-    if [ "$i" -eq $nslookup_attempts ]; then
+    log "Dependency versions: sing-box=$sing_box_version, nftables=$nft_version, dnsmasq=$dnsmasq_version, jq=$jq_version, base64=$coreutils_base64_version" "info" "init" "requirements"
         echolog "❌ DNS check failed after $nslookup_attempts attempts"
         return 1
     fi
@@ -679,7 +740,7 @@ list_update() {
         local service_proxy_address
         service_proxy_address="$(get_service_proxy_address)"
 
-        if [ -n "$http_proxy_address" ]; then
+        if [ -n "$service_proxy_address" ]; then
             if curl -s -x "http://$service_proxy_address" -m $curl_timeout https://github.com > /dev/null; then
                 echolog "✅ GitHub connection check passed (via proxy)"
                 break
@@ -1839,7 +1900,16 @@ get_first_outbound_section() {
 get_sections_by_connection_type() {
     local connection_type="$1"
 
-    uci show obhod | grep "\.connection_type='$connection_type'" | cut -d'.' -f2
+    # Validate connection_type to prevent injection
+    case "$connection_type" in
+        proxy|vpn|block|exclusion|urltest|selector)
+            uci show obhod 2>/dev/null | grep "\.connection_type='$connection_type'" | cut -d'.' -f2
+            ;;
+        *)
+            log "Invalid connection_type: $connection_type" "error"
+            echo ""
+            ;;
+    esac
 }
 
 section_by_connection_type_exists() {

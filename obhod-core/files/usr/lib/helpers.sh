@@ -17,7 +17,8 @@ is_ipv4_ip_or_ipv4_cidr() {
 
 is_domain() {
     local str="$1"
-    echo "$str" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$'
+    # Improved RFC-compliant domain validation
+    echo "$str" | grep -qE '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
 }
 
 is_domain_suffix() {
@@ -217,9 +218,15 @@ base64_decode() {
     echo "$decoded_url"
 }
 
-# Generates a unique 16-character ID based on the current timestamp and a random number
+# Generates a unique 16-character ID using cryptographically secure random source
 gen_id() {
-    printf '%s%s' "$(date +%s)" "$RANDOM" | md5sum | cut -c1-16
+    if [ -r /dev/urandom ]; then
+        # Use /dev/urandom for better entropy
+        od -An -N8 -tx8 /dev/urandom | tr -d ' \n' | md5sum | cut -c1-16
+    else
+        # Fallback to original method but with better randomness
+        printf '%s%s%s' "$(date +%s)" "$RANDOM" "$(hostname)" | md5sum | cut -c1-16
+    fi
 }
 
 # Adds a missing UCI option with the given value if it does not exist
@@ -254,7 +261,7 @@ migration_rename_config_key() {
     fi
 }
 
-# Download URL to file
+# Download URL to file with improved error handling
 download_to_file() {
     local url="$1"
     local filepath="$2"
@@ -262,16 +269,36 @@ download_to_file() {
     local retries="${4:-3}"
     local wait="${5:-2}"
 
+    # Check if wget is available
+    if ! command -v wget >/dev/null 2>&1; then
+        log "wget command not found" "error"
+        return 1
+    fi
+
     for attempt in $(seq 1 "$retries"); do
         if [ -n "$http_proxy_address" ]; then
-            http_proxy="http://$http_proxy_address" https_proxy="http://$http_proxy_address" wget -O "$filepath" "$url" && break
+            http_proxy="http://$http_proxy_address" https_proxy="http://$http_proxy_address" wget -q -O "$filepath" "$url" 2>/dev/null
+            wget_result=$?
         else
-            wget -O "$filepath" "$url" && break
+            wget -q -O "$filepath" "$url" 2>/dev/null
+            wget_result=$?
         fi
 
-        log "Attempt $attempt/$retries to download $url failed" "warn"
-        sleep "$wait"
+        if [ $wget_result -eq 0 ] && [ -s "$filepath" ]; then
+            log "Successfully downloaded $url (attempt $attempt)"
+            return 0
+        fi
+
+        log "Download attempt $attempt/$retries failed for $url (wget exit code: $wget_result)" "warn"
+        
+        # Clean up partial download
+        [ -f "$filepath" ] && rm -f "$filepath"
+        
+        [ "$attempt" -lt "$retries" ] && sleep "$wait"
     done
+
+    log "Failed to download $url after $retries attempts" "error"
+    return 1
 }
 
 # Converts Windows-style line endings (CRLF) to Unix-style (LF)
