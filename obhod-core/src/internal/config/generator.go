@@ -164,10 +164,6 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 		Inet4Range: "198.18.0.0/15",
 	})
 	
-	if config.Experimental.CacheFile != nil {
-		config.Experimental.CacheFile.StoreFakeIP = true
-	}
-	
 	config.DNS.Final = mainTag
 	
 	// 4. DNS Rules
@@ -176,11 +172,6 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 		Server:   "dns-direct",
 	})
 	
-	// Reject known DoH/DoT probing domains or specific types by using block (or direct as fallback).
-	// In sing-box, we can just let them go direct or block. We'll use dns-direct for proxy internal resolution.
-	// But we need to make sure fakeip rule-sets route to fakeip-server!
-	// (The generator automatically adds community rulesets to use section DNS server which resolves them.
-	// Actually, the bash script routed fakeip-dns-rule-tag to fakeip-server.)
 	config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
 		Domain:     []string{"fakeip.podkop.fyi", "ip.podkop.fyi"},
 		Server:     "fakeip-server",
