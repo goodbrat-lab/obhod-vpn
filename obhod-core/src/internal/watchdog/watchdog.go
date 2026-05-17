@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,10 +19,21 @@ const (
 	singBoxRestarts = 2
 )
 
+// Global state with mutex protection
+var (
+ watchdogMutex sync.Mutex
+ failCount     int
+ singBoxRestartCount int
+)
+
 func Start(ctx context.Context, checkInterval time.Duration, mark int) {
 	logger.Info("watchdog", "init", "Watchdog started with interval %v, mark %d", checkInterval, mark)
-	failCount := 0
-	singBoxRestartCount := 0
+	
+	// Reset counters on start
+	watchdogMutex.Lock()
+	failCount = 0
+	singBoxRestartCount = 0
+	watchdogMutex.Unlock()
 
 	uci, _ := config.LoadUCI()
 	var bot *telegram.Bot
@@ -45,51 +57,58 @@ func Start(ctx context.Context, checkInterval time.Duration, mark int) {
 			logger.Info("watchdog", "lifecycle", "Watchdog stopping")
 			return
 		case <-ticker.C:
-			if !isWanUp(mark) {
-				if failCount > 0 {
-					logger.Info("watchdog", "connectivity", "WAN is down, pausing checks")
-					failCount = 0
-				}
-				continue
-			}
+			processWanCheck(ctx, bot, mark)
+		}
+	}
+}
 
-			if checkDns() {
-				if failCount > 0 {
-					logger.Info("watchdog", "connectivity", "DNS restored")
-					if bot != nil {
-						bot.SendMessage("✅ <b>DNS Restored</b>. All systems normal.")
-					}
-				}
-				failCount = 0
-				singBoxRestartCount = 0
-				continue
-			}
-
-			failCount++
-			logger.Warn("watchdog", "connectivity", "DNS failed (%d/%d)", failCount, maxFails)
-
-			if failCount < maxFails {
-				continue
-			}
-
+func processWanCheck(ctx context.Context, bot *telegram.Bot, mark int) {
+	watchdogMutex.Lock()
+	defer watchdogMutex.Unlock()
+	
+	if !isWanUp(mark) {
+		if failCount > 0 {
+			logger.Info("watchdog", "connectivity", "WAN is down, pausing checks")
 			failCount = 0
-			singBoxRestartCount++
+		}
+		return
+	}
 
-			if singBoxRestartCount <= singBoxRestarts {
-				logger.Error("watchdog", "recovery", "Restarting sing-box...")
-				if bot != nil {
-					bot.SendMessage(fmt.Sprintf("⚠️ <b>DNS Failure</b>. Restarting sing-box (attempt %d/%d)...", singBoxRestartCount, singBoxRestarts))
-				}
-				restartSingBox()
-			} else {
-				logger.Error("watchdog", "recovery", "Escalating to full restart...")
-				if bot != nil {
-					bot.SendMessage("🚨 <b>Persistent DNS Failure</b>. Performing full service restart!")
-				}
-				singBoxRestartCount = 0
-				restartObhod()
+	if checkDns() {
+		if failCount > 0 {
+			logger.Info("watchdog", "connectivity", "DNS restored")
+			if bot != nil {
+				bot.SendMessage("✅ <b>DNS Restored</b>. All systems normal.")
 			}
 		}
+		failCount = 0
+		singBoxRestartCount = 0
+		return
+	}
+
+	failCount++
+	logger.Warn("watchdog", "connectivity", "DNS failed (%d/%d)", failCount, maxFails)
+
+	if failCount < maxFails {
+		return
+	}
+
+	failCount = 0
+	singBoxRestartCount++
+
+	if singBoxRestartCount <= singBoxRestarts {
+		logger.Error("watchdog", "recovery", "Restarting sing-box...")
+		if bot != nil {
+			bot.SendMessage(fmt.Sprintf("⚠️ <b>DNS Failure</b>. Restarting sing-box (attempt %d/%d)...", singBoxRestartCount, singBoxRestarts))
+		}
+		restartSingBox()
+	} else {
+		logger.Error("watchdog", "recovery", "Escalating to full restart...")
+		if bot != nil {
+			bot.SendMessage("🚨 <b>Persistent DNS Failure</b>. Performing full service restart!")
+		}
+		singBoxRestartCount = 0
+		restartObhod()
 	}
 }
 

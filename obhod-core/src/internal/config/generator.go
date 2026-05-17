@@ -4,13 +4,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"regexp"
+	"strings"
+
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/subscription"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
-	"strings"
 )
 
 // Mapping of community list keys to their respective SRS URLs (Binary format)
@@ -32,6 +34,26 @@ var communityListMap = map[string]string{
 const (
 	RulesDir = "/tmp/obhod/rules"
 )
+
+// sanitizePath cleans user input to prevent path traversal
+func sanitizePath(filename string) string {
+	// Remove path separators and dangerous characters
+	reg := regexp.MustCompile(`[^\w\-\.]`)
+	clean := reg.ReplaceAllString(filename, "")
+	
+	// Limit length
+	if len(clean) > 32 {
+		clean = clean[:32]
+	}
+	
+	return clean
+}
+
+// safePath joins directory with sanitized filename
+func safePath(dir, filename string) string {
+	safeFilename := sanitizePath(filename)
+	return filepath.Join(dir, safeFilename+".json")
+}
 
 func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 	// Ensure rules directory exists

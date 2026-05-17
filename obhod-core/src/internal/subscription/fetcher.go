@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -21,7 +22,22 @@ type CacheData struct {
 	Sections   map[string][]string `json:"sections"`
 }
 
-func NewFetcher(cachePath string) *Fetcher {
+const (
+	// Maximum subscription size to prevent memory exhaustion (1MB)
+	maxSubscriptionSize = 1024 * 1024
+	// Maximum nodes per subscription to prevent memory exhaustion
+	maxNodesPerSubscription = 500
+	// Maximum line length to prevent DoS
+	maxLineLength = 1000
+)
+
+// ValidateURL checks if URL is safe and well-formed
+func validateURL(url string) error {
+	if len(url) > maxLineLength {
+		return fmt.Errorf("URL too long")
+	}
+	return nil
+}
 	if cachePath == "" {
 		cachePath = "/tmp/obhod/subscriptions.json"
 	}
@@ -34,6 +50,11 @@ func NewFetcher(cachePath string) *Fetcher {
 }
 
 func (f *Fetcher) Fetch(url string) ([]string, error) {
+	// Validate URL first
+	if err := validateURL(url); err != nil {
+		return nil, fmt.Errorf("invalid URL: %v", err)
+	}
+	
 	resp, err := f.Client.Get(url)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download subscription: %v", err)
@@ -44,7 +65,9 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 		return nil, fmt.Errorf("subscription fetch returned HTTP %d", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	// Limit read size to prevent memory exhaustion
+	limitedReader := io.LimitReader(resp.Body, maxSubscriptionSize)
+	body, err := io.ReadAll(limitedReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read subscription body: %v", err)
 	}
@@ -54,9 +77,16 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 
 	if len(links) == 0 {
 		// Try Base64 decode (with trim to handle whitespace/newlines)
-		decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(content))
-		if err == nil {
-			links = f.Parse(string(decoded))
+		trimmed := strings.TrimSpace(content)
+		if len(trimmed) > 0 {
+			decoded, err := base64.StdEncoding.DecodeString(trimmed)
+			if err == nil {
+				// Limit decoded content size
+				decodedStr := string(decoded)
+				if len(decodedStr) < maxSubscriptionSize {
+					links = f.Parse(decodedStr)
+				}
+			}
 		}
 	}
 
@@ -68,24 +98,30 @@ func (f *Fetcher) Parse(content string) []string {
 	seen := make(map[string]bool)
 	lines := strings.Split(content, "\n")
 	
+	// Improved URL validation regex
+	urlPattern := regexp.MustCompile(`^(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://[^\s]+`)
+	
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" {
+		if line == "" || len(line) > maxLineLength {
 			continue
 		}
-		if strings.Contains(line, "://") {
+		
+		// Validate URL format more strictly
+		if urlPattern.MatchString(line) {
 			// Basic deduplication
 			if !seen[line] {
 				links = append(links, line)
 				seen[line] = true
+				
+				// Limit to prevent memory exhaustion
+				if len(links) >= maxNodesPerSubscription {
+					break
+				}
 			}
 		}
-		
-		// Limit to 500 nodes per subscription to save RAM
-		if len(links) >= 500 {
-			break
-		}
 	}
+	
 	return links
 }
 

@@ -42,7 +42,7 @@ func performUpdate(f *Fetcher) error {
 	cmd := exec.Command("uci", "-q", "show", "obhod")
 	out, err := cmd.Output()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load UCI config: %v", err)
 	}
 
 	cache := &CacheData{
@@ -56,10 +56,19 @@ func performUpdate(f *Fetcher) error {
 	for _, line := range lines {
 		if strings.Contains(line, ".subscription_url=") {
 			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
 			keyParts := strings.Split(parts[0], ".")
+			if len(keyParts) < 3 {
+				continue
+			}
 			sectionName := keyParts[1]
 			url := strings.Trim(parts[1], "'")
-			urls[sectionName] = url
+			// Validate URL
+			if len(url) > 0 && len(url) <= 1000 && strings.Contains(url, "://") {
+				urls[sectionName] = url
+			}
 		}
 	}
 
@@ -67,6 +76,8 @@ func performUpdate(f *Fetcher) error {
 		return nil
 	}
 
+	// Track successful updates
+	successCount := 0
 	for section, url := range urls {
 		logger.Info("updater", "fetch", "Updating section %s: %s", section, url)
 		links, err := f.Fetch(url)
@@ -75,7 +86,13 @@ func performUpdate(f *Fetcher) error {
 			continue
 		}
 		cache.Sections[section] = links
+		successCount++
 	}
-
-	return f.SaveCache(cache)
+	
+	// Only save update if any section was successfully updated
+	if successCount > 0 {
+		return f.SaveCache(cache)
+	}
+	
+	return fmt.Errorf("no sections updated successfully")
 }
