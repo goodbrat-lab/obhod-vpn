@@ -8,17 +8,20 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="1.0.3"
+VERSION="1.0.4"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.0.3      "
+echo "      Obhod VPN - Universal Installer v1.0.4      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
 echo "  Commands: $(command -v opkg || echo 'opkg not found'), $(command -v apk || echo 'apk not found')"
 echo "  Uname: $(uname -a)"
+echo "=================================================="
+echo "NOTE: This app REQUIRES sing-box with DNS support."
+echo "We will attempt to install the full 'sing-box' package."
 echo "=================================================="
 
 # 2. Package Manager Detection

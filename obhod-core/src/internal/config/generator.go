@@ -157,16 +157,13 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	}
 	config.DNS.Servers = append(config.DNS.Servers, server)
 
-	// 3. FakeIP DNS
+	// 3. FakeIP DNS (1.12+ format)
 	config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
-		Tag:     "fakeip-server",
-		Address: "fakeip",
+		Type:       "fakeip",
+		Tag:        "fakeip-server",
+		Inet4Range: "198.18.0.0/15",
 	})
 	
-	config.DNS.FakeIP = &DNSFakeIPConfig{
-		Enabled:    true,
-		Inet4Range: "198.18.0.0/15",
-	}
 	if config.Experimental.CacheFile != nil {
 		config.Experimental.CacheFile.StoreFakeIP = true
 	}

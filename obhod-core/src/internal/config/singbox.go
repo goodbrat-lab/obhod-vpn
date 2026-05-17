@@ -16,17 +16,12 @@ type LogConfig struct {
 }
 
 type DNSConfig struct {
-	Servers          []DNSServerConfig  `json:"servers,omitempty"`
-	Rules            []DNSRuleConfig    `json:"rules,omitempty"`
-	Final            string             `json:"final,omitempty"`
-	Strategy         string             `json:"strategy,omitempty"`
-	IndependentCache bool               `json:"independent_cache,omitempty"`
-	FakeIP           *DNSFakeIPConfig   `json:"fakeip,omitempty"`
-}
-
-type DNSFakeIPConfig struct {
-	Enabled    bool   `json:"enabled,omitempty"`
-	Inet4Range string `json:"inet4_range,omitempty"`
+	Servers          []DNSServerConfig `json:"servers,omitempty"`
+	Rules            []DNSRuleConfig   `json:"rules,omitempty"`
+	Final            string            `json:"final,omitempty"`
+	Strategy         string            `json:"strategy,omitempty"`
+	IndependentCache bool              `json:"independent_cache,omitempty"`
+	ReverseMapping   bool              `json:"reverse_mapping,omitempty"`
 }
 
 type DNSServerConfig struct {
@@ -35,6 +30,8 @@ type DNSServerConfig struct {
 	Server          string   `json:"server,omitempty"`
 	Address         string   `json:"address,omitempty"`
 	ServerPort      int      `json:"server_port,omitempty"`
+	Inet4Range      string   `json:"inet4_range,omitempty"`
+	Inet6Range      string   `json:"inet6_range,omitempty"`
 	DomainResolver  string   `json:"domain_resolver,omitempty"`
 	DomainStrategy  string   `json:"domain_strategy,omitempty"`
 	Detour          string   `json:"detour,omitempty"`
