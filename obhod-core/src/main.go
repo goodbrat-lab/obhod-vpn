@@ -17,7 +17,7 @@ import (
 	"encoding/json"
 )
 
-var version = "0.4.14"
+var version = "0.4.15"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
