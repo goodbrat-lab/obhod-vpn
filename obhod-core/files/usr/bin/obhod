@@ -105,6 +105,8 @@ check_requirements() {
         log "Outbound section not found. Please check your configuration file (missing proxy_string, subscription_url, selector_proxy_links, urltest_proxy_links, outbound_json, or interface). Aborted." "error"
         exit 1
     fi
+
+    log "Dependency versions: sing-box=$sing_box_version, nftables=$nft_version, dnsmasq=$dnsmasq_version, jq=$jq_version, base64=$coreutils_base64_version" "info" "init" "requirements"
 }
 
 _append_proxy_link() {
@@ -740,7 +742,7 @@ list_update() {
         sleep $delay
     done
 
-    log "Dependency versions: sing-box=$sing_box_version, nftables=$nft_version, dnsmasq=$dnsmasq_version, jq=$jq_version, base64=$coreutils_base64_version" "info" "init" "requirements"
+    if [ "$i" -eq "$nslookup_attempts" ]; then
         echolog "❌ DNS check failed after $nslookup_attempts attempts"
         return 1
     fi

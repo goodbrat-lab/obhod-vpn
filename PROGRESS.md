@@ -1,7 +1,14 @@
 # 📋 ПРОГРЕСС РАЗРАБОТКИ OBHOD
 **Дата:** 2026-05-17
-**Версия:** 1.1.2
-**Статус:** ✅ РЕЛИЗ v1.1.2 (Security Hardening)
+**Версия:** 1.1.3
+**Статус:** ✅ РЕЛИЗ v1.1.3 (Bugfix & Hardening)
+
+---
+
+## 🚀 RELEASE: BUGFIX & HARDENING (v1.1.3) ✅ ЗАВЕРШЕНО
+- [x] Исправлена синтаксическая ошибка в Bash-скрипте (line 746: unexpected fi) ✅
+- [x] Восстановлено логирование версий зависимостей в `check_requirements` ✅
+- [x] Финализированы исправления Path Traversal и Command Injection ✅
 
 ---
 
