@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -38,6 +38,8 @@ func validateURL(url string) error {
 	}
 	return nil
 }
+
+func NewFetcher(cachePath string) *Fetcher {
 	if cachePath == "" {
 		cachePath = "/tmp/obhod/subscriptions.json"
 	}
@@ -83,7 +85,7 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 			if err == nil {
 				// Limit decoded content size
 				decodedStr := string(decoded)
-				if len(decodedStr) < maxSubscriptionSize {
+				if int64(len(decodedStr)) < maxSubscriptionSize {
 					links = f.Parse(decodedStr)
 				}
 			}
@@ -126,9 +128,12 @@ func (f *Fetcher) Parse(content string) []string {
 }
 
 func (f *Fetcher) SaveCache(data *CacheData) error {
-	dir := f.CachePath[:strings.LastIndex(f.CachePath, "/")]
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
+	lastIdx := strings.LastIndex(f.CachePath, "/")
+	if lastIdx != -1 {
+		dir := f.CachePath[:lastIdx]
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
 	}
 
 	file, err := json.MarshalIndent(data, "", "  ")

@@ -1,12 +1,12 @@
 package subscription
 
 import (
+	"fmt"
 	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
 	"os/exec"
 	"strings"
 	"time"
 )
-
 func UpdateManual(cachePath string) error {
 	fetcher := NewFetcher(cachePath)
 	return performUpdate(fetcher)

@@ -1,8 +1,10 @@
 package sysinfo
 
 import (
+	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -96,19 +98,20 @@ func safeReadFile(path string) ([]byte, error) {
 		return nil, fmt.Errorf("invalid path: %s", path)
 	}
 	
-	func isValidIP(ip string) bool {
+	return os.ReadFile(cleanPath)
+}
+
+func isValidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
 }
 
 func GetSystemHealth() (map[string]interface{}, error) {
 	health := make(map[string]interface{})
 	
-	// Safe command execution
-	if checkProcessRunning("sing-box") {
-		health["singbox_running"] = true
-	} else {
-		health["singbox_running"] = false
-	}
+	// Safe process check
+	cmd := exec.Command("pgrep", "sing-box")
+	err := cmd.Run()
+	health["singbox_running"] = (err == nil)
 
 	// Check if obhoud is running (it should be if we are here, but still)
 	health["daemon_running"] = true
@@ -117,12 +120,4 @@ func GetSystemHealth() (map[string]interface{}, error) {
 	health["issues"] = []string{}
 	
 	return health, nil
-}
-
-// checkProcessRunning safely checks if a process is running
-func checkProcessRunning(name string) bool {
-	// Basic check without command execution
-	// In a real implementation, you'd use a proper process checker
-	// For now, return a safe default
-	return false
 }
