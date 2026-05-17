@@ -251,6 +251,21 @@ fetch_subscription() {
     return 0
 }
 
+check_dns_inbound_support() {
+    # Create minimal config to test DNS inbound support
+    local test_config='{"inbounds":[{"type":"dns","tag":"test"}]}'
+    echo "$test_config" > /tmp/obhod_dns_test.json
+    
+    # Test if sing-box accepts DNS inbound type
+    if sing-box check -c /tmp/obhod_dns_test.json >/dev/null 2>&1; then
+        rm -f /tmp/obhod_dns_test.json
+        return 0
+    else
+        rm -f /tmp/obhod_dns_test.json
+        return 1
+    fi
+}
+
 start_main() {
     export OBHOD_LOG_COMPONENT="init"
     export OBHOD_LOG_CONTEXT="start"
@@ -293,28 +308,11 @@ start_main() {
     log "Generating sing-box configuration..."
     export OBHOD_LOG_COMPONENT="config"
 
-check_dns_inbound_support() {
-    # Create minimal config to test DNS inbound support
-    local test_config='{"inbounds":[{"type":"dns","tag":"test"}]}'
-    echo "$test_config" > /tmp/obhod_dns_test.json
-    
-    # Test if sing-box accepts DNS inbound type
-    if sing-box check -c /tmp/obhod_dns_test.json >/dev/null 2>&1; then
-        rm -f /tmp/obhod_dns_test.json
-        return 0
-    else
-        rm -f /tmp/obhod_dns_test.json
-        return 1
-    fi
-}
-
     # Check if sing-box supports DNS inbound (it's required for Obhod)
-    echo '{"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}]}' > /tmp/obhod_sb_test.json
-    if ! sing-box check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
+    if ! check_dns_inbound_support; then
         log "Sing-box does not support DNS inbounds. Obhod cannot start. Please install full version of sing-box." "fatal"
         exit 1
     fi
-    rm -f /tmp/obhod_sb_test.json
 
     sing_box_init_config
 
