@@ -1,18 +1,18 @@
 #!/bin/bash
 
-# Build all packages for all supported architectures
-# Automatically compiles Go, packages IPKs, and pushes to GitHub.
+# Build all packages for all supported architectures.
+# This script only builds artifacts locally.
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPTS_DIR")"
 
 echo "=================================================="
-echo "  Obhod Full Build & Auto-Publish"
+echo "  Obhod Full Build"
 echo "  Base: $BASE_DIR"
 echo "=================================================="
 
 # Ensure Go is in PATH
-export PATH=$PATH:/usr/local/go/bin
+export PATH="$PATH:/usr/local/go/bin"
 
 # Step 1: Building Go binaries
 echo ""
@@ -42,15 +42,7 @@ echo "  Packages: $BASE_DIR/dist/packages/"
 echo "========================================="
 ls -lh "$BASE_DIR/dist/packages/"*.ipk
 
-# Step 5: Automatic Publishing to GitHub
-echo ""
-echo "Step 5: Publishing to GitHub..."
-VERSION=$(grep "OBHOD_VERSION=" "$BASE_DIR/obhod-core/files/usr/lib/constants.sh" | cut -d'"' -f2)
-git add .
-git commit -m "Build and release: Obhod v$VERSION" || echo "No changes to commit"
-git push origin main || echo "Warning: git push failed."
-
 echo "========================================="
-echo "  RELEASE PUBLISHED TO GITHUB"
-echo "  Installer: sh <(wget -q -O - https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)"
+echo "  BUILD ARTIFACTS READY"
+echo "  Review and publish separately"
 echo "========================================="

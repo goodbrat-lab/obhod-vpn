@@ -1,4 +1,5 @@
 #!/bin/ash
+# shellcheck shell=dash
 
 check_required_file() {
     local file="$1"
@@ -157,7 +158,7 @@ fetch_subscription() {
     local context="fetch"
     log "Fetching subscription from $url" "info" "$component" "$context"
     
-    local data http_code tmpfile
+    local data http_code tmpfile curl_exit domain resolved_ip decoded cleaned_data mod size
     tmpfile=$(mktemp) || {
         log "Failed to create temporary file for subscription" "error" "$component" "$context"
         return 1
@@ -168,12 +169,12 @@ fetch_subscription() {
     
     # Download with detailed error info: -w for http_code, -o for body
     http_code=$(curl -sL -m 30 -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
-    local curl_exit=$?
+    curl_exit=$?
     
-    if [ $curl_exit -eq 6 ]; then
+    if [ "$curl_exit" -eq 6 ]; then
         log "DNS resolution failed for subscription URL, attempting bootstrap DNS" "warn" "$component" "$context"
-        local domain=$(echo "$url" | awk -F[/:] '{print $4}')
-        local resolved_ip=$(nslookup "$domain" 1.1.1.1 2>/dev/null | grep -A 1 "Name:" | grep "Address" | awk '{print $2}' | head -n 1)
+        domain=$(echo "$url" | awk -F[/:] '{print $4}')
+        resolved_ip=$(nslookup "$domain" 1.1.1.1 2>/dev/null | grep -A 1 "Name:" | grep "Address" | awk '{print $2}' | head -n 1)
         if [ -n "$resolved_ip" ] && is_ipv4 "$resolved_ip"; then
             log "Resolved $domain to $resolved_ip via 1.1.1.1. Retrying..." "info" "$component" "$context"
             http_code=$(curl -sL -m 30 --resolve "$domain:443:$resolved_ip" --resolve "$domain:80:$resolved_ip" -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
@@ -185,7 +186,7 @@ fetch_subscription() {
         fi
     fi
 
-    if [ $curl_exit -ne 0 ]; then
+    if [ "$curl_exit" -ne 0 ]; then
         log "Failed to fetch subscription from $url (curl exit code: $curl_exit)" "error" "$component" "$context"
         rm -f "$tmpfile"
         return 1
@@ -198,7 +199,7 @@ fetch_subscription() {
     fi
     
     data=$(cat "$tmpfile")
-    local size=${#data}
+    size=${#data}
     log "Downloaded $size bytes from subscription" "debug" "$component" "$context"
     rm -f "$tmpfile"
     trap - EXIT INT TERM
@@ -215,21 +216,19 @@ fetch_subscription() {
         echo "$data" > "$output_file"
     else
         log "Subscription content does not contain proxy URIs, attempting Base64 decode" "debug" "$component" "$context"
-        local decoded cleaned_data
         # Handle URL-safe Base64 (replace - with + and _ with /), then decode.
         # Remove any whitespace that could break decoding.
         cleaned_data=$(echo "$data" | tr -d '\r\n[:space:]' | tr -- '-_' '+/')
         
         # Manually add padding if missing (some base64 decoders are picky)
-        local mod=$((${#cleaned_data} % 4))
-        if [ $mod -eq 2 ]; then
+        mod=$((${#cleaned_data} % 4))
+        if [ "$mod" -eq 2 ]; then
             cleaned_data="${cleaned_data}=="
-        elif [ $mod -eq 3 ]; then
+        elif [ "$mod" -eq 3 ]; then
             cleaned_data="${cleaned_data}="
         fi
         
-        decoded=$(echo "$cleaned_data" | base64 -d 2>/dev/null)
-        if [ $? -eq 0 ] && [ -n "$decoded" ] && echo "$decoded" | grep -qiE '(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
+        if decoded=$(echo "$cleaned_data" | base64 -d 2>/dev/null) && [ -n "$decoded" ] && echo "$decoded" | grep -qiE '(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
             log "Base64 decoded successfully, found proxy links" "debug" "$component" "$context"
             echo "$decoded" > "$output_file"
         else
@@ -591,7 +590,7 @@ dnsmasq_configure() {
     current_servers="$(uci_get "dhcp" "@dnsmasq[0]" "server")"
     if [ -n "$current_servers" ]; then
         for server in $(uci_get "dhcp" "@dnsmasq[0]" "server"); do
-            if ! [ "$server" == "$SB_DNS_INBOUND_ADDRESS" ]; then
+            if [ "$server" != "$SB_DNS_INBOUND_ADDRESS" ]; then
                 uci_add_list "dhcp" "@dnsmasq[0]" "obhod_server" "$server"
             fi
         done
@@ -790,11 +789,9 @@ list_update() {
 
     echolog "📥 Downloading and processing lists..."
 
-    config_foreach import_community_subnet_lists "section"
-    config_foreach import_domains_from_remote_domain_lists "section"
-    config_foreach import_subnets_from_remote_subnet_lists "section"
-
-    if [ $? -eq 0 ]; then
+    if config_foreach import_community_subnet_lists "section" && \
+       config_foreach import_domains_from_remote_domain_lists "section" && \
+       config_foreach import_subnets_from_remote_subnet_lists "section"; then
         echolog "✅ Lists update completed successfully"
     else
         echolog "❌ Lists update failed"
@@ -1006,7 +1003,7 @@ configure_outbound_handler() {
                     local current_tag="$section-sub-$i"
                     local new_config
                     new_config=$(sing_box_cf_add_proxy_outbound "$config" "$section" "$link" "0" "$current_tag" 2>&1)
-                    if [ $? -eq 0 ] && [ -n "$new_config" ]; then
+                    if [ -n "$new_config" ] && ! printf '%s' "$new_config" | grep -q '^parse error:'; then
                         config="$new_config"
                         if [ -z "$outbound_tags" ]; then
                             outbound_tags="$current_tag"
@@ -1014,7 +1011,8 @@ configure_outbound_handler() {
                             outbound_tags="$outbound_tags,$current_tag"
                         fi
                     else
-                        log "Failed to parse subscription link #$i for $section: ${link:0:80}..." "warn"
+                        short_link=$(printf '%.80s' "$link")
+                        log "Failed to parse subscription link #$i for $section: $short_link..." "warn"
                         failed_count=$((failed_count + 1))
                     fi
                     i=$((i + 1))
@@ -1715,7 +1713,7 @@ import_community_service_subnet_list_handler() {
 
     download_to_file "$URL" "$tmpfile" "$http_proxy_address"
 
-    if [ $? -ne 0 ] || [ ! -s "$tmpfile" ]; then
+    if ! download_to_file "$URL" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
         log "Download $service list failed" "error"
         return 1
     fi
@@ -1767,9 +1765,7 @@ import_domains_from_remote_plain_file() {
     tmpfile=$(mktemp)
     http_proxy_address="$(get_service_proxy_address)"
 
-    download_to_file "$url" "$tmpfile" "$http_proxy_address"
-
-    if [ $? -ne 0 ] || [ ! -s "$tmpfile" ]; then
+    if ! download_to_file "$url" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
         log "Download $url list failed" "error"
         return 1
     fi
@@ -1824,9 +1820,7 @@ import_subnets_from_remote_json_file() {
     subnets_tmpfile="$(mktemp)"
     http_proxy_address="$(get_service_proxy_address)"
 
-    download_to_file "$url" "$json_tmpfile" "$http_proxy_address"
-
-    if [ $? -ne 0 ] || [ ! -s "$json_tmpfile" ]; then
+    if ! download_to_file "$url" "$json_tmpfile" "$http_proxy_address" || [ ! -s "$json_tmpfile" ]; then
         log "Download $url list failed" "error"
         return 1
     fi
@@ -1845,9 +1839,7 @@ import_subnets_from_remote_srs_file() {
     subnets_tmpfile="$(mktemp)"
     http_proxy_address="$(get_service_proxy_address)"
 
-    download_to_file "$url" "$binary_tmpfile" "$http_proxy_address"
-
-    if [ $? -ne 0 ] || [ ! -s "$binary_tmpfile" ]; then
+    if ! download_to_file "$url" "$binary_tmpfile" "$http_proxy_address" || [ ! -s "$binary_tmpfile" ]; then
         log "Download $url list failed" "error"
         return 1
     fi
@@ -1870,9 +1862,7 @@ import_subnets_from_remote_plain_file() {
     tmpfile=$(mktemp)
     http_proxy_address="$(get_service_proxy_address)"
 
-    download_to_file "$url" "$tmpfile" "$http_proxy_address"
-
-    if [ $? -ne 0 ] || [ ! -s "$tmpfile" ]; then
+    if ! download_to_file "$url" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
         log "Download $url list failed" "error"
         return 1
     fi
@@ -2072,7 +2062,7 @@ check_proxy() {
         if echo "$response" | grep -q "^<html\|403 Forbidden"; then
             continue
         fi
-        if [[ $response =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if echo "$response" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
             ip=$(echo "$response" | sed -n 's/^[0-9]\+\.[0-9]\+\.[0-9]\+\.\([0-9]\+\)$/X.X.X.\1/p')
             nolog "$ip - should match proxy IP"
             return 0
@@ -2081,7 +2071,7 @@ check_proxy() {
             nolog "$ip - should match proxy IP"
             return 0
         fi
-        if [ $attempt -eq 5 ]; then
+        if [ "$attempt" -eq 5 ]; then
             nolog "Failed to get valid IP address after 5 attempts"
             if [ -z "$response" ]; then
                 nolog "Error: Empty response"
@@ -2112,6 +2102,7 @@ check_nft() {
 
     check_domain_list_contains() {
         local section="$1"
+        local domain_list_enabled=0
 
         config_get_bool domain_list_enabled "$section" "domain_list_enabled" "0"
         if [ "$domain_list_enabled" -eq 1 ]; then
@@ -2137,9 +2128,9 @@ check_nft() {
 
         nolog "Sets statistics:"
         for set_name in $sets; do
-            if nft list set inet "$NFT_TABLE_NAME" $set_name > /dev/null 2>&1; then
+            if nft list set inet "$NFT_TABLE_NAME" "$set_name" > /dev/null 2>&1; then
                 # Count elements using grep to count commas and add 1 (last element has no comma)
-                local count=$(nft list set inet "$NFT_TABLE_NAME" $set_name 2> /dev/null | grep -o ',\|{' | wc -l)
+                count=$(nft list set inet "$NFT_TABLE_NAME" "$set_name" 2> /dev/null | grep -o ',\|{' | wc -l)
                 echo "- $set_name: $count elements"
             fi
         done
@@ -2147,7 +2138,7 @@ check_nft() {
         nolog "Chain configurations:"
 
         # Create a temporary file for processing
-        local tmp_file=$(mktemp)
+        tmp_file=$(mktemp)
         nft list table inet "$NFT_TABLE_NAME" > "$tmp_file"
 
         # Extract chain configurations without element listings
@@ -3046,7 +3037,7 @@ global_check() {
     fi
 
     local fakeip_address
-    fakeip_address=$(dig +short @127.0.0.42 $FAKEIP_TEST_DOMAIN)
+    fakeip_address=$(dig +short @127.0.0.42 "$FAKEIP_TEST_DOMAIN")
 
     if echo "$fakeip_address" | grep -q "^198\.18\."; then
         print_global "✅ Sing-box works with FakeIP: $fakeip_address"
@@ -3123,8 +3114,7 @@ list_update)
 backup)
     log "Creating system backup..." "info" "system" "backup"
     BACKUP_FILE="/tmp/obhod_backup.tar.gz"
-    tar -czf "$BACKUP_FILE" /etc/config/obhod /tmp/obhod/subscriptions.json 2>/dev/null
-    if [ $? -eq 0 ]; then
+    if tar -czf "$BACKUP_FILE" /etc/config/obhod /tmp/obhod/subscriptions.json 2>/dev/null; then
         echo "$BACKUP_FILE"
         log "Backup created successfully: $BACKUP_FILE" "info" "system" "backup"
     else
@@ -3136,8 +3126,7 @@ restore)
     FILE="$2"
     if [ -f "$FILE" ]; then
         log "Restoring system from backup: $FILE" "info" "system" "restore"
-        tar -xzf "$FILE" -C / 2>/dev/null
-        if [ $? -eq 0 ]; then
+        if tar -xzf "$FILE" -C / 2>/dev/null; then
             log "Restore successful. Reloading service..." "info" "system" "restore"
             /etc/init.d/obhod reload
         else

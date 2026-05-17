@@ -1,75 +1,78 @@
-# Установка и использование Obhod
+# Установка Obhod
 
-**Obhod** — современное решение для выборочной маршрутизации VPN-трафика на OpenWrt 25.xx, обеспечивающее стабильную работу даже после сбоев питания.
+## Быстрый способ
 
-## Установка пакетов
+Установка с GitHub:
 
-Для полноценной работы необходимо установить два пакета: основной демон и веб-интерфейс.
-
-1.  **Скачайте последние версии пакетов** (`.ipk`) из раздела релизов. Вам понадобятся:
-    *   `obhod_0.1.0-1_<arch>.ipk`
-    *   `luci-app-obhod_0.1.0-1_all.ipk`
-
-2.  **Загрузите их на роутер**:
-    ```bash
-    scp obhod_*.ipk luci-app-obhod_*.ipk root@192.168.1.1:/tmp/
-    ```
-
-3.  **Установите пакеты**:
-    ```bash
-    opkg update
-    opkg install /tmp/obhod_*.ipk /tmp/luci-app-obhod_*.ipk
-    ```
-    *Менеджер пакетов автоматически скачает зависимости: sing-box, nftables, dnsmasq-full, ip-full, curl.*
-
-4.  **Запустите сервис**:
-    ```bash
-    /etc/init.d/obhod enable
-    /etc/init.d/obhod start
-    ```
-
-## Первоначальная настройка
-
-После установки перейдите в веб-интерфейс LuCI: **Службы -> Obhod VPN**.
-
-### Шаг 1: Добавление туннеля
-1.  Перейдите на вкладку **Tunnels**.
-2.  Нажмите **Add New Tunnel**.
-3.  Заполните поля:
-    *   **ID**: `my_proxy`
-    *   **Type**: `vless` (или `wireguard`)
-    *   **Server**: `1.2.3.4`
-    *   **Port**: `443`
-    *   **UUID**: ваш секретный ключ.
-4.  Нажмите **Save**. Демон автоматически перезагрузится.
-
-### Шаг 2: Создание правил маршрутизации
-1.  Перейдите на вкладку **Routing Rules**.
-2.  Нажмите **Add New Rule**.
-3.  Выберите **Target Tunnel**: `my_proxy`.
-4.  В поле **Domains** введите список сайтов (по одному на строку), например:
-    ```text
-    google.com
-    youtube.com
-    openai.com
-    ```
-5.  Нажмите **Save**.
-
-## Сборка для разработчиков
-
-Если вы хотите собрать пакет самостоятельно под свою архитектуру:
-
-1.  Установите OpenWrt SDK.
-2.  Используйте наш скрипт автоматизации:
-    ```bash
-    export SDK_PATH=/path/to/your/sdk
-    ./scripts/build.sh aarch64
-    ```
-3.  Заберите пакеты из папки `dist/`.
-
-## Мониторинг
-Вы можете следить за работой системы на вкладке **Status** или через консоль:
 ```bash
-logread -f -e obhoud
+sh <(wget -q -O - https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/install.sh)
 ```
-Obhod автоматически проверяет доступность туннелей каждые 10 секунд и отображает задержку (ms) в интерфейсе.
+
+Скрипт сам:
+
+- определяет архитектуру роутера,
+- устанавливает зависимости,
+- скачивает `obhod` и `luci-app-obhod`,
+- перезапускает LuCI-компоненты.
+
+## Ручная установка
+
+Нужны два пакета:
+
+- `obhod_1.1.5-1_<arch>.ipk`
+- `luci-app-obhod_1.1.5-1_all.ipk`
+
+Установка:
+
+```bash
+opkg update
+opkg install /tmp/obhod_1.1.5-1_<arch>.ipk
+opkg install /tmp/luci-app-obhod_1.1.5-1_all.ipk
+```
+
+После установки:
+
+```bash
+/etc/init.d/obhod enable
+/etc/init.d/obhod start
+```
+
+## Где находится интерфейс
+
+LuCI: `Services -> Obhod`
+
+## Проверка после установки
+
+```bash
+/etc/init.d/obhod status
+/usr/bin/obhod validate
+logread -e obho[ud]
+```
+
+## Отладка
+
+Включение debug-логов:
+
+```bash
+uci set obhod.settings.log_level='debug'
+uci commit obhod
+/etc/init.d/obhod restart
+```
+
+Проверка FakeIP:
+
+```bash
+/usr/bin/obhod check_fakeip
+```
+
+## Сборка
+
+Локальная сборка пакетов:
+
+```bash
+cd /root/Obhod
+./scripts/build_go.sh
+./scripts/package_full.sh x86_64
+./scripts/package_luci.sh
+./scripts/update_index.sh
+```

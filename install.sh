@@ -6,7 +6,7 @@
 set -e
 
 # 1. Environment and Debugging
-export PATH=/bin:/sbin:/usr/bin:/usr/sbin:$PATH
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
 VERSION="1.1.5"
 RELEASE="1"
@@ -33,7 +33,7 @@ fi
 
 # 3. Check for sing-box DNS support
 check_sb_dns_at() {
-    local sb_path="$1"
+    sb_path="$1"
     if [ ! -x "$sb_path" ]; then return 1; fi
     echo '{"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}]}' > /tmp/obhod_sb_test.json
     if "$sb_path" check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
@@ -67,6 +67,10 @@ echo "Architecture: $ARCH"
 
 # 5. Install Dependencies and Fix Binary
 install_deps() {
+    needs_fix=0
+    ARCH_M=""
+    SB_ARCH=""
+
     echo "Updating package lists..."
     if [ -x "$APK_CMD" ] && [ "$OPKG_WORKS" -eq 0 ]; then
         $APK_CMD update
@@ -76,14 +80,12 @@ install_deps() {
         $OPKG_CMD install jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle sing-box || true
     fi
 
-    local needs_fix=0
     [ -x /usr/bin/sing-box ] && ! check_sb_dns_at /usr/bin/sing-box && needs_fix=1
     [ -x /usr/sbin/sing-box ] && ! check_sb_dns_at /usr/sbin/sing-box && needs_fix=1
 
     if [ "$needs_fix" -eq 1 ]; then
         echo "⚠️  Detected limited 'sing-box' (no DNS support). Replacing with full version..."
-        local ARCH_M=$(uname -m)
-        local SB_ARCH=""
+        ARCH_M=$(uname -m)
         case "$ARCH_M" in
             x86_64) SB_ARCH="amd64" ;;
             aarch64) SB_ARCH="arm64" ;;
@@ -126,7 +128,10 @@ else
        rm -rf "$EXT" && mkdir -p "$EXT" && cd "$EXT"
        ar x "/tmp/$p"
        tar -xzf data.tar.gz -C /
-       tar -xzf control.tar.gz ./postinst 2>/dev/null && chmod +x postinst && ./postinst || true
+       if tar -xzf control.tar.gz ./postinst 2>/dev/null; then
+           chmod +x postinst
+           ./postinst || true
+       fi
     done
 fi
 

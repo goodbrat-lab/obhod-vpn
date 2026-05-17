@@ -6,7 +6,7 @@
       "file": {
         "/etc/config/obhod": [ "read" ],
         "/usr/bin/obhod": [ "exec" ],
-        "/usr/bin/obhod-watchdog": [ "exec" ],
+        "/usr/bin/obhoud": [ "exec" ],
         "/etc/init.d/obhod": [ "exec" ],
         "/usr/bin/logread": [ "exec" ],
         "/usr/bin/dig": [ "exec" ],

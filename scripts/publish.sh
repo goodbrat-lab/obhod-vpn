@@ -1,6 +1,6 @@
 #!/bin/bash
-# Auto-publish script for Obhod to GitHub
-# This script commits changes and publishes to GitHub
+# Publish helper for Obhod
+# This script validates the release repository and pushes only when explicitly invoked.
 
 set -e
 
@@ -11,7 +11,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}==================================================${NC}"
-echo -e "${GREEN}   Obhod Auto-Publish Script v1.1.1${NC}"
+echo -e "${GREEN}   Obhod Publish Helper v1.1.5${NC}"
 echo -e "${GREEN}==================================================${NC}"
 
 # Check if we're in git repo
@@ -21,47 +21,29 @@ if [ ! -d .git ]; then
     exit 1
 fi
 
-# Check git status
+echo "Checking release repository contents..."
+./scripts/prepare_release_repo.sh
+
+if [ -d dist/packages/usr ]; then
+    echo -e "${RED}ERROR: dist/packages/usr still exists after cleanup${NC}"
+    exit 1
+fi
+
+if ! ls dist/packages/luci-app-obhod_1.1.5-1_all.ipk >/dev/null 2>&1; then
+    echo -e "${RED}ERROR: LuCI release package is missing${NC}"
+    exit 1
+fi
+
+if ! ls dist/packages/obhod_1.1.5-1_*.ipk >/dev/null 2>&1; then
+    echo -e "${RED}ERROR: Core release packages are missing${NC}"
+    exit 1
+fi
+
 if git status --porcelain | grep -q .; then
-    echo -e "${YELLOW}Changes detected in repository${NC}"
-    
-    echo "Adding all changes..."
-    git add .
-    
-    echo "Creating commit with security fixes..."
-    git commit -m "🔒 Security fixes and improvements v1.1.1
-
-🚨 Critical Security Fixes:
-- Fix temporary file vulnerability symlink attack risk
-- Fix proxy variable mismatch causing connection failures
-- Add input validation to prevent UCI command injection
-
-🛡️ Security Enhancements:
-- Implement secure temp directory creation with trap cleanup
-- Add cryptographically secure random ID generation
-- Improve domain validation for RFC compliance
-- Enhance error handling for network operations
-
-🔧 Stability Improvements:
-- Fix cron job creation/removal with error checking
-- Add command availability checks before execution
-- Improve log reading with timeout protection
-- Better PID file handling with error checking
-
-📦 Packaging:
-- Sync version numbers across all files (v1.1.1)
-- Add secure mktemp helper script
-- Update configuration templates with new options
-
-🧪 Testing:
-- Improve test suite with secure temp handling
-- Add validation for critical functions
-
-This release addresses multiple security and stability issues
-discovered during code review. All users should upgrade urgently."
-
+    echo -e "${YELLOW}Repository has uncommitted changes.${NC}"
+    echo "Review them before pushing: git status && git diff"
 else
-    echo -e "${YELLOW}No changes to commit${NC}"
+    echo -e "${GREEN}Working tree is clean.${NC}"
 fi
 
 # Get current branch
@@ -70,9 +52,8 @@ echo -e "${GREEN}Current branch: $BRANCH${NC}"
 
 # Check if remote exists
 if git remote get-url origin >/dev/null 2>&1; then
-    echo -e "${GREEN}Pushing to GitHub...${NC}"
-    git push origin "$BRANCH" --tags
-    echo -e "${GREEN}✅ Successfully pushed to GitHub${NC}"
+    echo -e "${GREEN}Remote 'origin' is configured.${NC}"
+    echo "Push manually when ready: git push origin $BRANCH --tags"
 else
     echo -e "${RED}No remote 'origin' found${NC}"
     echo "Please add your GitHub repository as remote:"
@@ -86,10 +67,11 @@ echo -e "${GREEN}Latest commit:${NC}"
 git log -1 --oneline
 
 echo -e "${GREEN}==================================================${NC}"
-echo -e "${GREEN}Repository published successfully!${NC}"
+echo -e "${GREEN}Publish preparation completed.${NC}"
 echo -e "${YELLOW}Next steps:${NC}"
-echo "1. Visit your GitHub repository"
-echo "2. Create a new release from master branch"
-echo "3. Tag version v1.1.1"
-echo "4. Upload built packages from dist/packages/"
+echo "1. Review git status and git diff"
+echo "2. Commit release changes with your chosen message"
+echo "3. Push branch and tags manually"
+echo "4. Create GitHub release for v1.1.5"
+echo "5. Upload packages from dist/packages/"
 echo -e "${GREEN}==================================================${NC}"

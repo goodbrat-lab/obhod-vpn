@@ -18,7 +18,7 @@ define Package/obhod
 	CONFLICTS:=https-dns-proxy nextdns luci-app-passwall luci-app-passwall2
 	TITLE:=Domain routing app
 	URL:=https://obhod.net
-	PKGARCH:=all
+	PKGARCH:=$(ARCH)
 endef
 
 define Package/obhod/description

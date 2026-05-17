@@ -2,12 +2,14 @@
 
 # ULTIMATE ROBUST PACKAGING FOR OBHOD FULL - ARCH SPECIFIC
 # Usage: ./scripts/package_full.sh <arch>
-# Example: ./scripts/package_full.sh arm64
+# Example: ./scripts/package_full.sh aarch64_cortex-a53
 
 set -e
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPTS_DIR")"
+
+rm -f "$BASE_DIR/dist/packages/data.tar.gz" "$BASE_DIR/dist/packages/control.tar.gz" "$BASE_DIR/dist/packages/debian-binary"
 
 VERSION=$(grep "OBHOD_VERSION=" "$BASE_DIR/obhod-core/files/usr/lib/constants.sh" | cut -d'"' -f2)
 RELEASE="1"
@@ -33,7 +35,7 @@ mkdir -p "$BUILD_DIR/data/etc/init.d"
 mkdir -p "$BUILD_DIR/data/etc/config"
 mkdir -p "$BUILD_DIR/data/etc/uci-defaults"
 
-# Main bash script
+# Main runtime script
 cp "$BASE_DIR/obhod-core/files/usr/bin/obhod" "$BUILD_DIR/data/usr/bin/obhod"
 chmod +x "$BUILD_DIR/data/usr/bin/obhod"
 
@@ -55,9 +57,9 @@ rm -f "$BUILD_DIR/data/usr/lib/obhod/obhod"
 rm -f "$BUILD_DIR/data/usr/lib/obhod/obhoud"
 
 # Init script and config
-cp "$BASE_DIR/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"
+cp "$BASE_DIR/obhod-core/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"
 chmod +x "$BUILD_DIR/data/etc/init.d/obhod"
-cp "$BASE_DIR/files/etc/config/obhod" "$BUILD_DIR/data/etc/config/obhod"
+cp "$BASE_DIR/obhod-core/files/etc/config/obhod" "$BUILD_DIR/data/etc/config/obhod"
 chmod 644 "$BUILD_DIR/data/etc/config/obhod"
 
 # --- 2. LuCI Files ---
@@ -91,7 +93,7 @@ fi
 
 # --- 3. Control & Post-Install Script ---
 # Map our build arch suffix to opkg architecture field
-PKG_ARCH=$(echo "$ARCH" | cut -d'_' -f1)
+PKG_ARCH="$ARCH"
 
 cat <<EOF > "$BUILD_DIR/control/control"
 Package: obhod

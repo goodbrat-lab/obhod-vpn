@@ -1,62 +1,50 @@
-# Build and Publish Instructions
+# Build And Publish
 
-## 📦 Build Packages
+## Build
 
-To build the updated packages with security fixes:
-
-```bash
-# 1. Navigate to project directory
-cd /root/Obhod
-
-# 2. Build for x86_64 architecture
-./scripts/build.sh x86_64
-
-# 3. Build for other architectures (optional)
-./scripts/build.sh aarch64
-./scripts/build.sh mips
-```
-
-## 📤 Build Requirements
-
-- OpenWrt SDK for your target architecture
-- Bash shell
-- Standard build tools (make, gcc, etc.)
-
-## 🚀 Publish to GitHub
+Production-сборка выполняется локально, без автоматического коммита и push:
 
 ```bash
-# Use the automated publish script
 cd /root/Obhod
-./scripts/publish.sh
+./scripts/build_go.sh
+./scripts/package_full.sh x86_64
+./scripts/package_luci.sh
+./scripts/update_index.sh
 ```
 
-## 📋 Manual Publishing Steps
+Для полного цикла локальной сборки всех поддерживаемых архитектур:
 
-1. **Commit Changes:**
-   ```bash
-   git add .
-   git commit -m "Security fixes v1.1.1"
-   git push origin main
-   ```
+```bash
+cd /root/Obhod
+./scripts/build_all.sh
+```
 
-2. **Create GitHub Release:**
-   - Go to https://github.com/goodbrat-lab/obhod-vpn
-   - Click "Releases" → "Create a new release"
-   - Tag: `v1.1.1`
-   - Title: `Security Fixes v1.1.1`
-   - Description: Copy from PUBLISH_REPORT.md
-   - Upload built packages from `dist/packages/`
+Поддерживаемые архитектуры:
 
-## 🔍 Verify Publishing
+- `mipsel_24kc`
+- `mips_24kc`
+- `aarch64_cortex-a53`
+- `arm_cortex-a7_neon-vfpv4`
+- `x86_64`
 
-Check that all files are uploaded:
-- luci-app-obhod_1.1.1-1_all.ipk
-- obhod_1.1.1-1_*arch*.ipk
-- SHA256SUMS file
+## Publish
 
-## ✅ Success
+Публикация выполняется отдельным шагом после ручной проверки артефактов.
 
-After successful publishing:
-- Users can update with: `opkg update && opkg upgrade obhod luci-app-obhod`
-- Security fixes are live
-- Stability improvements applied
+Перед публикацией проверьте, что в `dist/packages/` находятся только нужные файлы репозитория пакетов:
+
+- `Packages`
+- `Packages.gz`
+- `index.txt`
+- `luci-app-obhod_1.1.5-1_all.ipk`
+- `obhod_1.1.5-1_<arch>.ipk`
+
+Затем:
+
+```bash
+git add .
+git commit -m "release: prepare v1.1.5 packages"
+git push origin main
+```
+
+После этого можно создать GitHub release и приложить нужные `.ipk`.

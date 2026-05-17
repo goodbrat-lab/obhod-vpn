@@ -6,11 +6,11 @@ set -e
 
 ARCH="${1:-x86_64}"
 SDK_PATH="${SDK_PATH:-/opt/openwrt-sdk}"
-VERSION="1.1.1"
+VERSION="1.1.5"
 RELEASE="1"
 
 echo "=================================================="
-echo "      Obhod VPN Build Script v1.1.1"
+echo "      Obhod VPN Build Script v1.1.5"
 echo "=================================================="
 echo "Architecture: $ARCH"
 echo "SDK Path: $SDK_PATH"
@@ -51,7 +51,7 @@ make -C "$SDK_PATH" \
 # Collect packages
 echo "Collecting packages..."
 mkdir -p dist/packages
-find "$SDK_PATH/bin/packages" -name "*obhod*" -type f | while read pkg; do
+find "$SDK_PATH/bin/packages" -name "*obhod*" -type f | while read -r pkg; do
     echo "Found package: $pkg"
     cp "$pkg" dist/packages/
 done
@@ -59,7 +59,7 @@ done
 # Generate sha256sums
 echo "Generating checksums..."
 cd dist/packages
-sha256sum * > SHA256SUMS
+sha256sum ./* > SHA256SUMS
 
 echo "=================================================="
 echo "Build completed successfully!"
@@ -68,4 +68,4 @@ echo "=================================================="
 
 # Show package sizes
 echo "Package sizes:"
-ls -lh *.ipk
+ls -lh ./*.ipk

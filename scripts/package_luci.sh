@@ -10,6 +10,8 @@ VERSION=$(grep "OBHOD_VERSION=" "$BASE_DIR/obhod-core/files/usr/lib/constants.sh
 RELEASE="1"
 ARCH="all"
 
+rm -f "$BASE_DIR/dist/packages/data.tar.gz" "$BASE_DIR/dist/packages/control.tar.gz" "$BASE_DIR/dist/packages/debian-binary"
+
 BUILD_DIR="/tmp/luci_obhod_build"
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR/data" "$BUILD_DIR/control"
@@ -84,7 +86,7 @@ chmod +x "$BUILD_DIR/control/postinst"
 mkdir -p "$BASE_DIR/dist/packages"
 cd "$BUILD_DIR/data" && tar -czf "../data.tar.gz" .
 cd "$BUILD_DIR/control" && tar -czf "../control.tar.gz" .
-cd "$BUILD_DIR"
+cd "$BUILD_DIR" || exit 1
 echo "2.0" > debian-binary
 
 OUTPUT="$BASE_DIR/dist/packages/luci-app-obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
