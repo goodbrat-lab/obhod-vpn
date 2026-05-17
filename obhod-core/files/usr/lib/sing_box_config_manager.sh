@@ -384,6 +384,13 @@ sing_box_cm_add_dns_inbound() {
     local listen_address="$3"
     local listen_port="$4"
 
+    # Check if DNS type is supported (fallback to mixed if not)
+    if ! check_sing_box_supports_dns_inbound; then
+        log "DNS inbound not supported, using Mixed inbound instead" "warn"
+        sing_box_cm_add_mixed_inbound "$config" "$tag" "$listen_address" "$listen_port"
+        return
+    fi
+
     echo "$config" | jq \
         --arg tag "$tag" \
         --arg listen_address "$listen_address" \
@@ -408,7 +415,18 @@ sing_box_cm_add_dns_inbound() {
 # Example:
 #   CONFIG=$(sing_box_cm_add_mixed_inbound "$CONFIG" "tproxy-in" "192.168.1.1" 2080)
 #######################################
-sing_box_cm_add_mixed_inbound() {
+check_sing_box_supports_dns_inbound() {
+    # Quick test to check if DNS inbound type is supported
+    local test='{"inbounds":[{"type":"dns"}]}'
+    echo "$test" > /tmp/sb_dns_test.json
+    if sing-box check -c /tmp/sb_dns_test.json >/dev/null 2>&1; then
+        rm -f /tmp/sb_dns_test.json
+        return 0
+    else
+        rm -f /tmp/sb_dns_test.json
+        return 1
+    fi
+}
     local config="$1"
     local tag="$2"
     local listen_address="$3"

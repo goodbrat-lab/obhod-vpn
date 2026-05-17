@@ -293,11 +293,25 @@ start_main() {
     log "Generating sing-box configuration..."
     export OBHOD_LOG_COMPONENT="config"
 
+check_dns_inbound_support() {
+    # Create minimal config to test DNS inbound support
+    local test_config='{"inbounds":[{"type":"dns","tag":"test"}]}'
+    echo "$test_config" > /tmp/obhod_dns_test.json
+    
+    # Test if sing-box accepts DNS inbound type
+    if sing-box check -c /tmp/obhod_dns_test.json >/dev/null 2>&1; then
+        rm -f /tmp/obhod_dns_test.json
+        return 0
+    else
+        rm -f /tmp/obhod_dns_test.json
+        return 1
+    fi
+}
+
     # Check if sing-box supports DNS inbound (it's required for Obhod)
     echo '{"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}]}' > /tmp/obhod_sb_test.json
     if ! sing-box check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
         log "Sing-box does not support DNS inbounds. Obhod cannot start. Please install full version of sing-box." "fatal"
-        rm -f /tmp/obhod_sb_test.json
         exit 1
     fi
     rm -f /tmp/obhod_sb_test.json
@@ -864,9 +878,21 @@ sing_box_configure_inbounds() {
         sing_box_cm_add_tproxy_inbound \
             "$config" "$SB_TPROXY_INBOUND_TAG" "$SB_TPROXY_INBOUND_ADDRESS" "$SB_TPROXY_INBOUND_PORT" true true
     )
-    config=$(
-        sing_box_cm_add_dns_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
-    )
+    
+    # Only add DNS inbound if supported
+    if check_dns_inbound_support; then
+        config=$(
+            sing_box_cm_add_dns_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
+        )
+        log "DNS inbound added (supported by sing-box)"
+    else
+        log "DNS inbound not supported by this sing-box version, using Mixed inbound instead" "warn"
+        # Add Mixed inbound as fallback for DNS processing
+        config=$(
+            sing_box_cm_add_mixed_inbound \
+                "$config" "$SB_SERVICE_MIXED_INBOUND_TAG" "$SB_SERVICE_MIXED_INBOUND_ADDRESS" "$SB_SERVICE_MIXED_INBOUND_PORT"
+        )
+    fi
 }
 
 sing_box_configure_outbounds() {
