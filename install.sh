@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Universal Installer for Obhod VPN v1.1.0 (Apk Support & DNS Fix)
+# Universal Installer for Obhod VPN v1.1.1 (Apk Support & DNS Fix)
 # High compatibility with OpenWrt standard architecture names and OpenWrt 25.xx (OneWrt/apk).
 
 set -e
@@ -21,7 +21,15 @@ echo "  Commands: $(command -v opkg || echo 'opkg not found'), $(command -v apk 
 echo "  Uname: $(uname -a)"
 echo "=================================================="
 
-# ... (Architecture detection same as before) ...
+# 2. Package Manager Detection
+OPKG_CMD=$(command -v opkg || echo "/bin/opkg")
+APK_CMD=$(command -v apk || echo "/usr/bin/apk")
+
+if $OPKG_CMD --version >/dev/null 2>&1; then
+    OPKG_WORKS=1
+else
+    OPKG_WORKS=0
+fi
 
 # 3. Check for sing-box DNS support
 check_sb_dns_at() {
@@ -37,7 +45,27 @@ check_sb_dns_at() {
     fi
 }
 
-# 4. Install dependencies and fix sing-box
+# 4. Architecture Detection
+echo "Detecting architecture..."
+ARCH=""
+if [ "$OPKG_WORKS" -eq 1 ]; then
+    ARCH=$($OPKG_CMD print-architecture | grep -vE 'all|noarch' | tail -n 1 | awk '{print $2}')
+fi
+
+if [ -z "$ARCH" ]; then
+    UNAME_M=$(uname -m)
+    case "$UNAME_M" in
+        aarch64) ARCH="aarch64_cortex-a53" ;;
+        armv7l)  ARCH="arm_cortex-a7_neon-vfpv4" ;;
+        mips)    ARCH="mips_24kc" ;;
+        mipsel)  ARCH="mipsel_24kc" ;;
+        x86_64)  ARCH="x86_64" ;;
+    esac
+fi
+CORE_PKG="obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
+echo "Architecture: $ARCH"
+
+# 5. Install Dependencies and Fix Binary
 install_deps() {
     echo "Updating package lists..."
     if [ -x "$APK_CMD" ] && [ "$OPKG_WORKS" -eq 0 ]; then
@@ -68,17 +96,11 @@ install_deps() {
             echo "  -> Downloading full sing-box 1.12.0 for $SB_ARCH..."
             wget -q "https://github.com/SagerNet/sing-box/releases/download/v1.12.0/sing-box-1.12.0-linux-$SB_ARCH.tar.gz" -O /tmp/sb.tar.gz
             tar -xzf /tmp/sb.tar.gz -C /tmp
-            # Replace in both potential locations
             [ -f /usr/bin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
             [ -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
-            # If neither exist (rare), put it in /usr/bin
             [ ! -f /usr/bin/sing-box ] && [ ! -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
             echo "  ✅ Full sing-box binary replaced successfully."
-        else
-            echo "  ❌ Unknown architecture for manual install. Obhod might fail."
         fi
-    else
-        echo "  ✅ sing-box already supports DNS. Skipping replacement."
     fi
 }
 
@@ -89,7 +111,6 @@ echo "Cleaning up..."
 # 7. Main Install
 install_deps
 
-# Download and manual extraction for apk/OneWrt or opkg install
 cd /tmp
 echo "Downloading Obhod packages..."
 wget -q --no-check-certificate "$REPO_URL/$CORE_PKG" -O obhod.ipk
@@ -99,15 +120,12 @@ if [ "$OPKG_WORKS" -eq 1 ]; then
     $OPKG_CMD install "/tmp/obhod.ipk" --force-reinstall --force-overwrite
     $OPKG_CMD install "/tmp/luci.ipk" --force-reinstall --force-overwrite
 else
-    # Manual extraction logic (simplified for brevity here, assume existing)
     echo "Extracting packages via manual mode..."
-    # (Extract logic same as 1.0.9 but with VERSION 1.1.0)
     for p in obhod.ipk luci.ipk; do
        EXT="/tmp/ex_$p"
        rm -rf "$EXT" && mkdir -p "$EXT" && cd "$EXT"
        ar x "/tmp/$p"
        tar -xzf data.tar.gz -C /
-       # Run postinst if exists
        tar -xzf control.tar.gz ./postinst 2>/dev/null && chmod +x postinst && ./postinst || true
     done
 fi
