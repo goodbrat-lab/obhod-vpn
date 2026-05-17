@@ -129,10 +129,10 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 
 	// 1. Direct DNS (Bootstrap)
 	config.DNS.Servers = append(config.DNS.Servers, DNSServerConfig{
-		Type:   "udp",
-		Tag:    "dns-direct",
-		Server: bootstrapServer,
-		Detour: "direct-out",
+		Type:    "udp",
+		Tag:     "dns-direct",
+		Address: bootstrapServer,
+		Detour:  "direct-out",
 	})
 
 	// 2. Default Tunnel DNS
@@ -143,8 +143,8 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	}
 
 	server := DNSServerConfig{
-		Tag:    mainTag,
-		Server: dnsServer,
+		Tag:     mainTag,
+		Address: dnsServer,
 	}
 
 	switch dnsType {
