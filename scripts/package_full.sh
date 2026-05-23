@@ -35,26 +35,25 @@ mkdir -p "$BUILD_DIR/data/etc/init.d"
 mkdir -p "$BUILD_DIR/data/etc/config"
 mkdir -p "$BUILD_DIR/data/etc/uci-defaults"
 
-# Main runtime script
-cp "$BASE_DIR/obhod-core/files/usr/bin/obhod" "$BUILD_DIR/data/usr/bin/obhod"
-chmod +x "$BUILD_DIR/data/usr/bin/obhod"
+# Main runtime script (backend)
+cp "$BASE_DIR/obhod-core/files/usr/bin/obhod" "$BUILD_DIR/data/usr/lib/obhod/obhod-backend.sh"
+chmod +x "$BUILD_DIR/data/usr/lib/obhod/obhod-backend.sh"
 
 # Go binary for the specific architecture
-GO_BINARY="$BASE_DIR/dist/binaries/obhoud_linux_$ARCH"
+GO_BINARY="$BASE_DIR/dist/binaries/obhod_linux_$ARCH"
 if [ ! -f "$GO_BINARY" ]; then
     echo "Error: Go binary not found for $ARCH at $GO_BINARY"
     echo "Run ./scripts/build_go.sh first."
     exit 1
 fi
-cp "$GO_BINARY" "$BUILD_DIR/data/usr/bin/obhoud"
-chmod +x "$BUILD_DIR/data/usr/bin/obhoud"
+cp "$GO_BINARY" "$BUILD_DIR/data/usr/bin/obhod"
+chmod +x "$BUILD_DIR/data/usr/bin/obhod"
 
 # Libraries (all .sh and .jq files from usr/lib)
 cp "$BASE_DIR/obhod-core/files/usr/lib/"* "$BUILD_DIR/data/usr/lib/obhod/"
 chmod +x "$BUILD_DIR/data/usr/lib/obhod/"*.sh
-# Remove any accidentally copied binaries from lib
+# Remove any accidentally copied binaries from lib (excluding backend script)
 rm -f "$BUILD_DIR/data/usr/lib/obhod/obhod"
-rm -f "$BUILD_DIR/data/usr/lib/obhod/obhoud"
 
 # Init script and config
 cp "$BASE_DIR/obhod-core/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"

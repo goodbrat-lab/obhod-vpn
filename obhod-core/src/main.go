@@ -5,15 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/config"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/subscription"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/sysinfo"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/watchdog"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/config"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/logger"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/subscription"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/sysinfo"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/watchdog"
 	"encoding/json"
 )
 
@@ -36,13 +37,12 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("obhoud version %s\n", version)
+		fmt.Printf("obhod version %s\n", version)
 		os.Exit(0)
 	}
 
 	if len(os.Args) < 2 {
-		printUsage()
-		os.Exit(1)
+		forwardToBackend()
 	}
 
 	err := logger.Init(*logLevel)
@@ -110,14 +110,35 @@ func main() {
 			fmt.Println(string(data))
 		}
 	default:
-		logger.Error("init", "main", "Unknown command: %s", os.Args[1])
-		printUsage()
-		os.Exit(1)
+		forwardToBackend()
 	}
 }
 
+func forwardToBackend() {
+	backendPath := "/usr/lib/obhod/obhod-backend.sh"
+	if _, err := os.Stat(backendPath); os.IsNotExist(err) {
+		fmt.Printf("Backend script not found at %s\n", backendPath)
+		os.Exit(1)
+	}
+	
+	cmd := exec.Command(backendPath, os.Args[1:]...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	
+	err := cmd.Run()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		fmt.Printf("Failed to run backend script: %v\n", err)
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
 func printUsage() {
-	fmt.Println("Usage: obhoud <command> [options]")
+	fmt.Println("Usage: obhod <command> [options]")
 	fmt.Println("\nCommands:")
 	fmt.Println("  watchdog             Start connectivity monitoring and scheduled updates")
 	// Using dash in commands for consistency

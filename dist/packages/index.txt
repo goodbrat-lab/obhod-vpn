@@ -1,5 +1,5 @@
-mipsle_softfloat:obhod_0.3.1-1_mipsle_softfloat.ipk
-mips_softfloat:obhod_0.3.1-1_mips_softfloat.ipk
-arm64:obhod_0.3.1-1_arm64.ipk
-arm_v7:obhod_0.3.1-1_arm_v7.ipk
-amd64:obhod_0.3.1-1_amd64.ipk
+obhod_1.1.5-1_mipsel_24kc.ipk
+obhod_1.1.5-1_mips_24kc.ipk
+obhod_1.1.5-1_aarch64_cortex-a53.ipk
+obhod_1.1.5-1_arm_cortex-a7_neon-vfpv4.ipk
+obhod_1.1.5-1_x86_64.ipk

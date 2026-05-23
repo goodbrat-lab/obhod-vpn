@@ -47,7 +47,7 @@ check_requirements() {
     done
 
     # If Go binary exists, check Go compiler
-    if [ -f "/usr/bin/obhoud" ]; then
+    if [ -f "/usr/bin/obhod" ]; then
         if ! command -v go >/dev/null 2>&1; then
             log "Warning: Go binary exists but Go compiler not found. Binary updates may fail." "warn"
         fi
@@ -833,9 +833,9 @@ sing_box_init_config() {
     local config_path
     config_get config_path "settings" "config_path" "/etc/sing-box/config.json"
 
-    if [ -x "/usr/bin/obhoud" ]; then
+    if [ -x "/usr/bin/obhod" ]; then
         log "Generating configuration using Go core (v1.1.1)..." "info" "config" "generator"
-        if /usr/bin/obhoud generate-config -o "$config_path"; then
+        if /usr/bin/obhod generate-config -o "$config_path"; then
             log "Configuration generated successfully via Go core ✅" "info" "config" "generator"
             # We still run the check just to be 100% sure before sing-box sees it
             sing_box_config_check "$config_path"
@@ -3187,17 +3187,17 @@ get_system_info)
     get_system_info
     ;;
 health)
-    if [ -x "/usr/bin/obhoud" ]; then
-        /usr/bin/obhoud health
+    if [ -x "/usr/bin/obhod" ]; then
+        /usr/bin/obhod health
     else
-        echo '{"error":"obhoud binary not found"}'
+        echo '{"error":"obhod binary not found"}'
     fi
     ;;
 auto_setup)
-    if [ -x "/usr/bin/obhoud" ]; then
-        /usr/bin/obhoud auto-setup
+    if [ -x "/usr/bin/obhod" ]; then
+        /usr/bin/obhod auto-setup
     else
-        echo '{"error":"obhoud binary not found"}'
+        echo '{"error":"obhod binary not found"}'
     fi
     ;;
 check_dns_available)

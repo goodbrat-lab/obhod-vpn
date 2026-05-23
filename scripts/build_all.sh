@@ -16,7 +16,7 @@ export PATH="$PATH:/usr/local/go/bin"
 
 # Step 1: Building Go binaries
 echo ""
-echo "Step 1: Building Go binaries (obhoud)..."
+echo "Step 1: Building Go binaries (obhod)..."
 ./scripts/build_go.sh || { echo "ERROR: Go build failed."; exit 1; }
 
 # Step 2: Building .ipk packages

@@ -1,3 +1,3 @@
-module github.com/goodbrat-lab/obhod-vpn/obhoud
+module github.com/goodbrat-lab/obhod-vpn/obhod
 
 go 1.22.1

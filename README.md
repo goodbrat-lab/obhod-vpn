@@ -7,7 +7,7 @@ Obhod - приложение для OpenWrt с выборочной маршру
 ## Возможности
 
 - LuCI-интерфейс для настройки и диагностики
-- Go-демон `obhoud` для watchdog и системных проверок
+- Go-демон `obhod` для watchdog и системных проверок
 - Генерация конфигурации `sing-box` из UCI
 - Поддержка FakeIP и selective routing
 - Импорт удаленных domain/subnet lists и subscriptions
@@ -28,8 +28,8 @@ sh <(wget -q -O - https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/
 
 ## Диагностика
 
-- Основные логи: `logread -e obho[ud]`
-- Поток логов: `logread -f -e obho[ud]`
+- Основные логи: `logread -e obhod`
+- Поток логов: `logread -f -e obhod`
 - Проверка сервиса: `/etc/init.d/obhod status`
 - Валидация конфигурации: `/usr/bin/obhod validate`
 

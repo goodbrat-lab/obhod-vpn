@@ -4,8 +4,8 @@ START=99
 STOP=10
 USE_PROCD=1
 
-PROG_DAEMON=/usr/bin/obhoud
-PROG_MAIN=/usr/bin/obhod
+PROG_DAEMON=/usr/bin/obhod
+PROG_MAIN=/usr/lib/obhod/obhod-backend.sh
 
 start_service() {
     config_load obhod
@@ -28,7 +28,7 @@ start_service() {
     fi
 
     # Step 2: Register the Go watchdog daemon with procd
-    echo "Starting obhoud watchdog daemon..."
+    echo "Starting obhod watchdog daemon..."
     procd_open_instance "watchdog"
     procd_set_param command "$PROG_DAEMON" watchdog -interval 30s
     procd_set_param respawn 3600 5 0

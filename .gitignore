@@ -1,7 +1,7 @@
 # Binaries
 /dist/*.ipk
-/backend/obhoud_*
-/backend/obhoud_test
+/backend/obhod_*
+/backend/obhod_test
 
 # SDK
 /opt/openwrt-sdk

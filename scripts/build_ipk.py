@@ -74,8 +74,8 @@ def build_data_tar(tmp_dir: Path, binary_path: Path) -> Path:
 
     # Copy files
     files = {
-        binary_path:                                         data_dir / "usr/bin/obhoud",
-        CORE_FILES / "usr/bin/obhod":                        data_dir / "usr/bin/obhod",
+        binary_path:                                         data_dir / "usr/bin/obhod",
+        CORE_FILES / "usr/bin/obhod":                        data_dir / "usr/lib/obhod/obhod-backend.sh",
         CORE_FILES / "etc/init.d/obhod":                     data_dir / "etc/init.d/obhod",
         CORE_FILES / "etc/config/obhod":                     data_dir / "etc/config/obhod",
     }
@@ -124,8 +124,8 @@ def build_data_tar(tmp_dir: Path, binary_path: Path) -> Path:
 
     # Set execute bits (stored in tar)
     exec_files = [
-        data_dir / "usr/bin/obhoud",
         data_dir / "usr/bin/obhod",
+        data_dir / "usr/lib/obhod/obhod-backend.sh",
         data_dir / "etc/init.d/obhod",
     ]
 
@@ -171,7 +171,7 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
 
     postinst_text = """#!/bin/sh
 [ -n "${IPKG_INSTROOT}" ] && exit 0
-chmod +x /usr/bin/obhoud /usr/bin/obhod /etc/init.d/obhod 2>/dev/null
+chmod +x /usr/bin/obhod /usr/lib/obhod/obhod-backend.sh /etc/init.d/obhod 2>/dev/null
 /etc/init.d/obhod enable 2>/dev/null
 # Clear LuCI cache so the menu entry appears immediately
 rm -rf /tmp/luci-indexcache* /tmp/luci-modulecache/ 2>/dev/null
@@ -199,7 +199,7 @@ exit 0
     return control_tar
 
 def build_ipk(suffix: str, arch_ipk: str):
-    binary_path = BINARIES_DIR / f"obhoud_linux_{suffix}"
+    binary_path = BINARIES_DIR / f"obhod_linux_{arch_ipk}"
     if not binary_path.exists():
         print(f"  SKIP: binary not found: {binary_path.name}")
         return None

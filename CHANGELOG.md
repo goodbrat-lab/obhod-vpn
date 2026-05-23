@@ -55,7 +55,7 @@
 
 ## [v0.3.4] - 2026-05-16
 ### Added
-- **Go-Powered Config Generator**: Migrated the core configuration generation logic from Bash/jq to the native Go daemon (`obhoud`).
+- **Go-Powered Config Generator**: Migrated the core configuration generation logic from Bash/jq to the native Go daemon (`obhod`).
 - **Major Performance Boost**: startup and reload times are now up to 10x faster on MIPS/ARM routers due to in-memory JSON processing.
 - **Enhanced Protocol Support**: Native Go implementation for VLESS, VMess, Trojan, Hysteria2, and Shadowsocks.
 - **Smart Rule-sets**: Automated remote rule-set management for popular community lists (Telegram, YouTube, etc.).
@@ -68,7 +68,7 @@
 ## [v0.3.2] - 2026-05-16
 ### Added
 - **Configurable Watchdog Interval**: Users can now change the watchdog check interval directly in LuCI (Settings -> Watchdog Interval).
-- **Direct WAN Check Support**: Added `-mark` flag to `obhoud` daemon for socket marking.
+- **Direct WAN Check Support**: Added `-mark` flag to `obhod` daemon for socket marking.
 
 ### Fixed
 - **Watchdog WAN Check Bypass**: Fixed a critical issue where watchdog connectivity checks would fail if routed through a broken VPN tunnel. The check now uses `SO_MARK` (0x00200000) to always go directly through the WAN.
@@ -96,7 +96,7 @@
 
 ### Added
 - **Первый публичный релиз.**
-- Переход на **Go** для бэкенд-демона (`obhoud`): высокая производительность, статическая типизация и отсутствие зависимостей от интерпретаторов.
+- Переход на **Go** для бэкенд-демона (`obhod`): высокая производительность, статическая типизация и отсутствие зависимостей от интерпретаторов.
 - **Интеллектуальный старт**: сервис ожидает готовности WAN-интерфейса и успешного пинга bootstrap-серверов перед запуском sing-box.
 - **Мониторинг DNS**: автоматический перезапуск sing-box при потере связи (3 неудачных попытки).
 - **Мониторинг туннелей**: проверка доступности VLESS (TCP) и WireGuard (Handshake + Ping) в реальном времени с выводом Latency в LuCI.

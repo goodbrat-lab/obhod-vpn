@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Cross-compilation script for obhoud (Go daemon)
+# Cross-compilation script for obhod (Go daemon)
 # Usage: ./scripts/build_go.sh  (from any working directory)
 
 SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +22,7 @@ build() {
     local arch=$2
     local variant=$3 # GOMIPS or GOARM value (e.g. "softfloat" or "v7")
     local suffix=$4  # OpenWrt architecture name (e.g. "aarch64_cortex-a53")
-    local output_name="obhoud_${os}_${suffix}"
+    local output_name="obhod_${os}_${suffix}"
 
     echo "Building for $os/$arch $variant (Target: $suffix) -> $output_name"
 
@@ -66,4 +66,4 @@ build "linux" "amd64"  ""          "x86_64"
 echo ""
 echo "=== All binaries built successfully ==="
 echo "Output directory: $DIST_DIR"
-ls -lh "$DIST_DIR"/obhoud_*
+ls -lh "$DIST_DIR"/obhod_*

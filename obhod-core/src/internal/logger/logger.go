@@ -28,7 +28,7 @@ func Init(levelStr string) error {
 	currentLevel = parseLevel(levelStr)
 
 	var err error
-	sysLog, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "obhoud")
+	sysLog, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "obhod")
 	if err != nil {
 		return err
 	}

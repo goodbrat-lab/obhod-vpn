@@ -2,7 +2,7 @@ package subscription
 
 import (
 	"fmt"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/logger"
 	"os/exec"
 	"strings"
 	"time"

@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/config"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/telegram"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/config"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/logger"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/telegram"
 )
 
 const (

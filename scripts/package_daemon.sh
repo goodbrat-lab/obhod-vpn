@@ -14,7 +14,7 @@ BINARY=$2
 
 if [ -z "$ARCH" ] || [ -z "$BINARY" ]; then
     echo "Usage: $0 <arch> <binary_path>"
-    echo "Example: $0 arm64 ./dist/binaries/obhoud_linux_arm64"
+    echo "Example: $0 arm64 ./dist/binaries/obhod_linux_arm64"
     exit 1
 fi
 
@@ -34,8 +34,8 @@ mkdir -p "$BUILD_DIR/data/usr/bin"
 mkdir -p "$BUILD_DIR/data/etc/init.d"
 mkdir -p "$BUILD_DIR/data/etc/config"
 
-cp "$BINARY" "$BUILD_DIR/data/usr/bin/obhoud"
-chmod +x "$BUILD_DIR/data/usr/bin/obhoud"
+cp "$BINARY" "$BUILD_DIR/data/usr/bin/obhod"
+chmod +x "$BUILD_DIR/data/usr/bin/obhod"
 
 cp "$BASE_DIR/obhod-core/files/etc/init.d/obhod" "$BUILD_DIR/data/etc/init.d/obhod"
 chmod +x "$BUILD_DIR/data/etc/init.d/obhod"

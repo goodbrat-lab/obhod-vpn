@@ -113,7 +113,7 @@ func GetSystemHealth() (map[string]interface{}, error) {
 	err := cmd.Run()
 	health["singbox_running"] = (err == nil)
 
-	// Check if obhoud is running (it should be if we are here, but still)
+	// Check if obhod is running (it should be if we are here, but still)
 	health["daemon_running"] = true
 	
 	// Check for common issues

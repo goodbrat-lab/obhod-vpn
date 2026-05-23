@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/logger"
-	"github.com/goodbrat-lab/obhod-vpn/obhoud/internal/subscription"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/logger"
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/subscription"
 	"net/url"
 	"os"
 	"strconv"
