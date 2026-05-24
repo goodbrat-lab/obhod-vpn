@@ -21,7 +21,13 @@ echo "  Commands: $(command -v opkg || echo 'opkg not found'), $(command -v apk 
 echo "  Uname: $(uname -a)"
 echo "=================================================="
 
-# 2. Package Manager Detection
+# 2. Temporary Files Cleanup
+cleanup_tmp() {
+    rm -f /tmp/sb.tar.gz /tmp/obhod.ipk /tmp/luci.ipk /tmp/obhod.tar.gz /tmp/luci.tar.gz 2>/dev/null || true
+    rm -rf /tmp/sing-box-* /tmp/ex_obhod.ipk /tmp/ex_luci.ipk 2>/dev/null || true
+}
+
+# 3. Package Manager Detection
 OPKG_CMD=$(command -v opkg || echo "/bin/opkg")
 APK_CMD=$(command -v apk || echo "/usr/bin/apk")
 
@@ -168,6 +174,7 @@ install_deps() {
                 [ -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
                 [ ! -f /usr/bin/sing-box ] && [ ! -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
                 echo "  ✅ Full sing-box binary replaced successfully."
+                cleanup_tmp
             else
                 echo "  ⚠️  Failed to download precompiled full sing-box binary for $SB_ARCH (possibly 404 on SagerNet releases)."
                 echo "     Obhod will be installed, but it cannot start until you manually install"
@@ -180,6 +187,7 @@ install_deps() {
 # 6. Service Cleanup
 echo "Cleaning up..."
 /etc/init.d/obhod stop 2>/dev/null || true
+cleanup_tmp
 
 # 7. Main Install
 install_deps
@@ -232,6 +240,7 @@ fi
 echo "Finalizing..."
 /etc/init.d/rpcd restart 2>/dev/null || true
 /etc/init.d/uhttpd restart 2>/dev/null || true
+cleanup_tmp
 
 if [ -f /usr/bin/obhod ]; then
     echo "=================================================="
