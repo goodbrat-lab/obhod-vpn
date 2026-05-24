@@ -8,12 +8,12 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="1.1.7"
+VERSION="1.1.8"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.7      "
+echo "      Obhod VPN - Universal Installer v1.1.8      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -149,9 +149,16 @@ install_deps() {
             echo "  -> Downloading full sing-box $sb_ver for $SB_ARCH..."
             local dl_ok=0
             set +e
-            wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz" -O /tmp/sb.tar.gz
+            # Try downloading musl version first (recommended for OpenWrt)
+            wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}-musl.tar.gz" -O /tmp/sb.tar.gz
             if [ $? -eq 0 ]; then
                 dl_ok=1
+            else
+                # Fallback to standard version if musl version doesn't exist
+                wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz" -O /tmp/sb.tar.gz
+                if [ $? -eq 0 ]; then
+                    dl_ok=1
+                fi
             fi
             set -e
 

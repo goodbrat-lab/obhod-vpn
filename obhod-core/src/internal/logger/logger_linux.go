@@ -13,9 +13,10 @@ func initSyslog() error {
 	var err error
 	sysLog, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "obhod")
 	if err != nil {
-		return err
+		sysLog = nil
+	} else {
+		log.SetOutput(sysLog)
 	}
-	log.SetOutput(sysLog)
 	return nil
 }
 
