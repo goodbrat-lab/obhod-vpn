@@ -7,7 +7,7 @@ Maintainer: Obhod Team <obhod@itdog.info>
 Description: LuCI web interface for Obhod VPN
 Filename: luci-app-obhod_1.1.9-1_all.ipk
 Size: 44488
-SHA256sum: 9e403d7288868cb815c351101791a7031dbf3faf14f480d212d75137d6e3a774
+SHA256sum: ec4c4297f70b651f44535f86cb0f5c54ba72d72c85ca7fbe1047bce63ce7e19e
 
 Package: obhod
 Version: 1.1.9-1
@@ -21,8 +21,8 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.9-1_aarch64_cortex-a53.ipk
-Size: 2599907
-SHA256sum: 304013399d8e1c67a615f65438981912395c4aea05c9aba307df8bcce5548384
+Size: 2599912
+SHA256sum: c0e0d8d080783880207d8ce6500b69a59ada5a672440d34b3d60371e8d3ecaea
 
 Package: obhod
 Version: 1.1.9-1
@@ -36,8 +36,8 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.9-1_arm_cortex-a7_neon-vfpv4.ipk
-Size: 2770542
-SHA256sum: d2b0de0b058554cd2c5406663bbc4634ed953a63743cfa379de98030e014b316
+Size: 2770540
+SHA256sum: c5bc68a4056009faace8349871b38ab2e7cf03c5987e2dbaba437e80816de02d
 
 Package: obhod
 Version: 1.1.9-1
@@ -52,7 +52,7 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.9-1_mips_24kc.ipk
 Size: 2713642
-SHA256sum: 5a43aebfdf74bb24279762c37ca01a56dacc8d7fbe84d42319eafa52d2bb55d2
+SHA256sum: 5240441da28143a6058c96926550bc3dd855207d499909643ffd641a025f181a
 
 Package: obhod
 Version: 1.1.9-1
@@ -67,7 +67,7 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.9-1_mipsel_24kc.ipk
 Size: 2686775
-SHA256sum: f19d4695c73f59bd0d12071de993734b9e4c65c82e3297ded451d958f75d92d8
+SHA256sum: 8045f9a3c52136955e36f4fa911de7df349e6411618ce45561c601c3e368077d
 
 Package: obhod
 Version: 1.1.9-1
@@ -82,5 +82,5 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.9-1_x86_64.ipk
 Size: 2885703
-SHA256sum: a5981c4c05853fdab9706a182007332926b2b0916ee00ea35dc8bf644b4be93e
+SHA256sum: 06c0ece11daf44d38fb7cf3f0727767acbb8fe2ae0a5f292f036b2c1601002db
 

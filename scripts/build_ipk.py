@@ -44,6 +44,27 @@ def sha256(path: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
+def copy_enforcing_lf(src: Path, dst: Path):
+    if not src.exists():
+        print(f"  WARNING: missing source file: {src}")
+        return
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    # Check suffixes of files to enforce LF endings
+    if src.suffix in ('.sh', '.jq', '.json', '.conf', '.po', '.js', '.lua') or src.name in ('obhod', '50_luci-obhod'):
+        content = src.read_bytes()
+        content = content.replace(b'\r\n', b'\n')
+        dst.write_bytes(content)
+        shutil.copystat(src, dst)
+    else:
+        shutil.copy2(src, dst)
+
+def copytree_enforcing_lf(src: Path, dst: Path):
+    dst.mkdir(parents=True, exist_ok=True)
+    for item in src.rglob("*"):
+        if item.is_file():
+            rel = item.relative_to(src)
+            copy_enforcing_lf(item, dst / rel)
+
 def add_to_tar(tar: tarfile.TarFile, real_path: Path, arcname: str, mode: int = None):
     info = tar.gettarinfo(str(real_path), arcname=arcname)
     if mode is not None:
@@ -116,10 +137,7 @@ def build_data_tar(tmp_dir: Path, binary_path: Path) -> Path:
         files[acl_src] = dest
 
     for src, dst in files.items():
-        if not src.exists():
-            print(f"  WARNING: missing source file: {src}")
-            continue
-        shutil.copy2(src, dst)
+        copy_enforcing_lf(src, dst)
 
     # Set execute bits (stored in tar)
     exec_files = [
@@ -300,34 +318,34 @@ def build_luci_ipk():
             js_view_dst.mkdir(parents=True, exist_ok=True)
             for f in js_view_src.iterdir():
                 if f.is_file():
-                    shutil.copy2(f, js_view_dst / f.name)
+                    copy_enforcing_lf(f, js_view_dst / f.name)
 
         # Lua controller
         lua_src = LUCI_SRC / "root/usr/lib/lua/luci"
         if lua_src.exists():
             lua_dst = data_dir / "usr/lib/lua/luci"
-            shutil.copytree(lua_src, lua_dst, dirs_exist_ok=True)
+            copytree_enforcing_lf(lua_src, lua_dst)
 
         # Menu
         menu_src = LUCI_SRC / "root/usr/share/luci/menu.d/luci-app-obhod.json"
         if menu_src.exists():
             menu_dst = data_dir / "usr/share/luci/menu.d"
             menu_dst.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(menu_src, menu_dst / menu_src.name)
+            copy_enforcing_lf(menu_src, menu_dst / menu_src.name)
 
         # ACL
         acl_src = LUCI_SRC / "root/usr/share/rpcd/acl.d/luci-app-obhod.json"
         if acl_src.exists():
             acl_dst = data_dir / "usr/share/rpcd/acl.d"
             acl_dst.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(acl_src, acl_dst / acl_src.name)
+            copy_enforcing_lf(acl_src, acl_dst / acl_src.name)
 
         # UCI defaults
         ucidef_src = LUCI_SRC / "root/etc/uci-defaults/50_luci-obhod"
         if ucidef_src.exists():
             ucidef_dst = data_dir / "etc/uci-defaults"
             ucidef_dst.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(ucidef_src, ucidef_dst / ucidef_src.name)
+            copy_enforcing_lf(ucidef_src, ucidef_dst / ucidef_src.name)
 
         # Translation LMO compiler
         po_file = LUCI_SRC / "po/ru/obhod.po"
