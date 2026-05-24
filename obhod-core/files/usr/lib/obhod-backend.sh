@@ -3173,6 +3173,12 @@ validate)
 main)
     main
     ;;
+start_main)
+    start_main
+    ;;
+stop_main)
+    stop_main
+    ;;
 list_update)
     list_update
     ;;
