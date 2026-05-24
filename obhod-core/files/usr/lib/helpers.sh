@@ -1,3 +1,20 @@
+# Global temporary files registry for BusyBox ash compatibility
+TEMP_FILES=""
+
+register_temp_file() {
+    local file="$1"
+    [ -n "$file" ] && TEMP_FILES="$TEMP_FILES $file"
+}
+
+cleanup_temp_files() {
+    local file
+    for file in $TEMP_FILES; do
+        [ -e "$file" ] && rm -rf "$file" 2>/dev/null
+    done
+}
+
+trap cleanup_temp_files EXIT INT TERM
+
 # Check if string is valid IPv4
 is_ipv4() {
     local ip="$1"
@@ -301,16 +318,15 @@ download_to_file() {
     return 1
 }
 
-# Converts Windows-style line endings (CRLF) to Unix-style (LF)
+# # Converts Windows-style line endings (CRLF) to Unix-style (LF)
 convert_crlf_to_lf() {
     local filepath="$1"
+    [ ! -f "$filepath" ] && return 1
 
-    if grep -q $'\r' "$filepath"; then
-        log "File '$filepath' contains CRLF line endings. Converting to LF..." "debug"
-        local tmpfile
-        tmpfile=$(mktemp)
-        tr -d '\r' < "$filepath" > "$tmpfile" && mv "$tmpfile" "$filepath" || rm -f "$tmpfile"
-    fi
+    local tmpfile
+    tmpfile=$(mktemp) || return 1
+    register_temp_file "$tmpfile"
+    tr -d '\r' < "$filepath" > "$tmpfile" && mv "$tmpfile" "$filepath"
 }
 
 #######################################
@@ -326,13 +342,7 @@ parse_domain_or_subnet_string_to_commas_string() {
     local string="$1"
     local type="$2"
 
-    tmpfile=$(mktemp)
-    printf "%s\n" "$string" | sed 's/\/\/.*//' | tr ', ' '\n' | grep -v '^$' > "$tmpfile"
-
-    result="$(parse_domain_or_subnet_file_to_comma_string "$tmpfile" "$type")"
-    rm -f "$tmpfile"
-
-    echo "$result"
+    echo "$string" | sed 's/\/\/.*//' | tr ', ' '\n' | grep -v '^$' | parse_domain_or_subnet_file_to_comma_string "-" "$type"
 }
 
 #######################################
@@ -348,37 +358,21 @@ parse_domain_or_subnet_file_to_comma_string() {
     local filepath="$1"
     local type="$2"
 
-    local result
-    while IFS= read -r line; do
-        line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    local target_file="$filepath"
+    if [ "$target_file" = "-" ]; then
+        target_file=""
+    fi
 
-        [ -z "$line" ] && continue
+    if [ -n "$target_file" ] && [ ! -f "$target_file" ]; then
+        return 1
+    fi
 
-        case "$type" in
-        domains)
-            if ! is_domain_suffix "$line"; then
-                log "'$line' is not a valid domain" "debug"
-                continue
-            fi
-            ;;
-        subnets)
-            if ! is_ipv4 "$line" && ! is_ipv4_cidr "$line"; then
-                log "'$line' is not IPv4 or IPv4 CIDR" "debug"
-                continue
-            fi
-            ;;
-        *)
-            log "Unknown type: $type" "error"
-            return 1
-            ;;
-        esac
-
-        if [ -z "$result" ]; then
-            result="$line"
-        else
-            result="$result,$line"
-        fi
-    done < "$filepath"
-
-    echo "$result"
+    if [ "$type" = "domains" ]; then
+        cat ${target_file:+"$target_file"} | grep -v '^[[:space:]]*$' | awk '{$1=$1}1' | grep -E '^[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})*$' | paste -sd, -
+    elif [ "$type" = "subnets" ]; then
+        cat ${target_file:+"$target_file"} | grep -v '^[[:space:]]*$' | awk '{$1=$1}1' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$' | paste -sd, -
+    else
+        log "Unknown type: $type" "error"
+        return 1
+    fi
 }

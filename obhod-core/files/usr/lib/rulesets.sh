@@ -38,7 +38,9 @@ patch_source_ruleset_rules() {
     local key="$2"
     local value="$3"
 
-    local tmpfile=$(mktemp)
+    local tmpfile
+    tmpfile=$(mktemp) || return 1
+    register_temp_file "$tmpfile"
 
     jq --arg key "$key" --argjson value "$value" \
         '( .rules | map(has($key)) | index(true) ) as $idx |
@@ -56,87 +58,85 @@ patch_source_ruleset_rules() {
     mv "$tmpfile" "$filepath"
 }
 
-# Imports a plain domain list into a ruleset in chunks, validating domains and appending them as domain_suffix rules
+# Imports a plain domain list into a ruleset in bulk, validating domains and writing them as domain_suffix rules
 import_plain_domain_list_to_local_source_ruleset_chunked() {
     local plain_list_filepath="$1"
     local ruleset_filepath="$2"
-    local chunk_size="${3:-5000}"
 
-    local array count json_array
-    count=0
-    while IFS= read -r line; do
-        line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ ! -f "$plain_list_filepath" ] && return 1
 
-        [ -z "$line" ] && continue
+    local tmpfile
+    tmpfile=$(mktemp) || return 1
+    register_temp_file "$tmpfile"
 
-        if ! is_domain_suffix "$line"; then
-            log "'$line' is not a valid domain" "debug"
-            continue
-        fi
+    grep -v '^[[:space:]]*$' "$plain_list_filepath" | awk '{$1=$1}1' | grep -E '^[a-zA-Z0-9-]{1,63}(\.[a-zA-Z0-9-]{1,63})*$' | awk '
+    {
+        gsub(/"/, "\\\"", $0)
+        if (!seen[$0]++) {
+            items[count++] = $0
+        }
+    }
+    END {
+        if (count == 0) {
+            print "{\"version\": 3, \"rules\": []}"
+            exit 0
+        }
+        print "{\"version\": 3, \"rules\": [{\"domain_suffix\": ["
+        for (i = 0; i < count; i++) {
+            printf "      \"%s\"", items[i]
+            if (i < count - 1) printf ",\n"
+            else printf "\n"
+        }
+        print "    }]}"
+    }' > "$tmpfile"
 
-        if [ -z "$array" ]; then
-            array="$line"
-        else
-            array="$array,$line"
-        fi
-
-        count=$((count + 1))
-
-        if [ "$count" = "$chunk_size" ]; then
-            log "Adding $count elements to rule set at $ruleset_filepath" "debug"
-            json_array="$(comma_string_to_json_array "$array")"
-            patch_source_ruleset_rules "$ruleset_filepath" "domain_suffix" "$json_array"
-            array=""
-            count=0
-        fi
-    done < "$plain_list_filepath"
-
-    if [ -n "$array" ]; then
-        log "Adding $count elements to rule set at $ruleset_filepath" "debug"
-        json_array="$(comma_string_to_json_array "$array")"
-        patch_source_ruleset_rules "$ruleset_filepath" "domain_suffix" "$json_array"
+    if [ $? -eq 0 ] && [ -s "$tmpfile" ]; then
+        mv "$tmpfile" "$ruleset_filepath"
+        return 0
+    else
+        rm -f "$tmpfile"
+        return 1
     fi
 }
 
-# Imports a plain IPv4/CIDR list into a ruleset in chunks, validating entries and appending them as ip_cidr rules
+# Imports a plain IPv4/CIDR list into a ruleset in bulk, validating entries and writing them as ip_cidr rules
 import_plain_subnet_list_to_local_source_ruleset_chunked() {
     local plain_list_filepath="$1"
     local ruleset_filepath="$2"
-    local chunk_size="${3:-5000}"
 
-    local array count json_array
-    count=0
-    while IFS= read -r line; do
-        line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ ! -f "$plain_list_filepath" ] && return 1
 
-        [ -z "$line" ] && continue
+    local tmpfile
+    tmpfile=$(mktemp) || return 1
+    register_temp_file "$tmpfile"
 
-        if ! is_ipv4 "$line" && ! is_ipv4_cidr "$line"; then
-            log "'$line' is not IPv4 or IPv4 CIDR" "debug"
-            continue
-        fi
+    grep -v '^[[:space:]]*$' "$plain_list_filepath" | awk '{$1=$1}1' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$' | awk '
+    {
+        gsub(/"/, "\\\"", $0)
+        if (!seen[$0]++) {
+            items[count++] = $0
+        }
+    }
+    END {
+        if (count == 0) {
+            print "{\"version\": 3, \"rules\": []}"
+            exit 0
+        }
+        print "{\"version\": 3, \"rules\": [{\"ip_cidr\": ["
+        for (i = 0; i < count; i++) {
+            printf "      \"%s\"", items[i]
+            if (i < count - 1) printf ",\n"
+            else printf "\n"
+        }
+        print "    }]}"
+    }' > "$tmpfile"
 
-        if [ -z "$array" ]; then
-            array="$line"
-        else
-            array="$array,$line"
-        fi
-
-        count=$((count + 1))
-
-        if [ "$count" = "$chunk_size" ]; then
-            log "Adding $count elements to ruleset at $ruleset_filepath" "debug"
-            json_array="$(comma_string_to_json_array "$array")"
-            patch_source_ruleset_rules "$ruleset_filepath" "ip_cidr" "$json_array"
-            array=""
-            count=0
-        fi
-    done < "$plain_list_filepath"
-
-    if [ -n "$array" ]; then
-        log "Adding $count elements to ruleset at $ruleset_filepath" "debug"
-        json_array="$(comma_string_to_json_array "$array")"
-        patch_source_ruleset_rules "$ruleset_filepath" "ip_cidr" "$json_array"
+    if [ $? -eq 0 ] && [ -s "$tmpfile" ]; then
+        mv "$tmpfile" "$ruleset_filepath"
+        return 0
+    else
+        rm -f "$tmpfile"
+        return 1
     fi
 }
 

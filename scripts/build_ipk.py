@@ -75,7 +75,6 @@ def build_data_tar(tmp_dir: Path, binary_path: Path) -> Path:
     # Copy files
     files = {
         binary_path:                                         data_dir / "usr/bin/obhod",
-        CORE_FILES / "usr/bin/obhod":                        data_dir / "usr/lib/obhod/obhod-backend.sh",
         CORE_FILES / "etc/init.d/obhod":                     data_dir / "etc/init.d/obhod",
         CORE_FILES / "etc/config/obhod":                     data_dir / "etc/config/obhod",
     }
@@ -235,9 +234,182 @@ def build_ipk(suffix: str, arch_ipk: str):
                 with open(f, "rb") as fh:
                     ipk.addfile(info, fh)
 
+        # Copy data.tar.gz as a backup tarball for manual installations
+        tar_gz_name = f"obhod_{VERSION}-{RELEASE}_{arch_ipk}.tar.gz"
+        tar_gz_path = PACKAGES_DIR / tar_gz_name
+        shutil.copy2(data_tar, tar_gz_path)
+
         size_kb = output_path.stat().st_size // 1024
         checksum = sha256(output_path)[:12]
-        print(f"    OK: {size_kb} KB  sha256:{checksum}...")
+        print(f"    OK: {size_kb} KB  (tar.gz saved)  sha256:{checksum}...")
+        return output_path
+
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+def compile_lmo(po_path, lmo_path):
+    import struct
+    def hash_lmo(s):
+        res = 0x41C64E6D
+        for c in s:
+            res = (res * 0x3F + ord(c)) & 0xFFFFFFFF
+        return res
+
+    entries = []
+    with open(po_path, 'r', encoding='utf-8') as f:
+        msgid = ""
+        msgstr = ""
+        for line in f:
+            line = line.strip()
+            if line.startswith('msgid "'):
+                msgid = line[7:-1]
+            elif line.startswith('msgstr "'):
+                msgstr = line[8:-1]
+                if msgid and msgstr:
+                    entries.append((hash_lmo(msgid), msgstr.encode('utf-8')))
+                    msgid = ""
+                    msgstr = ""
+    entries.sort()
+    with open(lmo_path, 'wb') as f:
+        for h, s in entries:
+            f.write(struct.pack('>II', h, len(s)))
+            f.write(s)
+
+def build_luci_ipk():
+    output_name = f"luci-app-obhod_{VERSION}-{RELEASE}_all.ipk"
+    output_path = PACKAGES_DIR / output_name
+
+    print(f"  [luci-app-obhod] -> {output_name}")
+
+    tmp_dir = Path("/tmp/obhod_luci_ipk") if os.name != "nt" else BASE_DIR / ".tmp_luci_ipk"
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+    tmp_dir.mkdir(parents=True)
+
+    try:
+        # 1. Build Data
+        data_dir = tmp_dir / "data"
+        data_dir.mkdir(parents=True)
+
+        LUCI_SRC = BASE_DIR / "luci-app-obhod"
+
+        # JS view files
+        js_view_src = LUCI_SRC / "htdocs/luci-static/resources/view/obhod"
+        if js_view_src.exists():
+            js_view_dst = data_dir / "www/luci-static/resources/view/obhod"
+            js_view_dst.mkdir(parents=True, exist_ok=True)
+            for f in js_view_src.iterdir():
+                if f.is_file():
+                    shutil.copy2(f, js_view_dst / f.name)
+
+        # Lua controller
+        lua_src = LUCI_SRC / "root/usr/lib/lua/luci"
+        if lua_src.exists():
+            lua_dst = data_dir / "usr/lib/lua/luci"
+            shutil.copytree(lua_src, lua_dst, dirs_exist_ok=True)
+
+        # Menu
+        menu_src = LUCI_SRC / "root/usr/share/luci/menu.d/luci-app-obhod.json"
+        if menu_src.exists():
+            menu_dst = data_dir / "usr/share/luci/menu.d"
+            menu_dst.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(menu_src, menu_dst / menu_src.name)
+
+        # ACL
+        acl_src = LUCI_SRC / "root/usr/share/rpcd/acl.d/luci-app-obhod.json"
+        if acl_src.exists():
+            acl_dst = data_dir / "usr/share/rpcd/acl.d"
+            acl_dst.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(acl_src, acl_dst / acl_src.name)
+
+        # UCI defaults
+        ucidef_src = LUCI_SRC / "root/etc/uci-defaults/50_luci-obhod"
+        if ucidef_src.exists():
+            ucidef_dst = data_dir / "etc/uci-defaults"
+            ucidef_dst.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(ucidef_src, ucidef_dst / ucidef_src.name)
+
+        # Translation LMO compiler
+        po_file = LUCI_SRC / "po/ru/obhod.po"
+        if po_file.exists():
+            lmo_dir1 = data_dir / "usr/share/luci/i18n"
+            lmo_dir2 = data_dir / "usr/lib/lua/luci/i18n"
+            lmo_dir1.mkdir(parents=True, exist_ok=True)
+            lmo_dir2.mkdir(parents=True, exist_ok=True)
+
+            compile_lmo(po_file, lmo_dir1 / "obhod.ru.lmo")
+            shutil.copy2(lmo_dir1 / "obhod.ru.lmo", lmo_dir2 / "obhod.ru.lmo")
+            print("    Compiled localization: obhod.ru.lmo")
+
+        # Create data.tar.gz
+        data_tar = tmp_dir / "data.tar.gz"
+        with tarfile.open(data_tar, "w:gz", format=tarfile.GNU_FORMAT) as tar:
+            for item in sorted(data_dir.rglob("*")):
+                arcname = "./" + str(item.relative_to(data_dir)).replace("\\", "/")
+                if item.is_dir():
+                    info = tarfile.TarInfo(name=arcname)
+                    info.type = tarfile.DIRTYPE
+                    info.mode = 0o755
+                    info.uid = 0; info.gid = 0
+                    info.uname = "root"; info.gname = "root"
+                    info.mtime = 0
+                    tar.addfile(info)
+                else:
+                    add_to_tar(tar, item, arcname, 0o644)
+
+        # 2. Build Control
+        ctrl_dir = tmp_dir / "control"
+        ctrl_dir.mkdir()
+
+        control_text = f"""Package: luci-app-obhod
+Version: {VERSION}-{RELEASE}
+Depends: obhod, luci-base, luci-compat, rpcd-mod-file
+Section: luci
+Architecture: all
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: LuCI web interface for Obhod VPN
+"""
+        (ctrl_dir / "control").write_bytes(control_text.encode("utf-8"))
+
+        postinst_text = """#!/bin/sh
+[ -n "${IPKG_INSTROOT}" ] && exit 0
+rm -rf /tmp/luci-indexcache*
+rm -rf /tmp/luci-modulecache/
+/etc/init.d/rpcd restart 2>/dev/null
+/etc/init.d/uhttpd restart 2>/dev/null
+exit 0
+"""
+        (ctrl_dir / "postinst").write_bytes(postinst_text.encode("utf-8"))
+
+        control_tar = tmp_dir / "control.tar.gz"
+        with tarfile.open(control_tar, "w:gz", format=tarfile.GNU_FORMAT) as tar:
+            for item in sorted(ctrl_dir.iterdir()):
+                arcname = "./" + item.name
+                mode = 0o755 if item.name == "postinst" else 0o644
+                add_to_tar(tar, item, arcname, mode)
+
+        # 3. Debian Binary
+        debian_binary = tmp_dir / "debian-binary"
+        debian_binary.write_bytes(b"2.0\n")
+
+        # 4. Final IPK
+        with tarfile.open(output_path, "w:gz", format=tarfile.GNU_FORMAT) as ipk:
+            for f in [debian_binary, control_tar, data_tar]:
+                info = tarfile.TarInfo(name=f.name)
+                info.size = f.stat().st_size
+                info.mode = 0o644
+                info.uid = 0; info.gid = 0
+                info.uname = "root"; info.gname = "root"
+                info.mtime = 0
+                with open(f, "rb") as fh:
+                    ipk.addfile(info, fh)
+
+        # Copy data.tar.gz as backup tarball
+        tar_gz_name = f"luci-app-obhod_{VERSION}-{RELEASE}_all.tar.gz"
+        shutil.copy2(data_tar, PACKAGES_DIR / tar_gz_name)
+
+        size_kb = output_path.stat().st_size // 1024
+        print(f"    OK: {size_kb} KB  (tar.gz saved)")
         return output_path
 
     finally:
@@ -256,13 +428,18 @@ def main():
         if result:
             built.append(result)
 
+    # Build LuCI standalone package
+    result = build_luci_ipk()
+    if result:
+        built.append(result)
+
     # Write index
     index_path = PACKAGES_DIR / "index.txt"
     with open(index_path, "w") as f:
         for p in built:
             f.write(f"{p.name}\n")
     
-    print(f"\nBuilt {len(built)}/{len(ARCH_MAP)} packages:")
+    print(f"\nBuilt {len(built)} packages:")
     for p in built:
         print(f"  {p.name}")
     print(f"\nIndex: {index_path}")

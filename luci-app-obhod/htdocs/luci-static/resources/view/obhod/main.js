@@ -5,6 +5,8 @@
 "require uci";
 "require ui";
 
+let wsErrorLogged = false;
+
 // src/validators/validateIp.ts
 function validateIPV4(ip) {
   const ipRegex = /^(?:(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$/;
@@ -892,7 +894,7 @@ var STATUS_COLORS = {
   ERROR: "#f44336",
   WARNING: "#ff9800"
 };
-var OBHOD_LUCI_APP_VERSION = "1.1.5";
+var OBHOD_LUCI_APP_VERSION = "1.1.6";
 var FAKEIP_CHECK_DOMAIN = "fakeip.podkop.fyi";
 var IP_CHECK_DOMAIN = "ip.podkop.fyi";
 var REGIONAL_OPTIONS = [
@@ -2073,6 +2075,7 @@ async function connectToClashSockets() {
   socket.subscribe(
     `${getClashWsUrl()}/traffic?token=${clashApiSecret}`,
     (msg) => {
+      wsErrorLogged = false;
       const parsedMsg = JSON.parse(msg);
       const prev = store.get().bandwidthWidget;
       const history = [...(prev.history || [])];
@@ -2089,11 +2092,13 @@ async function connectToClashSockets() {
     },
 
     (_err) => {
-      logger.error(
-        "[DASHBOARD]",
-        "connectToClashSockets - traffic: failed to connect to",
-        getClashWsUrl()
-      );
+      if (!wsErrorLogged) {
+        console.warn(
+          "Obhod: Real-time statistics unavailable due to HTTPS Mixed Content policy (WebSocket connection failed to Clash API)",
+          getClashWsUrl()
+        );
+        wsErrorLogged = true;
+      }
       store.set({
         bandwidthWidget: {
           loading: false,
@@ -2106,6 +2111,7 @@ async function connectToClashSockets() {
   socket.subscribe(
     `${getClashWsUrl()}/connections?token=${clashApiSecret}`,
     (msg) => {
+      wsErrorLogged = false;
       const parsedMsg = JSON.parse(msg);
       store.set({
         trafficTotalWidget: {
@@ -2127,11 +2133,13 @@ async function connectToClashSockets() {
       });
     },
     (_err) => {
-      logger.error(
-        "[DASHBOARD]",
-        "connectToClashSockets - connections: failed to connect to",
-        getClashWsUrl()
-      );
+      if (!wsErrorLogged) {
+        console.warn(
+          "Obhod: Real-time statistics unavailable due to HTTPS Mixed Content policy (WebSocket connection failed to Clash API)",
+          getClashWsUrl()
+        );
+        wsErrorLogged = true;
+      }
       store.set({
         trafficTotalWidget: {
           loading: false,
@@ -2341,10 +2349,16 @@ async function renderBandwidthWidget() {
   logger.debug("[DASHBOARD]", "renderBandwidthWidget");
   const traffic = store.get().bandwidthWidget;
   const container = document.getElementById("dashboard-widget-traffic");
-  if (traffic.loading || traffic.failed) {
+  if (!container) return;
+  if (traffic.failed) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "";
+  if (traffic.loading) {
     const renderedWidget2 = renderWidget({
       loading: traffic.loading,
-      failed: traffic.failed,
+      failed: false,
       title: "",
       items: []
     });
@@ -2352,7 +2366,7 @@ async function renderBandwidthWidget() {
   }
   const renderedWidget = renderWidget({
     loading: traffic.loading,
-    failed: traffic.failed,
+    failed: false,
     title: _("Traffic"),
     items: [
       { key: _("Uplink"), value: `${prettyBytes(traffic.data.up)}/s` },
@@ -2367,10 +2381,16 @@ async function renderTrafficTotalWidget() {
   logger.debug("[DASHBOARD]", "renderTrafficTotalWidget");
   const trafficTotalWidget = store.get().trafficTotalWidget;
   const container = document.getElementById("dashboard-widget-traffic-total");
-  if (trafficTotalWidget.loading || trafficTotalWidget.failed) {
+  if (!container) return;
+  if (trafficTotalWidget.failed) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "";
+  if (trafficTotalWidget.loading) {
     const renderedWidget2 = renderWidget({
       loading: trafficTotalWidget.loading,
-      failed: trafficTotalWidget.failed,
+      failed: false,
       title: "",
       items: []
     });
@@ -2378,7 +2398,7 @@ async function renderTrafficTotalWidget() {
   }
   const renderedWidget = renderWidget({
     loading: trafficTotalWidget.loading,
-    failed: trafficTotalWidget.failed,
+    failed: false,
     title: _("Traffic Total"),
     items: [
       {
@@ -2397,10 +2417,16 @@ async function renderSystemInfoWidget() {
   logger.debug("[DASHBOARD]", "renderSystemInfoWidget");
   const systemInfoWidget = store.get().systemInfoWidget;
   const container = document.getElementById("dashboard-widget-system-info");
-  if (systemInfoWidget.loading || systemInfoWidget.failed) {
+  if (!container) return;
+  if (systemInfoWidget.failed) {
+    container.style.display = "none";
+    return;
+  }
+  container.style.display = "";
+  if (systemInfoWidget.loading) {
     const renderedWidget2 = renderWidget({
       loading: systemInfoWidget.loading,
-      failed: systemInfoWidget.failed,
+      failed: false,
       title: "",
       items: []
     });
@@ -2408,7 +2434,7 @@ async function renderSystemInfoWidget() {
   }
   const renderedWidget = renderWidget({
     loading: systemInfoWidget.loading,
-    failed: systemInfoWidget.failed,
+    failed: false,
     title: _("System info"),
     items: [
       {
@@ -5051,12 +5077,14 @@ async function onMount(id) {
 
 // src/helpers/getClashApiUrl.ts
 function getClashWsUrl() {
-  const { hostname } = window.location;
-  return `ws://${hostname}:9090`;
+  const { hostname, protocol } = window.location;
+  const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${wsProtocol}//${hostname}:9090`;
 }
 function getClashUIUrl() {
-  const { hostname } = window.location;
-  return `http://${hostname}:9090/ui`;
+  const { hostname, protocol } = window.location;
+  const httpProtocol = protocol === 'https:' ? 'https:' : 'http:';
+  return `${httpProtocol}//${hostname}:9090/ui`;
 }
 
 // src/helpers/splitProxyString.ts

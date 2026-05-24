@@ -58,10 +58,13 @@ function createLogsContent(section) {
   };
 
   o.updateLogs = function() {
+      const logContainer = document.getElementById('obhod_log_text');
+      if (!logContainer) return;
+
       const levelFilter = document.getElementById('log_level_filter')?.value || '';
       const searchFilter = document.getElementById('log_search_filter')?.value.toLowerCase() || '';
       
-      fs.exec('logread', ['-e', 'obho[ud]']).then(res => {
+      fs.exec('logread', ['-e', 'obhod']).then(res => {
           let lines = (res.stdout || '').split('\n').filter(l => l.length > 0);
           
           if (levelFilter) {
@@ -71,9 +74,6 @@ function createLogsContent(section) {
           if (searchFilter) {
               lines = lines.filter(line => line.toLowerCase().includes(searchFilter));
           }
-
-          const logContainer = document.getElementById('obhod_log_text');
-          if (!logContainer) return;
 
           const shouldScroll = logContainer.scrollTop + logContainer.clientHeight >= logContainer.scrollHeight - 20;
 
@@ -102,7 +102,7 @@ function createLogsContent(section) {
   };
 
   o.downloadLogs = function() {
-      fs.exec('logread', ['-e', 'obho[ud]']).then(res => {
+      fs.exec('logread', ['-e', 'obhod']).then(res => {
           const blob = new Blob([res.stdout || ''], { type: 'text/plain' });
           const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');

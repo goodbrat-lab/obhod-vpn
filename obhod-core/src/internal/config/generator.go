@@ -127,6 +127,21 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 	})
 
 	fetcher := subscription.NewFetcher("")
+	if uci.Settings.DownloadListsViaProxy {
+		secName := uci.Settings.DownloadListsViaProxySection
+		if secName != "" {
+			if sec, ok := uci.Sections[secName]; ok && sec.MixedProxyEnabled && sec.MixedProxyPort > 0 {
+				fetcher.ProxyPort = sec.MixedProxyPort
+			}
+		} else {
+			for _, sec := range uci.Sections {
+				if sec.MixedProxyEnabled && sec.MixedProxyPort > 0 {
+					fetcher.ProxyPort = sec.MixedProxyPort
+					break
+				}
+			}
+		}
+	}
 	cache, _ := fetcher.LoadCache()
 
 	for _, section := range uci.Sections {
@@ -433,7 +448,7 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 			fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
 		}
 		userPass := u.User.String()
-		if decoded, err := base64.StdEncoding.DecodeString(userPass); err == nil {
+		if decoded, err := DecodeBase64Tolerant(userPass); err == nil {
 			parts := strings.SplitN(string(decoded), ":", 2)
 			if len(parts) == 2 {
 				outbound.Method = parts[0]
@@ -526,7 +541,7 @@ func applyTransport(outbound *OutboundConfig, u *url.URL) {
 
 func parseVMess(proxyStr string, tag string) (*OutboundConfig, error) {
 	data := strings.TrimPrefix(proxyStr, "vmess://")
-	decoded, err := base64.StdEncoding.DecodeString(data)
+	decoded, err := DecodeBase64Tolerant(data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode vmess base64: %v", err)
 	}
@@ -576,4 +591,28 @@ func parseVMess(proxyStr string, tag string) (*OutboundConfig, error) {
 	}
 
 	return outbound, nil
+}
+
+// DecodeBase64Tolerant decodes Base64 strings, handling URL-safe formats, padding, and whitespace
+func DecodeBase64Tolerant(str string) ([]byte, error) {
+	str = strings.ReplaceAll(str, "\n", "")
+	str = strings.ReplaceAll(str, "\r", "")
+	str = strings.ReplaceAll(str, "\t", "")
+	str = strings.ReplaceAll(str, " ", "")
+
+	str = strings.ReplaceAll(str, "-", "+")
+	str = strings.ReplaceAll(str, "_", "/")
+
+	mod := len(str) % 4
+	if mod == 2 {
+		str += "=="
+	} else if mod == 3 {
+		str += "="
+	}
+
+	if data, err := base64.StdEncoding.DecodeString(str); err == nil {
+		return data, nil
+	}
+
+	return base64.URLEncoding.DecodeString(str)
 }

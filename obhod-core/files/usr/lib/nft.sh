@@ -33,38 +33,37 @@ nft_add_set_elements_from_file_chunked() {
     local filepath="$1"
     local nft_table_name="$2"
     local nft_set_name="$3"
-    local chunk_size="${4:-5000}"
 
-    local array count
-    count=0
-    while IFS= read -r line; do
-        line=$(echo "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+    [ ! -f "$filepath" ] && return 1
 
-        [ -z "$line" ] && continue
-
-        if ! is_ipv4 "$line" && ! is_ipv4_cidr "$line"; then
-            log "'$line' is not IPv4 or IPv4 CIDR" "debug"
-            continue
-        fi
-
-        if [ -z "$array" ]; then
-            array="$line"
-        else
-            array="$array,$line"
-        fi
-
-        count=$((count + 1))
-
-        if [ "$count" = "$chunk_size" ]; then
-            log "Adding $count elements to nft set $nft_set_name" "debug"
-            nft_add_set_elements "$nft_table_name" "$nft_set_name" "$array"
-            array=""
-            count=0
-        fi
-    done < "$filepath"
-
-    if [ -n "$array" ]; then
-        log "Adding $count elements to nft set $nft_set_name" "debug"
-        nft_add_set_elements "$nft_table_name" "$nft_set_name" "$array"
+    # Check if there are any elements first to avoid empty command failures
+    if ! grep -q '[^[:space:]]' "$filepath"; then
+        return 0
     fi
+
+    # Stream elements to nft using streaming awk pipeline
+    grep -v '^[[:space:]]*$' "$filepath" | awk '{$1=$1}1' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$' | awk -v table="$nft_table_name" -v set="$nft_set_name" '
+    {
+        if (!seen[$0]++) {
+            items[count++] = $0
+            if (count == 1000) {
+                flush()
+            }
+        }
+    }
+    function flush() {
+        if (count > 0) {
+            printf "add element inet %s %s { ", table, set
+            for (i = 0; i < count; i++) {
+                printf "%s", items[i]
+                if (i < count - 1) printf ", "
+            }
+            print " }"
+            delete items
+            count = 0
+        }
+    }
+    END {
+        flush()
+    }' | nft -f -
 }

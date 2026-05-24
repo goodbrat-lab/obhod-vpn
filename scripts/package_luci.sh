@@ -92,6 +92,7 @@ echo "2.0" > debian-binary
 OUTPUT="$BASE_DIR/dist/packages/luci-app-obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
 # Standard .ipk is an 'ar' archive
 ar r "$OUTPUT" debian-binary control.tar.gz data.tar.gz
+cp "$BUILD_DIR/data.tar.gz" "$BASE_DIR/dist/packages/luci-app-obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
 
 echo "Done: $OUTPUT ($(du -h "$OUTPUT" | cut -f1))"
 rm -rf "$BUILD_DIR"

@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -31,6 +32,10 @@ type SettingsUCI struct {
 	TelegramToken            string
 	TelegramChatID           string
 	TelegramEnabled          bool
+	DownloadListsViaProxy        bool
+	DownloadListsViaProxySection string
+	SingBoxVersion           string
+	UseLegacyGenerator       bool
 }
 
 type SectionUCI struct {
@@ -137,6 +142,14 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 		s.TelegramChatID = value
 	case "telegram_enabled":
 		s.TelegramEnabled = value == "1"
+	case "download_lists_via_proxy":
+		s.DownloadListsViaProxy = value == "1"
+	case "download_lists_via_proxy_section":
+		s.DownloadListsViaProxySection = value
+	case "singbox_version":
+		s.SingBoxVersion = value
+	case "use_legacy_generator":
+		s.UseLegacyGenerator = value == "1"
 	}
 }
 
@@ -164,6 +177,10 @@ func parseSection(s *SectionUCI, keyParts []string, value string) {
 		s.UserSubnets = append(s.UserSubnets, value)
 	case "mixed_proxy_enabled":
 		s.MixedProxyEnabled = value == "1"
+	case "mixed_proxy_port":
+		if p, err := strconv.Atoi(value); err == nil {
+			s.MixedProxyPort = p
+		}
 	case "selector_proxy_links":
 		s.SelectorProxyLinks = append(s.SelectorProxyLinks, value)
 	}

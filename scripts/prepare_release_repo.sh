@@ -13,7 +13,7 @@ for path in ./*; do
     name=$(basename "$path")
 
     case "$name" in
-        Packages|Packages.gz|index.txt|luci-app-obhod_1.1.5-1_all.ipk|obhod_1.1.5-1_*.ipk)
+        Packages|Packages.gz|index.txt|luci-app-obhod_1.1.6-1_all.ipk|obhod_1.1.6-1_*.ipk)
             continue
             ;;
     esac

@@ -21,6 +21,8 @@ config settings 'settings'
         option watchdog_interval '30s'
         option exclude_ntp '0'
         option shutdown_correctly '0'
+        option singbox_version 'v1.12.0'
+        option use_legacy_generator '0'
         #option sing_box_min_version '1.12.0'
         #list routing_excluded_ips '192.168.1.3'
 

@@ -1,24 +1,86 @@
-Filename: luci-app-obhod_1.1.5-1_all.ipk
-Size: 44908
-SHA256sum: 9565052d04a2cb42b8de88321b841e165c8e926c9e6df1529931dd8418d1cfaf
+Package: luci-app-obhod
+Version: 1.1.7-1
+Depends: obhod, luci-base, luci-compat, rpcd-mod-file
+Section: luci
+Architecture: all
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: LuCI web interface for Obhod VPN
+Filename: luci-app-obhod_1.1.7-1_all.ipk
+Size: 44482
+SHA256sum: 334113e9d48be658c6bbb2a59dfbb1a2c031dd4c106cf0d9c0ffe757e800290e
 
-Filename: obhod_1.1.5-1_aarch64_cortex-a53.ipk
-Size: 2169782
-SHA256sum: 9330ba60482eae91c7e6cf426963b17a3eda93d62b871c3b457b0b5e053d7857
+Package: obhod
+Version: 1.1.7-1
+Architecture: aarch64_cortex-a53
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.7-1_aarch64_cortex-a53.ipk
+Size: 2599691
+SHA256sum: d8ad0569e8a49dd651d2139ce1db4e6261009fb066853b3a266c0cf8e88d9d16
 
-Filename: obhod_1.1.5-1_arm_cortex-a7_neon-vfpv4.ipk
-Size: 2146076
-SHA256sum: a32d0187247796c46955bb0968047d74f1446c126562883ac5de5716ad36b06a
+Package: obhod
+Version: 1.1.7-1
+Architecture: arm_cortex-a7_neon-vfpv4
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.7-1_arm_cortex-a7_neon-vfpv4.ipk
+Size: 2770390
+SHA256sum: 040c7dcbdc2b8e10288988337f570b0f420c633334401ac723c29d33fd1a4f5e
 
-Filename: obhod_1.1.5-1_mips_24kc.ipk
-Size: 2143514
-SHA256sum: f4ba401202750d5c2668fd2e12f3653a7466d841cd0d33e6823100b208ca2e4f
+Package: obhod
+Version: 1.1.7-1
+Architecture: mips_24kc
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.7-1_mips_24kc.ipk
+Size: 2713529
+SHA256sum: 2a49fe7b3afe48e156b3d6b3e29f2531d9c4360ef783e2a881a8e23748fda6b4
 
-Filename: obhod_1.1.5-1_mipsel_24kc.ipk
-Size: 2136618
-SHA256sum: aebd41bc00bd0f4e47c58c47f3a4297ae4a76789bf6c1b867077a3fc4ea73f54
+Package: obhod
+Version: 1.1.7-1
+Architecture: mipsel_24kc
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.7-1_mipsel_24kc.ipk
+Size: 2687080
+SHA256sum: abbe87e21d5825e51701912fc942411ceb1968bcbc4265545b70081902d0b4fc
 
-Filename: obhod_1.1.5-1_x86_64.ipk
-Size: 2370758
-SHA256sum: 5cc2c7399adea11c82cef7c1267a4af041cf7aa247737acd9a895834f384f259
+Package: obhod
+Version: 1.1.7-1
+Architecture: x86_64
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.7-1_x86_64.ipk
+Size: 2885480
+SHA256sum: 6759efd346a081863e1661c84728d74acabf3b0be38b1a1103eca86f50e924f3
 

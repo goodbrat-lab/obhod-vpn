@@ -35,10 +35,6 @@ mkdir -p "$BUILD_DIR/data/etc/init.d"
 mkdir -p "$BUILD_DIR/data/etc/config"
 mkdir -p "$BUILD_DIR/data/etc/uci-defaults"
 
-# Main runtime script (backend)
-cp "$BASE_DIR/obhod-core/files/usr/bin/obhod" "$BUILD_DIR/data/usr/lib/obhod/obhod-backend.sh"
-chmod +x "$BUILD_DIR/data/usr/lib/obhod/obhod-backend.sh"
-
 # Go binary for the specific architecture
 GO_BINARY="$BASE_DIR/dist/binaries/obhod_linux_$ARCH"
 if [ ! -f "$GO_BINARY" ]; then
@@ -142,6 +138,7 @@ echo "2.0" > debian-binary
 OUTPUT_FILE="$DIST_PKG_DIR/obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
 # Standard .ipk is an 'ar' archive
 ar r "$OUTPUT_FILE" debian-binary control.tar.gz data.tar.gz
+cp "$BUILD_DIR/data.tar.gz" "$DIST_PKG_DIR/obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
 
 echo "Built: $OUTPUT_FILE ($(du -h "$OUTPUT_FILE" | cut -f1))"
 

@@ -2,8 +2,6 @@ package logger
 
 import (
 	"fmt"
-	"log"
-	"log/syslog"
 	"os"
 	"strings"
 	"time"
@@ -20,20 +18,12 @@ const (
 )
 
 var (
-	sysLog       *syslog.Writer
 	currentLevel Level = LevelInfo
 )
 
 func Init(levelStr string) error {
 	currentLevel = parseLevel(levelStr)
-
-	var err error
-	sysLog, err = syslog.New(syslog.LOG_INFO|syslog.LOG_DAEMON, "obhod")
-	if err != nil {
-		return err
-	}
-	log.SetOutput(sysLog)
-	return nil
+	return initSyslog()
 }
 
 func parseLevel(l string) Level {
@@ -76,19 +66,8 @@ func logMessage(level Level, component, context, format string, v ...interface{}
 	msg := fmt.Sprintf(format, v...)
 	formatted := fmt.Sprintf("[%s] [%s] [%s] [%s] %s", timestamp, levelStr, component, context, msg)
 
-	if sysLog != nil {
-		switch level {
-		case LevelDebug:
-			sysLog.Debug(formatted)
-		case LevelInfo:
-			sysLog.Info(formatted)
-		case LevelWarn:
-			sysLog.Warning(formatted)
-		case LevelError:
-			sysLog.Err(formatted)
-		case LevelFatal:
-			sysLog.Crit(formatted)
-		}
+	if hasSyslog() {
+		writeToSyslog(level, formatted)
 	} else {
 		fmt.Fprintln(os.Stderr, formatted)
 	}
@@ -117,4 +96,3 @@ func Error(component, context, format string, v ...interface{}) {
 func Fatal(component, context, format string, v ...interface{}) {
 	logMessage(LevelFatal, component, context, format, v...)
 }
-

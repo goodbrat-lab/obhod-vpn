@@ -32,6 +32,9 @@ check_required_file "$OBHOD_LIB/rulesets.sh"
 . "$OBHOD_LIB/logging.sh"
 . "$OBHOD_LIB/rulesets.sh"
 
+# Open file descriptor 200 for locking
+exec 200>/var/run/obhod.lock
+
 config_load "$OBHOD_CONFIG"
 
 check_requirements() {
@@ -163,9 +166,7 @@ fetch_subscription() {
         log "Failed to create temporary file for subscription" "error" "$component" "$context"
         return 1
     }
-    
-    # Set trap to cleanup on exit
-    trap 'rm -f "$tmpfile" 2>/dev/null' EXIT INT TERM
+    register_temp_file "$tmpfile"
     
     # Download with detailed error info: -w for http_code, -o for body
     http_code=$(curl -sL -m 30 -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
@@ -202,7 +203,6 @@ fetch_subscription() {
     size=${#data}
     log "Downloaded $size bytes from subscription" "debug" "$component" "$context"
     rm -f "$tmpfile"
-    trap - EXIT INT TERM
     
     if [ -z "$data" ]; then
         log "Subscription response body is empty from $url" "error" "$component" "$context"
@@ -266,6 +266,13 @@ check_dns_inbound_support() {
 }
 
 start_main() {
+    (
+        flock -w 10 200 || { log "Failed to acquire lock for start command within 10 seconds. Aborting." "error"; exit 1; }
+        start_main_real
+    ) 200>/var/run/obhod.lock
+}
+
+start_main_real() {
     export OBHOD_LOG_COMPONENT="init"
     export OBHOD_LOG_CONTEXT="start"
     log "Starting obhod (version $OBHOD_VERSION)"
@@ -329,17 +336,27 @@ start_main() {
     config_foreach add_cron_job "section"
     /etc/init.d/sing-box start
     
-    # Check if sing-box actually started
-    if ! /etc/init.d/sing-box running 2>/dev/null; then
-        log "Sing-box failed to start. Last logs:" "error"
-        # Get logs with timeout and error handling
+    # Wait for sing-box DNS inbound (127.0.0.42:53) to start listening
+    log "Waiting for sing-box DNS inbound to start listening..."
+    local dns_ready=0
+    local i
+    for i in $(seq 1 15); do
+        if netstat -lun | grep -qE "127\.0\.0\.42[:.]53 "; then
+            dns_ready=1
+            break
+        fi
+        sleep 1
+    done
+
+    if [ "$dns_ready" -eq 0 ]; then
+        log "Sing-box DNS inbound did not start listening within 15 seconds. Aborting startup. Last logs:" "error"
         if command -v timeout >/dev/null 2>&1 && command -v logread >/dev/null 2>&1; then
-            timeout 5 logread -e sing-box 2>/dev/null | tail -n 5 | while read -r line; do
+            timeout 5 logread -e sing-box 2>/dev/null | tail -n 10 | while read -r line; do
                 log "$line" "error"
             done
-        else
-            log "Unable to retrieve sing-box logs" "warn"
         fi
+        stop_main
+        exit 1
     fi
 
     # 4. Configure dnsmasq to forward DNS to sing-box (AFTER sing-box is up)
@@ -356,7 +373,7 @@ start_main() {
 
     # Start background list update
     log "Starting background list update..." "debug"
-    list_update &
+    ( exec 200>&- ; sleep 2 ; /usr/lib/obhod/obhod-backend.sh list_update ) &
     local bg_pid=$!
     if echo "$bg_pid" > /var/run/obhod_list_update.pid 2>/dev/null; then
         log "Background list update started with PID $bg_pid"
@@ -372,12 +389,13 @@ stop_main() {
     export OBHOD_LOG_CONTEXT="stop"
     log "Stopping obhod..."
 
-    # Stop background list update if running
+    # Stop background list update strictly by PID file if running (🛡️ Nyuance 2)
     if [ -f /var/run/obhod_list_update.pid ]; then
+        local pid
         pid=$(cat /var/run/obhod_list_update.pid)
-        if kill -0 "$pid" 2> /dev/null; then
-            kill "$pid" 2> /dev/null
-            log "Stopped list_update" "debug"
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            log "Force-terminating background list update (PID: $pid)" "warn"
+            kill -9 "$pid" 2>/dev/null
         fi
         rm -f /var/run/obhod_list_update.pid
     fi
@@ -579,42 +597,57 @@ backup_dnsmasq_config_option() {
 }
 
 dnsmasq_configure() {
-    local shutdown_correctly
-    config_get shutdown_correctly "settings" "shutdown_correctly"
-    if [ "$shutdown_correctly" -eq 0 ]; then
-        log "Previous shutdown of obhod was not correct, reconfiguration of dnsmasq is not required"
-        return 0
+    local is_redirected=0
+    if uci -q show dhcp.@dnsmasq[0].server | grep -q "127\.0\.0\.42"; then
+        is_redirected=1
     fi
 
-    log "Backup dnsmasq configuration"
-    current_servers="$(uci_get "dhcp" "@dnsmasq[0]" "server")"
-    if [ -n "$current_servers" ]; then
-        for server in $(uci_get "dhcp" "@dnsmasq[0]" "server"); do
-            if [ "$server" != "$SB_DNS_INBOUND_ADDRESS" ]; then
-                uci_add_list "dhcp" "@dnsmasq[0]" "obhod_server" "$server"
-            fi
+    local has_backup=0
+    if uci -q get dhcp.@dnsmasq[0].obhod_server >/dev/null; then
+        has_backup=1
+    fi
+
+    if [ "$is_redirected" -eq 0 ] || [ "$has_backup" -eq 0 ]; then
+        log "Backup dnsmasq configuration"
+        # Clear old backup list to prevent duplication (🛡️ Nyuance 1)
+        uci_remove "dhcp" "@dnsmasq[0]" "obhod_server"
+
+        # Backup servers list excluding 127.0.0.42 (🛡️ Nyuance 1 & Oshi B)
+        local server
+        for server in $(uci -q get dhcp.@dnsmasq[0].server | tr " " "\n" | grep -v "127.0.0.42"); do
+            [ -n "$server" ] && uci_add_list "dhcp" "@dnsmasq[0]" "obhod_server" "$server"
         done
         uci_remove "dhcp" "@dnsmasq[0]" "server"
+
+        backup_dnsmasq_config_option "noresolv" "obhod_noresolv"
+        backup_dnsmasq_config_option "cachesize" "obhod_cachesize"
+
+        log "Configure dnsmasq for sing-box"
+        uci_add_list "dhcp" "@dnsmasq[0]" "server" "$SB_DNS_INBOUND_ADDRESS"
+        uci_set "dhcp" "@dnsmasq[0]" "noresolv" 1
+        uci_set "dhcp" "@dnsmasq[0]" "cachesize" 0
+        uci_commit "dhcp"
+
+        /etc/init.d/dnsmasq restart
+    else
+        log "Dnsmasq redirection already configured and backup exists" "debug"
     fi
-
-    backup_dnsmasq_config_option "noresolv" "obhod_noresolv"
-    backup_dnsmasq_config_option "cachesize" "obhod_cachesize"
-
-    log "Configure dnsmasq for sing-box"
-    uci_add_list "dhcp" "@dnsmasq[0]" "server" "$SB_DNS_INBOUND_ADDRESS"
-    uci_set "dhcp" "@dnsmasq[0]" "noresolv" 1
-    uci_set "dhcp" "@dnsmasq[0]" "cachesize" 0
-    uci_commit "dhcp"
-
-    /etc/init.d/dnsmasq restart
 }
 
 dnsmasq_restore() {
     log "Restoring the dnsmasq configuration"
-    local shutdown_correctly
-    config_get shutdown_correctly "settings" "shutdown_correctly"
-    if [ "$shutdown_correctly" -eq 1 ]; then
-        log "Previous shutdown of obhod was correct, reconfiguration of dnsmasq is not required"
+    local is_redirected=0
+    if uci -q show dhcp.@dnsmasq[0].server | grep -q "127\.0\.0\.42"; then
+        is_redirected=1
+    fi
+
+    if [ "$is_redirected" -eq 0 ]; then
+        log "Dnsmasq is not redirected, restore is not required" "debug"
+        # Ensure backup fields are cleaned up
+        uci_remove "dhcp" "@dnsmasq[0]" "obhod_server"
+        uci_remove "dhcp" "@dnsmasq[0]" "obhod_noresolv"
+        uci_remove "dhcp" "@dnsmasq[0]" "obhod_cachesize"
+        uci_commit "dhcp"
         return 0
     fi
 
@@ -733,6 +766,16 @@ remove_cron_job() {
 }
 
 list_update() {
+    (
+        flock -n 200 || { log "Another obhod process holds the lock. Skipping list update." "warn"; exit 0; }
+        list_update_real
+    ) 200>/var/run/obhod.lock
+}
+
+list_update_real() {
+    echo "$$" > /var/run/obhod_list_update.pid
+    register_temp_file "/var/run/obhod_list_update.pid"
+
     echolog "🔄 Starting lists update..."
 
     local nslookup_timeout=3
@@ -793,6 +836,7 @@ list_update() {
        config_foreach import_domains_from_remote_domain_lists "section" && \
        config_foreach import_subnets_from_remote_subnet_lists "section"; then
         echolog "✅ Lists update completed successfully"
+        /etc/init.d/sing-box reload 2>/dev/null || /etc/init.d/sing-box restart 2>/dev/null
     else
         echolog "❌ Lists update failed"
     fi
@@ -830,14 +874,16 @@ sing_box_configure_service() {
 }
 
 sing_box_init_config() {
-    local config_path
+    local config_path use_legacy_generator
     config_get config_path "settings" "config_path" "/etc/sing-box/config.json"
+    config_get_bool use_legacy_generator "settings" "use_legacy_generator" 0
 
-    if [ -x "/usr/bin/obhod" ]; then
-        log "Generating configuration using Go core (v1.1.1)..." "info" "config" "generator"
+    if [ "$use_legacy_generator" -eq 1 ]; then
+        log "Using legacy Bash config generator (explicitly enabled in UCI)" "info" "config" "generator"
+    elif [ -x "/usr/bin/obhod" ]; then
+        log "Generating configuration using Go core..." "info" "config" "generator"
         if /usr/bin/obhod generate-config -o "$config_path"; then
             log "Configuration generated successfully via Go core ✅" "info" "config" "generator"
-            # We still run the check just to be 100% sure before sing-box sees it
             sing_box_config_check "$config_path"
             return 0
         else
@@ -845,7 +891,10 @@ sing_box_init_config() {
         fi
     fi
 
-    log "Using legacy Bash config generator (Slower)" "warn" "config" "generator"
+    if [ "$use_legacy_generator" -eq 0 ]; then
+        log "Using legacy Bash config generator (DEPRECATED - fallback mode)" "warn" "config" "generator"
+    fi
+
     local config='{"log":{},"dns":{},"ntp":{},"certificate":{},"endpoints":[],"inbounds":[],"outbounds":[],"route":{},"services":[],"experimental":{}}'
 
     sing_box_configure_log
@@ -858,6 +907,7 @@ sing_box_init_config() {
     sing_box_save_config
 }
 
+# DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_log() {
     log "Configure the log section of a sing-box JSON configuration"
 
@@ -866,6 +916,7 @@ sing_box_configure_log() {
     config=$(sing_box_cm_configure_log "$config" false "$log_level" false)
 }
 
+# DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_inbounds() {
     log "Configure the inbounds section of a sing-box JSON configuration"
 
@@ -890,6 +941,7 @@ sing_box_configure_inbounds() {
     fi
 }
 
+# DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_outbounds() {
     log "Configure the outbounds section of a sing-box JSON configuration"
 
@@ -1129,6 +1181,7 @@ configure_outbound_handler() {
     esac
 }
 
+# DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_dns() {
     log "Configure the DNS section of a sing-box JSON configuration"
     config=$(sing_box_cm_configure_dns "$config" "$SB_DNS_SERVER_TAG" "ipv4_only" true)
@@ -1160,6 +1213,7 @@ sing_box_configure_dns() {
     config=$(sing_box_cm_patch_dns_route_rule "$config" "$SB_FAKEIP_DNS_RULE_TAG" "domain" "$service_domains")
 }
 
+# DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_route() {
     log "Configure the route section of a sing-box JSON configuration"
 
@@ -1513,6 +1567,7 @@ configure_remote_domain_or_subnet_list_handler() {
     esac
 }
 
+# DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_experimental() {
     log "Configure the experimental section of a sing-box JSON configuration"
 
@@ -1557,6 +1612,7 @@ sing_box_configure_experimental() {
     fi
 }
 
+# DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_additional_inbounds() {
     log "Configure the additional inbounds of a sing-box JSON configuration"
 
@@ -1607,7 +1663,8 @@ configure_section_mixed_proxy() {
 sing_box_save_config() {
     local sing_box_config_path temp_file_path current_config_hash temp_config_hash
     config_get sing_box_config_path "settings" "config_path"
-    temp_file_path="$(mktemp)"
+    temp_file_path="$(mktemp)" || return 1
+    register_temp_file "$temp_file_path"
 
     log "Save sing-box temporary config to $temp_file_path" "debug"
     sing_box_cm_save_config_to_file "$config" "$temp_file_path"
@@ -1708,10 +1765,9 @@ import_community_service_subnet_list_handler() {
     esac
 
     local tmpfile http_proxy_address
-    tmpfile=$(mktemp)
+    tmpfile=$(mktemp) || return 1
+    register_temp_file "$tmpfile"
     http_proxy_address="$(get_service_proxy_address)"
-
-    download_to_file "$URL" "$tmpfile" "$http_proxy_address"
 
     if ! download_to_file "$URL" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
         log "Download $service list failed" "error"
@@ -1762,7 +1818,8 @@ import_domains_from_remote_plain_file() {
     local section="$2"
 
     local tmpfile http_proxy_address items json_array
-    tmpfile=$(mktemp)
+    tmpfile=$(mktemp) || return 1
+    register_temp_file "$tmpfile"
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
@@ -1816,8 +1873,10 @@ import_subnets_from_remote_subnet_list_handler() {
 import_subnets_from_remote_json_file() {
     local url="$1"
     local json_tmpfile subnets_tmpfile http_proxy_address
-    json_tmpfile="$(mktemp)"
-    subnets_tmpfile="$(mktemp)"
+    json_tmpfile="$(mktemp)" || return 1
+    register_temp_file "$json_tmpfile"
+    subnets_tmpfile="$(mktemp)" || return 1
+    register_temp_file "$subnets_tmpfile"
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$json_tmpfile" "$http_proxy_address" || [ ! -s "$json_tmpfile" ]; then
@@ -1834,9 +1893,12 @@ import_subnets_from_remote_srs_file() {
     local url="$1"
 
     local binary_tmpfile json_tmpfile subnets_tmpfile http_proxy_address
-    binary_tmpfile="$(mktemp)"
-    json_tmpfile="$(mktemp)"
-    subnets_tmpfile="$(mktemp)"
+    binary_tmpfile="$(mktemp)" || return 1
+    register_temp_file "$binary_tmpfile"
+    json_tmpfile="$(mktemp)" || return 1
+    register_temp_file "$json_tmpfile"
+    subnets_tmpfile="$(mktemp)" || return 1
+    register_temp_file "$subnets_tmpfile"
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$binary_tmpfile" "$http_proxy_address" || [ ! -s "$binary_tmpfile" ]; then
@@ -1859,7 +1921,8 @@ import_subnets_from_remote_plain_file() {
     local section="$2"
 
     local tmpfile http_proxy_address items json_array
-    tmpfile=$(mktemp)
+    tmpfile=$(mktemp) || return 1
+    register_temp_file "$tmpfile"
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
@@ -2138,7 +2201,8 @@ check_nft() {
         nolog "Chain configurations:"
 
         # Create a temporary file for processing
-        tmp_file=$(mktemp)
+        tmp_file=$(mktemp) || return 1
+        register_temp_file "$tmp_file"
         nft list table inet "$NFT_TABLE_NAME" > "$tmp_file"
 
         # Extract chain configurations without element listings
@@ -2224,7 +2288,8 @@ show_config() {
         return 1
     fi
 
-    tmp_config=$(mktemp)
+    tmp_config=$(mktemp) || return 1
+    register_temp_file "$tmp_config"
 
     sed -e 's/\(option proxy_string\).*/\1 '\''MASKED'\''/g' \
         -e '/option outbound_json/,/^}/c\	option outbound_json '\''MASKED'\''' \

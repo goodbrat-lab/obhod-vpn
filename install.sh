@@ -8,12 +8,12 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="1.1.5"
+VERSION="1.1.7"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.5      "
+echo "      Obhod VPN - Universal Installer v1.1.7      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -66,6 +66,49 @@ CORE_PKG="obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
 echo "Architecture: $ARCH"
 
 # 5. Install Dependencies and Fix Binary
+get_latest_singbox_version() {
+    local default_version="v1.12.0"
+    local version=""
+
+    # 1. Check environment variable
+    if [ -n "$SINGBOX_VERSION" ]; then
+        echo "Using version from environment variable: $SINGBOX_VERSION" >&2
+        echo "$SINGBOX_VERSION"
+        return 0
+    fi
+
+    # 2. Check UCI configuration if exists
+    if [ -x "$(command -v uci)" ]; then
+        version=$(uci -q get obhod.settings.singbox_version)
+        if [ -n "$version" ]; then
+            echo "Using version from UCI: $version" >&2
+            echo "$version"
+            return 0
+        fi
+    fi
+
+    # 3. Attempt to fetch from GitHub API using curl
+    if [ -x "$(command -v curl)" ]; then
+        echo "Querying GitHub API for latest sing-box version..." >&2
+        local api_res
+        set +e
+        api_res=$(curl -sL --connect-timeout 3 -m 5 "https://api.github.com/repos/SagerNet/sing-box/releases/latest" 2>/dev/null)
+        if [ $? -eq 0 ] && [ -n "$api_res" ]; then
+            # Parse tag_name via grep + cut to avoid jq dependency before it is installed
+            version=$(echo "$api_res" | grep -o '"tag_name": *"[^"]*"' | head -n 1 | cut -d'"' -f4)
+        fi
+        set -e
+    fi
+
+    if [ -n "$version" ] && [ "$version" != "null" ]; then
+        echo "Latest version from GitHub: $version" >&2
+        echo "$version"
+    else
+        echo "Failed to get version dynamically, falling back to default: $default_version" >&2
+        echo "$default_version"
+    fi
+}
+
 install_deps() {
     needs_fix=0
     ARCH_M=""
@@ -95,13 +138,34 @@ install_deps() {
         esac
 
         if [ -n "$SB_ARCH" ]; then
-            echo "  -> Downloading full sing-box 1.12.0 for $SB_ARCH..."
-            wget -q "https://github.com/SagerNet/sing-box/releases/download/v1.12.0/sing-box-1.12.0-linux-$SB_ARCH.tar.gz" -O /tmp/sb.tar.gz
-            tar -xzf /tmp/sb.tar.gz -C /tmp
-            [ -f /usr/bin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
-            [ -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
-            [ ! -f /usr/bin/sing-box ] && [ ! -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
-            echo "  ✅ Full sing-box binary replaced successfully."
+            local sb_ver
+            sb_ver=$(get_latest_singbox_version)
+            local sb_ver_no_v="${sb_ver#v}"
+            # Ensure sb_ver has 'v' prefix
+            if [ "${sb_ver#v}" = "$sb_ver" ]; then
+                sb_ver="v$sb_ver"
+            fi
+
+            echo "  -> Downloading full sing-box $sb_ver for $SB_ARCH..."
+            local dl_ok=0
+            set +e
+            wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz" -O /tmp/sb.tar.gz
+            if [ $? -eq 0 ]; then
+                dl_ok=1
+            fi
+            set -e
+
+            if [ "$dl_ok" -eq 1 ]; then
+                tar -xzf /tmp/sb.tar.gz -C /tmp
+                [ -f /usr/bin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
+                [ -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
+                [ ! -f /usr/bin/sing-box ] && [ ! -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
+                echo "  ✅ Full sing-box binary replaced successfully."
+            else
+                echo "  ⚠️  Failed to download precompiled full sing-box binary for $SB_ARCH (possibly 404 on SagerNet releases)."
+                echo "     Obhod will be installed, but it cannot start until you manually install"
+                echo "     a full version of sing-box (with DNS inbound support)."
+            fi
         fi
     fi
 }
@@ -113,16 +177,39 @@ echo "Cleaning up..."
 # 7. Main Install
 install_deps
 
+USE_TARBALLS=0
+if [ "$OPKG_WORKS" -eq 0 ] && ! command -v ar >/dev/null 2>&1; then
+    USE_TARBALLS=1
+    echo "Notice: 'ar' utility is missing. Will use backup tarball installation method."
+fi
+
 cd /tmp
 echo "Downloading Obhod packages..."
-wget -q --no-check-certificate "$REPO_URL/$CORE_PKG" -O obhod.ipk
-wget -q --no-check-certificate "$REPO_URL/$LUCI_PKG" -O luci.ipk
+if [ "$USE_TARBALLS" -eq 1 ]; then
+    CORE_PKG_FILE="obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
+    LUCI_PKG_FILE="luci-app-obhod_${VERSION}-${RELEASE}_all.tar.gz"
+    wget -q --no-check-certificate "$REPO_URL/$CORE_PKG_FILE" -O obhod.tar.gz
+    wget -q --no-check-certificate "$REPO_URL/$LUCI_PKG_FILE" -O luci.tar.gz
+else
+    wget -q --no-check-certificate "$REPO_URL/$CORE_PKG" -O obhod.ipk
+    wget -q --no-check-certificate "$REPO_URL/$LUCI_PKG" -O luci.ipk
+fi
 
 if [ "$OPKG_WORKS" -eq 1 ]; then
     $OPKG_CMD install "/tmp/obhod.ipk" --force-reinstall --force-overwrite
     $OPKG_CMD install "/tmp/luci.ipk" --force-reinstall --force-overwrite
+elif [ "$USE_TARBALLS" -eq 1 ]; then
+    echo "Extracting packages via manual tarball mode..."
+    tar -xzf /tmp/obhod.tar.gz -C /
+    tar -xzf /tmp/luci.tar.gz -C /
+    
+    # Run post-install hooks manually
+    chmod +x /usr/bin/obhod /usr/lib/obhod/obhod-backend.sh /etc/init.d/obhod 2>/dev/null
+    /etc/init.d/obhod enable 2>/dev/null
+    rm -rf /tmp/luci-indexcache* /tmp/luci-modulecache/ 2>/dev/null
+    /etc/init.d/rpcd restart 2>/dev/null
 else
-    echo "Extracting packages via manual mode..."
+    echo "Extracting packages via manual ipk mode..."
     for p in obhod.ipk luci.ipk; do
        EXT="/tmp/ex_$p"
        rm -rf "$EXT" && mkdir -p "$EXT" && cd "$EXT"

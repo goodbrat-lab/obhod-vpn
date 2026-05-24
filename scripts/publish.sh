@@ -10,8 +10,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
+# Get version dynamically from constants.sh
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BASE_DIR="$(dirname "$SCRIPTS_DIR")"
+VERSION=$(grep "OBHOD_VERSION=" "$BASE_DIR/obhod-core/files/usr/lib/constants.sh" | cut -d'\"' -f2)
+
 echo -e "${GREEN}==================================================${NC}"
-echo -e "${GREEN}   Obhod Publish Helper v1.1.5${NC}"
+echo -e "${GREEN}   Obhod Publish Helper v${VERSION}${NC}"
 echo -e "${GREEN}==================================================${NC}"
 
 # Check if we're in git repo
@@ -29,13 +34,13 @@ if [ -d dist/packages/usr ]; then
     exit 1
 fi
 
-if ! ls dist/packages/luci-app-obhod_1.1.5-1_all.ipk >/dev/null 2>&1; then
-    echo -e "${RED}ERROR: LuCI release package is missing${NC}"
+if ! ls dist/packages/luci-app-obhod_${VERSION}-1_all.ipk >/dev/null 2>&1; then
+    echo -e "${RED}ERROR: LuCI release package is missing (expected version ${VERSION}-1)${NC}"
     exit 1
 fi
 
-if ! ls dist/packages/obhod_1.1.5-1_*.ipk >/dev/null 2>&1; then
-    echo -e "${RED}ERROR: Core release packages are missing${NC}"
+if ! ls dist/packages/obhod_${VERSION}-1_*.ipk >/dev/null 2>&1; then
+    echo -e "${RED}ERROR: Core release packages are missing (expected version ${VERSION}-1)${NC}"
     exit 1
 fi
 
@@ -72,6 +77,6 @@ echo -e "${YELLOW}Next steps:${NC}"
 echo "1. Review git status and git diff"
 echo "2. Commit release changes with your chosen message"
 echo "3. Push branch and tags manually"
-echo "4. Create GitHub release for v1.1.5"
+echo "4. Create GitHub release for v${VERSION}"
 echo "5. Upload packages from dist/packages/"
 echo -e "${GREEN}==================================================${NC}"

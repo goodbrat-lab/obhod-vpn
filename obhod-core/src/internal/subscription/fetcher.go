@@ -1,20 +1,26 @@
 package subscription
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/logger"
 )
 
 type Fetcher struct {
 	Client    *http.Client
 	CachePath string
+	ProxyPort int
 }
 
 type CacheData struct {
@@ -48,6 +54,7 @@ func NewFetcher(cachePath string) *Fetcher {
 			Timeout: 30 * time.Second,
 		},
 		CachePath: cachePath,
+		ProxyPort: 0,
 	}
 }
 
@@ -57,21 +64,31 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 		return nil, fmt.Errorf("invalid URL: %v", err)
 	}
 	
-	resp, err := f.Client.Get(url)
+	var body []byte
+	var httpCode int
+	var err error
+
+	// Determine if proxy should be used
+	useProxy := f.ProxyPort > 0
+
+	if useProxy {
+		logger.Info("subscription", "fetch", "Attempting to download subscription via proxy (port %d)", f.ProxyPort)
+		body, httpCode, err = f.fetchWithClient(url, f.ProxyPort, 5*time.Second)
+		if err != nil || httpCode != http.StatusOK {
+			logger.Warn("subscription", "fetch", "Failed to download subscription via proxy: %v (HTTP %d). Falling back to direct connection.", err, httpCode)
+			body, httpCode, err = f.fetchWithClient(url, 0, 30*time.Second)
+		}
+	} else {
+		logger.Debug("subscription", "fetch", "Downloading subscription directly...")
+		body, httpCode, err = f.fetchWithClient(url, 0, 30*time.Second)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to download subscription: %v", err)
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("subscription fetch returned HTTP %d", resp.StatusCode)
-	}
-
-	// Limit read size to prevent memory exhaustion
-	limitedReader := io.LimitReader(resp.Body, maxSubscriptionSize)
-	body, err := io.ReadAll(limitedReader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read subscription body: %v", err)
+	if httpCode != http.StatusOK {
+		return nil, fmt.Errorf("subscription fetch returned HTTP %d", httpCode)
 	}
 
 	content := string(body)
@@ -81,7 +98,7 @@ func (f *Fetcher) Fetch(url string) ([]string, error) {
 		// Try Base64 decode (with trim to handle whitespace/newlines)
 		trimmed := strings.TrimSpace(content)
 		if len(trimmed) > 0 {
-			decoded, err := base64.StdEncoding.DecodeString(trimmed)
+			decoded, err := DecodeBase64Tolerant(trimmed)
 			if err == nil {
 				// Limit decoded content size
 				decodedStr := string(decoded)
@@ -156,4 +173,72 @@ func (f *Fetcher) LoadCache() (*CacheData, error) {
 	}
 
 	return &data, nil
+}
+
+func (f *Fetcher) fetchWithClient(targetURL string, proxyPort int, timeout time.Duration) ([]byte, int, error) {
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // Allow self-signed or invalid certs from providers
+		DialContext: (&net.Dialer{
+			Timeout:   5 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+	}
+
+	if proxyPort > 0 {
+		proxyURL, err := url.Parse(fmt.Sprintf("http://127.0.0.1:%d", proxyPort))
+		if err == nil {
+			transport.Proxy = http.ProxyURL(proxyURL)
+		}
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+	}
+
+	req, err := http.NewRequest("GET", targetURL, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Set browser-like User-Agent to avoid blocks
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+
+	limitedReader := io.LimitReader(resp.Body, maxSubscriptionSize)
+	body, err := io.ReadAll(limitedReader)
+	if err != nil {
+		return nil, resp.StatusCode, err
+	}
+
+	return body, resp.StatusCode, nil
+}
+
+// DecodeBase64Tolerant decodes Base64 strings, handling URL-safe formats, padding, and whitespace
+func DecodeBase64Tolerant(str string) ([]byte, error) {
+	str = strings.ReplaceAll(str, "\n", "")
+	str = strings.ReplaceAll(str, "\r", "")
+	str = strings.ReplaceAll(str, "\t", "")
+	str = strings.ReplaceAll(str, " ", "")
+
+	str = strings.ReplaceAll(str, "-", "+")
+	str = strings.ReplaceAll(str, "_", "/")
+
+	mod := len(str) % 4
+	if mod == 2 {
+		str += "=="
+	} else if mod == 3 {
+		str += "="
+	}
+
+	if data, err := base64.StdEncoding.DecodeString(str); err == nil {
+		return data, nil
+	}
+
+	return base64.URLEncoding.DecodeString(str)
 }

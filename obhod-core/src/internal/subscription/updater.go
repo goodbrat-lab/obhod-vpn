@@ -52,22 +52,72 @@ func performUpdate(f *Fetcher) error {
 
 	lines := strings.Split(string(out), "\n")
 	urls := make(map[string]string)
-	
+
+	var downloadViaProxy bool
+	var proxySection string
+	mixedPorts := make(map[string]int)
+	mixedEnabled := make(map[string]bool)
+
 	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
 		if strings.Contains(line, ".subscription_url=") {
 			parts := strings.SplitN(line, "=", 2)
-			if len(parts) != 2 {
-				continue
+			if len(parts) == 2 {
+				keyParts := strings.Split(parts[0], ".")
+				if len(keyParts) >= 3 {
+					sectionName := keyParts[1]
+					url := strings.Trim(parts[1], "'")
+					if len(url) > 0 && len(url) <= 1000 && strings.Contains(url, "://") {
+						urls[sectionName] = url
+					}
+				}
 			}
-			keyParts := strings.Split(parts[0], ".")
-			if len(keyParts) < 3 {
-				continue
+		} else if strings.Contains(line, ".download_lists_via_proxy=") {
+			downloadViaProxy = strings.HasSuffix(line, "=1")
+		} else if strings.Contains(line, ".download_lists_via_proxy_section=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				proxySection = strings.Trim(parts[1], "'")
 			}
-			sectionName := keyParts[1]
-			url := strings.Trim(parts[1], "'")
-			// Validate URL
-			if len(url) > 0 && len(url) <= 1000 && strings.Contains(url, "://") {
-				urls[sectionName] = url
+		} else if strings.Contains(line, ".mixed_proxy_enabled=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				keyParts := strings.Split(parts[0], ".")
+				if len(keyParts) >= 2 {
+					secName := keyParts[1]
+					mixedEnabled[secName] = strings.HasSuffix(line, "=1")
+				}
+			}
+		} else if strings.Contains(line, ".mixed_proxy_port=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 {
+				keyParts := strings.Split(parts[0], ".")
+				if len(keyParts) >= 2 {
+					secName := keyParts[1]
+					var port int
+					fmt.Sscanf(strings.Trim(parts[1], "'"), "%d", &port)
+					mixedPorts[secName] = port
+				}
+			}
+		}
+	}
+
+	// Set ProxyPort in fetcher
+	f.ProxyPort = 0
+	if downloadViaProxy {
+		if proxySection != "" {
+			if mixedEnabled[proxySection] && mixedPorts[proxySection] > 0 {
+				f.ProxyPort = mixedPorts[proxySection]
+			}
+		} else {
+			for sec, enabled := range mixedEnabled {
+				if enabled && mixedPorts[sec] > 0 {
+					f.ProxyPort = mixedPorts[sec]
+					break
+				}
 			}
 		}
 	}
