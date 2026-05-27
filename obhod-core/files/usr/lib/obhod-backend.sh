@@ -268,7 +268,15 @@ check_dns_inbound_support() {
 
 start_main() {
     (
-        flock -w 10 9 || { obhod_log "Failed to acquire lock for start command within 10 seconds. Aborting." "error"; exit 1; }
+        local elapsed=0
+        while ! flock -n 9 2>/dev/null; do
+            if [ "$elapsed" -ge 10 ]; then
+                obhod_log "Failed to acquire lock for start command within 10 seconds. Aborting." "error"
+                exit 1
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
         start_main_real
     ) 9>/var/run/obhod.lock
 }
@@ -444,7 +452,15 @@ stop_main_real() {
 
 stop_main() {
     (
-        flock -w 10 9 || { obhod_log "Failed to acquire lock for stop command within 10 seconds. Aborting." "error"; exit 1; }
+        local elapsed=0
+        while ! flock -n 9 2>/dev/null; do
+            if [ "$elapsed" -ge 10 ]; then
+                obhod_log "Failed to acquire lock for stop command within 10 seconds. Aborting." "error"
+                exit 1
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
         stop_main_real
     ) 9>/var/run/obhod.lock
 }
@@ -461,7 +477,15 @@ stop() {
 reload() {
     obhod_log "Obhod reload"
     (
-        flock -w 15 9 || { obhod_log "Failed to acquire lock for reload command within 15 seconds. Aborting." "error"; exit 1; }
+        local elapsed=0
+        while ! flock -n 9 2>/dev/null; do
+            if [ "$elapsed" -ge 15 ]; then
+                obhod_log "Failed to acquire lock for reload command within 15 seconds. Aborting." "error"
+                exit 1
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
         stop_main_real
         start_main_real
     ) 9>/var/run/obhod.lock
@@ -470,7 +494,15 @@ reload() {
 restart() {
     obhod_log "Obhod restart"
     (
-        flock -w 15 9 || { obhod_log "Failed to acquire lock for restart command within 15 seconds. Aborting." "error"; exit 1; }
+        local elapsed=0
+        while ! flock -n 9 2>/dev/null; do
+            if [ "$elapsed" -ge 15 ]; then
+                obhod_log "Failed to acquire lock for restart command within 15 seconds. Aborting." "error"
+                exit 1
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
+        done
         stop_main_real
         start_main_real
     ) 9>/var/run/obhod.lock
