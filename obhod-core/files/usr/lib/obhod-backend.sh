@@ -32,8 +32,9 @@ check_required_file "$OBHOD_LIB/rulesets.sh"
 . "$OBHOD_LIB/logging.sh"
 . "$OBHOD_LIB/rulesets.sh"
 
-# Open file descriptor 200 for locking
-exec 200>/var/run/obhod.lock
+
+# Global locking removed - locked functions now manage their own descriptor scope.
+
 
 config_load "$OBHOD_CONFIG"
 
@@ -267,9 +268,9 @@ check_dns_inbound_support() {
 
 start_main() {
     (
-        flock -w 10 200 || { obhod_log "Failed to acquire lock for start command within 10 seconds. Aborting." "error"; exit 1; }
+        flock -w 10 9 || { obhod_log "Failed to acquire lock for start command within 10 seconds. Aborting." "error"; exit 1; }
         start_main_real
-    ) 200>/var/run/obhod.lock
+    ) 9>/var/run/obhod.lock
 }
 
 start_main_real() {
@@ -355,7 +356,7 @@ start_main_real() {
                 obhod_log "$line" "error"
             done
         fi
-        stop_main
+        stop_main_real
         exit 1
     fi
 
@@ -373,7 +374,7 @@ start_main_real() {
 
     # Start background list update
     obhod_log "Starting background list update..." "debug"
-    ( exec 200>&- ; sleep 2 ; /usr/lib/obhod/obhod-backend.sh list_update ) &
+    ( exec 9>&- ; sleep 2 ; /usr/lib/obhod/obhod-backend.sh list_update ) &
     local bg_pid=$!
     if echo "$bg_pid" > /var/run/obhod_list_update.pid 2>/dev/null; then
         obhod_log "Background list update started with PID $bg_pid"
@@ -384,7 +385,7 @@ start_main_real() {
     obhod_log "Obhod setup complete. Watchdog is managed by procd."
 }
 
-stop_main() {
+stop_main_real() {
     export OBHOD_LOG_COMPONENT="init"
     export OBHOD_LOG_CONTEXT="stop"
     obhod_log "Stopping obhod..."
@@ -441,6 +442,13 @@ stop_main() {
     obhod_log "Obhod stopped successfully"
 }
 
+stop_main() {
+    (
+        flock -w 10 9 || { obhod_log "Failed to acquire lock for stop command within 10 seconds. Aborting." "error"; exit 1; }
+        stop_main_real
+    ) 9>/var/run/obhod.lock
+}
+
 # CLI aliases for convenience (e.g., /usr/bin/obhod start from terminal)
 start() {
     start_main
@@ -452,14 +460,20 @@ stop() {
 
 reload() {
     obhod_log "Obhod reload"
-    stop_main
-    start_main
+    (
+        flock -w 15 9 || { obhod_log "Failed to acquire lock for reload command within 15 seconds. Aborting." "error"; exit 1; }
+        stop_main_real
+        start_main_real
+    ) 9>/var/run/obhod.lock
 }
 
 restart() {
     obhod_log "Obhod restart"
-    stop_main
-    start_main
+    (
+        flock -w 15 9 || { obhod_log "Failed to acquire lock for restart command within 15 seconds. Aborting." "error"; exit 1; }
+        stop_main_real
+        start_main_real
+    ) 9>/var/run/obhod.lock
 }
 
 # Migrations and validation funcs
@@ -767,9 +781,9 @@ remove_cron_job() {
 
 list_update() {
     (
-        flock -n 200 || { obhod_log "Another obhod process holds the lock. Skipping list update." "warn"; exit 0; }
+        flock -n 9 || { obhod_log "Another obhod process holds the lock. Skipping list update." "warn"; exit 0; }
         list_update_real
-    ) 200>/var/run/obhod.lock
+    ) 9>/var/run/obhod.lock
 }
 
 list_update_real() {
