@@ -427,6 +427,8 @@ check_sing_box_supports_dns_inbound() {
         return 1
     fi
 }
+
+sing_box_cm_add_mixed_inbound() {
     local config="$1"
     local tag="$2"
     local listen_address="$3"
