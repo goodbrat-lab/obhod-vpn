@@ -38,13 +38,13 @@ exec 200>/var/run/obhod.lock
 config_load "$OBHOD_CONFIG"
 
 check_requirements() {
-    log "Checking system requirements..." "debug" "init" "requirements"
+    obhod_log "Checking system requirements..." "debug" "init" "requirements"
 
     # Check required commands first
     local required_commands="sing-box jq base64 nft dnsmasq ping nslookup logread"
     for cmd in $required_commands; do
         if ! command -v "$cmd" >/dev/null 2>&1; then
-            log "Required command '$cmd' is not installed. Aborted." "error"
+            obhod_log "Required command '$cmd' is not installed. Aborted." "error"
             exit 1
         fi
     done
@@ -52,7 +52,7 @@ check_requirements() {
     # If Go binary exists, check Go compiler
     if [ -f "/usr/bin/obhod" ]; then
         if ! command -v go >/dev/null 2>&1; then
-            log "Warning: Go binary exists but Go compiler not found. Binary updates may fail." "warn"
+            obhod_log "Warning: Go binary exists but Go compiler not found. Binary updates may fail." "warn"
         fi
     fi
 
@@ -66,51 +66,51 @@ check_requirements() {
     dnsmasq_version="$(dnsmasq -v 2>/dev/null | head -n1 | awk '{print $3}')"
 
     if [ -z "$sing_box_version" ]; then
-        log "Package 'sing-box' is not installed. Aborted." "error"
+        obhod_log "Package 'sing-box' is not installed. Aborted." "error"
         exit 1
     else
         if ! is_min_package_version "$sing_box_version" "$SB_REQUIRED_VERSION"; then
-            log "Package 'sing-box' version ($sing_box_version) is lower than the required minimum ($SB_REQUIRED_VERSION). Update sing-box: opkg update && opkg remove sing-box && opkg install sing-box. Aborted." "error"
+            obhod_log "Package 'sing-box' version ($sing_box_version) is lower than the required minimum ($SB_REQUIRED_VERSION). Update sing-box: opkg update && opkg remove sing-box && opkg install sing-box. Aborted." "error"
             exit 1
         fi
 
         if ! service_exists "sing-box"; then
-            log "Service 'sing-box' is missing. Please install the official package to ensure the service is available. Aborted." "error"
+            obhod_log "Service 'sing-box' is missing. Please install the official package to ensure the service is available. Aborted." "error"
             exit 1
         fi
     fi
 
     if [ -z "$jq_version" ]; then
-        log "Package 'jq' is not installed. Aborted." "error"
+        obhod_log "Package 'jq' is not installed. Aborted." "error"
         exit 1
     elif ! is_min_package_version "$jq_version" "$JQ_REQUIRED_VERSION"; then
-        log "Package 'jq' version ($jq_version) is lower than the required minimum ($JQ_REQUIRED_VERSION). Aborted." "error"
+        obhod_log "Package 'jq' version ($jq_version) is lower than the required minimum ($JQ_REQUIRED_VERSION). Aborted." "error"
         exit 1
     fi
 
     if [ -z "$coreutils_base64_version" ]; then
         if command -v base64 >/dev/null 2>&1; then
-            log "Package 'coreutils-base64' is not installed, but system 'base64' command is available. Proceeding with caution." "warn"
+            obhod_log "Package 'coreutils-base64' is not installed, but system 'base64' command is available. Proceeding with caution." "warn"
         else
-            log "Neither 'coreutils-base64' nor system 'base64' command is available. Aborted." "error"
+            obhod_log "Neither 'coreutils-base64' nor system 'base64' command is available. Aborted." "error"
             exit 1
         fi
     elif ! is_min_package_version "$coreutils_base64_version" "$COREUTILS_BASE64_REQUIRED_VERSION"; then
-        log "Package 'coreutils-base64' version ($coreutils_base64_version) is lower than the required minimum ($COREUTILS_BASE64_REQUIRED_VERSION). This may cause issues when decoding base64 streams with missing padding, as automatic padding support is not available in older versions." "warn"
+        obhod_log "Package 'coreutils-base64' version ($coreutils_base64_version) is lower than the required minimum ($COREUTILS_BASE64_REQUIRED_VERSION). This may cause issues when decoding base64 streams with missing padding, as automatic padding support is not available in older versions." "warn"
     fi
 
     if grep -qE 'doh_backup_noresolv|doh_backup_server|doh_server' /etc/config/dhcp; then
-        log "Detected https-dns-proxy in DHCP config. Edit /etc/config/dhcp" "error"
+        obhod_log "Detected https-dns-proxy in DHCP config. Edit /etc/config/dhcp" "error"
     fi
 
     if has_outbound_section; then
-        log "Outbound section found" "debug"
+        obhod_log "Outbound section found" "debug"
     else
-        log "Outbound section not found. Please check your configuration file (missing proxy_string, subscription_url, selector_proxy_links, urltest_proxy_links, outbound_json, or interface). Aborted." "error"
+        obhod_log "Outbound section not found. Please check your configuration file (missing proxy_string, subscription_url, selector_proxy_links, urltest_proxy_links, outbound_json, or interface). Aborted." "error"
         exit 1
     fi
 
-    log "Dependency versions: sing-box=$sing_box_version, nftables=$nft_version, dnsmasq=$dnsmasq_version, jq=$jq_version, base64=$coreutils_base64_version" "info" "init" "requirements"
+    obhod_log "Dependency versions: sing-box=$sing_box_version, nftables=$nft_version, dnsmasq=$dnsmasq_version, jq=$jq_version, base64=$coreutils_base64_version" "info" "init" "requirements"
 }
 
 _append_proxy_link() {
@@ -159,11 +159,11 @@ fetch_subscription() {
     local output_file="$2"
     local component="subscription"
     local context="fetch"
-    log "Fetching subscription from $url" "info" "$component" "$context"
+    obhod_log "Fetching subscription from $url" "info" "$component" "$context"
     
     local data http_code tmpfile curl_exit domain resolved_ip decoded cleaned_data mod size
     tmpfile=$(mktemp) || {
-        log "Failed to create temporary file for subscription" "error" "$component" "$context"
+        obhod_log "Failed to create temporary file for subscription" "error" "$component" "$context"
         return 1
     }
     register_temp_file "$tmpfile"
@@ -173,49 +173,49 @@ fetch_subscription() {
     curl_exit=$?
     
     if [ "$curl_exit" -eq 6 ]; then
-        log "DNS resolution failed for subscription URL, attempting bootstrap DNS" "warn" "$component" "$context"
+        obhod_log "DNS resolution failed for subscription URL, attempting bootstrap DNS" "warn" "$component" "$context"
         domain=$(echo "$url" | awk -F[/:] '{print $4}')
         resolved_ip=$(nslookup "$domain" 1.1.1.1 2>/dev/null | grep -A 1 "Name:" | grep "Address" | awk '{print $2}' | head -n 1)
         if [ -n "$resolved_ip" ] && is_ipv4 "$resolved_ip"; then
-            log "Resolved $domain to $resolved_ip via 1.1.1.1. Retrying..." "info" "$component" "$context"
+            obhod_log "Resolved $domain to $resolved_ip via 1.1.1.1. Retrying..." "info" "$component" "$context"
             http_code=$(curl -sL -m 30 --resolve "$domain:443:$resolved_ip" --resolve "$domain:80:$resolved_ip" -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
             curl_exit=$?
         else
-            log "Failed to resolve $domain via 1.1.1.1" "error" "$component" "$context"
+            obhod_log "Failed to resolve $domain via 1.1.1.1" "error" "$component" "$context"
             rm -f "$tmpfile"
             return 1
         fi
     fi
 
     if [ "$curl_exit" -ne 0 ]; then
-        log "Failed to fetch subscription from $url (curl exit code: $curl_exit)" "error" "$component" "$context"
+        obhod_log "Failed to fetch subscription from $url (curl exit code: $curl_exit)" "error" "$component" "$context"
         rm -f "$tmpfile"
         return 1
     fi
     
     if [ "$http_code" != "200" ]; then
-        log "Subscription fetch returned HTTP $http_code for $url" "error" "$component" "$context"
+        obhod_log "Subscription fetch returned HTTP $http_code for $url" "error" "$component" "$context"
         rm -f "$tmpfile"
         return 1
     fi
     
     data=$(cat "$tmpfile")
     size=${#data}
-    log "Downloaded $size bytes from subscription" "debug" "$component" "$context"
+    obhod_log "Downloaded $size bytes from subscription" "debug" "$component" "$context"
     rm -f "$tmpfile"
     
     if [ -z "$data" ]; then
-        log "Subscription response body is empty from $url" "error" "$component" "$context"
+        obhod_log "Subscription response body is empty from $url" "error" "$component" "$context"
         return 1
     fi
     
     # Detect whether content is already plain-text proxy links or Base64-encoded.
     # If the content contains known proxy protocol prefixes (allowing leading spaces), it's plain text.
     if echo "$data" | grep -qiE '^[[:space:]]*(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
-        log "Subscription content detected as plain-text proxy links" "debug" "$component" "$context"
+        obhod_log "Subscription content detected as plain-text proxy links" "debug" "$component" "$context"
         echo "$data" > "$output_file"
     else
-        log "Subscription content does not contain proxy URIs, attempting Base64 decode" "debug" "$component" "$context"
+        obhod_log "Subscription content does not contain proxy URIs, attempting Base64 decode" "debug" "$component" "$context"
         # Handle URL-safe Base64 (replace - with + and _ with /), then decode.
         # Remove any whitespace that could break decoding.
         cleaned_data=$(echo "$data" | tr -d '\r\n[:space:]' | tr -- '-_' '+/')
@@ -229,11 +229,11 @@ fetch_subscription() {
         fi
         
         if decoded=$(echo "$cleaned_data" | base64 -d 2>/dev/null) && [ -n "$decoded" ] && echo "$decoded" | grep -qiE '(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://'; then
-            log "Base64 decoded successfully, found proxy links" "debug" "$component" "$context"
+            obhod_log "Base64 decoded successfully, found proxy links" "debug" "$component" "$context"
             echo "$decoded" > "$output_file"
         else
             # Fallback: try treating it as plain text anyway
-            log "Base64 decode did not produce valid proxy links, using raw content" "warn" "$component" "$context"
+            obhod_log "Base64 decode did not produce valid proxy links, using raw content" "warn" "$component" "$context"
             echo "$data" > "$output_file"
         fi
     fi
@@ -245,7 +245,7 @@ fetch_subscription() {
     
     local link_count
     link_count=$(grep -cE '^[[:space:]]*(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://' "$output_file" 2>/dev/null || echo 0)
-    log "Subscription fetched: $link_count proxy links found" "info" "$component" "$context"
+    obhod_log "Subscription fetched: $link_count proxy links found" "info" "$component" "$context"
     
     return 0
 }
@@ -267,7 +267,7 @@ check_dns_inbound_support() {
 
 start_main() {
     (
-        flock -w 10 200 || { log "Failed to acquire lock for start command within 10 seconds. Aborting." "error"; exit 1; }
+        flock -w 10 200 || { obhod_log "Failed to acquire lock for start command within 10 seconds. Aborting." "error"; exit 1; }
         start_main_real
     ) 200>/var/run/obhod.lock
 }
@@ -275,69 +275,69 @@ start_main() {
 start_main_real() {
     export OBHOD_LOG_COMPONENT="init"
     export OBHOD_LOG_CONTEXT="start"
-    log "Starting obhod (version $OBHOD_VERSION)"
+    obhod_log "Starting obhod (version $OBHOD_VERSION)"
 
-    log "Checking system requirements..." "debug"
+    obhod_log "Checking system requirements..." "debug"
     check_requirements
 
-    log "Waiting for WAN interface to be ready..."
+    obhod_log "Waiting for WAN interface to be ready..."
     local retry=0
     while ! ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; do
         retry=$((retry+1))
         if [ "$retry" -ge 120 ]; then
-            log "WAN not ready after 120 seconds, proceeding anyway..." "warn"
+            obhod_log "WAN not ready after 120 seconds, proceeding anyway..." "warn"
             break
         fi
         sleep 1
     done
-    log "WAN interface detected or wait timed out" "debug"
+    obhod_log "WAN interface detected or wait timed out" "debug"
 
-    log "Clearing FakeIP cache..." "debug"
+    obhod_log "Clearing FakeIP cache..." "debug"
     rm -f /tmp/sing-box/cache.db
 
-    log "Applying migrations..." "debug"
+    obhod_log "Applying migrations..." "debug"
     migration
 
-    log "Validating UCI services..." "debug"
+    obhod_log "Validating UCI services..." "debug"
     config_foreach process_validate_service "section"
 
-    log "Disabling br_netfilter..." "debug"
+    obhod_log "Disabling br_netfilter..." "debug"
     br_netfilter_disable
 
-    log "Synchronizing system time..." "debug"
+    obhod_log "Synchronizing system time..." "debug"
     /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
 
     mkdir -p "$TMP_SING_BOX_FOLDER"
     mkdir -p "$TMP_RULESET_FOLDER"
 
     # 1. Generate sing-box configuration (Uses original system DNS to download lists/subscriptions)
-    log "Generating sing-box configuration..."
+    obhod_log "Generating sing-box configuration..."
     export OBHOD_LOG_COMPONENT="config"
 
     # Check if sing-box supports DNS inbound (it's required for Obhod)
     if ! check_dns_inbound_support; then
-        log "Sing-box does not support DNS inbounds. Obhod cannot start. Please install full version of sing-box." "fatal"
+        obhod_log "Sing-box does not support DNS inbounds. Obhod cannot start. Please install full version of sing-box." "fatal"
         exit 1
     fi
 
     sing_box_init_config
 
     # 2. Base network setup
-    log "Setting up routing table and fwmarks..." "debug"
+    obhod_log "Setting up routing table and fwmarks..." "debug"
     route_table_rule_mark
-    log "Applying nftables rules..." "debug"
+    obhod_log "Applying nftables rules..." "debug"
     create_nft_rules
-    log "Configuring sing-box service..." "debug"
+    obhod_log "Configuring sing-box service..." "debug"
     sing_box_configure_service
 
     # 3. Start sing-box service
-    log "Starting sing-box service..."
+    obhod_log "Starting sing-box service..."
     export OBHOD_LOG_COMPONENT="init"
     config_foreach add_cron_job "section"
     /etc/init.d/sing-box start
     
     # Wait for sing-box DNS inbound (127.0.0.42:53) to start listening
-    log "Waiting for sing-box DNS inbound to start listening..."
+    obhod_log "Waiting for sing-box DNS inbound to start listening..."
     local dns_ready=0
     local i
     for i in $(seq 1 15); do
@@ -349,10 +349,10 @@ start_main_real() {
     done
 
     if [ "$dns_ready" -eq 0 ]; then
-        log "Sing-box DNS inbound did not start listening within 15 seconds. Aborting startup. Last logs:" "error"
+        obhod_log "Sing-box DNS inbound did not start listening within 15 seconds. Aborting startup. Last logs:" "error"
         if command -v timeout >/dev/null 2>&1 && command -v logread >/dev/null 2>&1; then
             timeout 5 logread -e sing-box 2>/dev/null | tail -n 10 | while read -r line; do
-                log "$line" "error"
+                obhod_log "$line" "error"
             done
         fi
         stop_main
@@ -364,7 +364,7 @@ start_main_real() {
     local dont_touch_dhcp
     config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
     if [ "$dont_touch_dhcp" -eq 0 ]; then
-        log "Configuring dnsmasq..." "debug"
+        obhod_log "Configuring dnsmasq..." "debug"
         dnsmasq_configure
     fi
 
@@ -372,29 +372,29 @@ start_main_real() {
     uci commit "obhod" && config_load "$OBHOD_CONFIG"
 
     # Start background list update
-    log "Starting background list update..." "debug"
+    obhod_log "Starting background list update..." "debug"
     ( exec 200>&- ; sleep 2 ; /usr/lib/obhod/obhod-backend.sh list_update ) &
     local bg_pid=$!
     if echo "$bg_pid" > /var/run/obhod_list_update.pid 2>/dev/null; then
-        log "Background list update started with PID $bg_pid"
+        obhod_log "Background list update started with PID $bg_pid"
     else
-        log "Failed to write PID file for background list update" "warn"
+        obhod_log "Failed to write PID file for background list update" "warn"
     fi
 
-    log "Obhod setup complete. Watchdog is managed by procd."
+    obhod_log "Obhod setup complete. Watchdog is managed by procd."
 }
 
 stop_main() {
     export OBHOD_LOG_COMPONENT="init"
     export OBHOD_LOG_CONTEXT="stop"
-    log "Stopping obhod..."
+    obhod_log "Stopping obhod..."
 
     # Stop background list update strictly by PID file if running (🛡️ Nyuance 2)
     if [ -f /var/run/obhod_list_update.pid ]; then
         local pid
         pid=$(cat /var/run/obhod_list_update.pid)
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            log "Force-terminating background list update (PID: $pid)" "warn"
+            obhod_log "Force-terminating background list update (PID: $pid)" "warn"
             kill -9 "$pid" 2>/dev/null
         fi
         rm -f /var/run/obhod_list_update.pid
@@ -412,33 +412,33 @@ stop_main() {
     local dont_touch_dhcp
     config_get_bool dont_touch_dhcp "settings" "dont_touch_dhcp" 0
     if [ "$dont_touch_dhcp" -eq 0 ]; then
-        log "Restoring dnsmasq configuration..." "debug"
+        obhod_log "Restoring dnsmasq configuration..." "debug"
         dnsmasq_restore
     fi
 
-    log "Cleaning up networking (nft, ip rule/route)..." "debug"
+    obhod_log "Cleaning up networking (nft, ip rule/route)..." "debug"
     export OBHOD_LOG_COMPONENT="network"
     if nft list table inet "$NFT_TABLE_NAME" > /dev/null 2>&1; then
         nft delete table inet "$NFT_TABLE_NAME"
     fi
 
-    log "Flush ip rule" "debug"
+    obhod_log "Flush ip rule" "debug"
     while ip rule list | grep -q "fwmark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK"; do
         ip -4 rule del fwmark "$NFT_FAKEIP_MARK"/"$NFT_FAKEIP_MARK" table "$RT_TABLE_NAME" priority 105
     done
 
-    log "Flush ip route" "debug"
+    obhod_log "Flush ip route" "debug"
     if ip route list table "$RT_TABLE_NAME" > /dev/null 2>&1; then
         ip route flush table "$RT_TABLE_NAME"
     fi
 
-    log "Stopping sing-box service..." "debug"
+    obhod_log "Stopping sing-box service..." "debug"
     export OBHOD_LOG_COMPONENT="init"
     /etc/init.d/sing-box stop
 
     uci_set "obhod" "settings" "shutdown_correctly" 1
     uci commit "obhod" && config_load "$OBHOD_CONFIG"
-    log "Obhod stopped successfully"
+    obhod_log "Obhod stopped successfully"
 }
 
 # CLI aliases for convenience (e.g., /usr/bin/obhod start from terminal)
@@ -451,13 +451,13 @@ stop() {
 }
 
 reload() {
-    log "Obhod reload"
+    obhod_log "Obhod reload"
     stop_main
     start_main
 }
 
 restart() {
-    log "Obhod restart"
+    obhod_log "Obhod restart"
     stop_main
     start_main
 }
@@ -476,7 +476,7 @@ validate_service() {
         fi
     done
 
-    log "Invalid service in community lists: $service. Check config and LuCI cache. Aborted." "fatal"
+    obhod_log "Invalid service in community lists: $service. Check config and LuCI cache. Aborted." "fatal"
     exit 1
 }
 
@@ -491,7 +491,7 @@ process_validate_service() {
 
 br_netfilter_disable() {
     if lsmod | grep -q br_netfilter && [ "$(sysctl -n net.bridge.bridge-nf-call-iptables 2> /dev/null)" = "1" ]; then
-        log "br_netfilter enabled detected. Disabling"
+        obhod_log "br_netfilter enabled detected. Disabling"
         sysctl -w net.bridge.bridge-nf-call-iptables=0
         sysctl -w net.bridge.bridge-nf-call-ip6tables=0
     fi
@@ -503,17 +503,17 @@ route_table_rule_mark() {
     grep -q "105 $RT_TABLE_NAME" /etc/iproute2/rt_tables || echo "105 $RT_TABLE_NAME" >> /etc/iproute2/rt_tables
 
     if ! ip route list table "$RT_TABLE_NAME" 2> /dev/null | grep -q "local default dev lo scope host"; then
-        log "Added route for tproxy" "debug"
+        obhod_log "Added route for tproxy" "debug"
         ip route add local 0.0.0.0/0 dev lo table "$RT_TABLE_NAME"
     else
-        log "Route for tproxy exists" "debug"
+        obhod_log "Route for tproxy exists" "debug"
     fi
 
     if ! ip rule list | grep -q "from all fwmark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK lookup $RT_TABLE_NAME"; then
-        log "Create marking rule" "debug"
+        obhod_log "Create marking rule" "debug"
         ip -4 rule add fwmark "$NFT_FAKEIP_MARK"/"$NFT_FAKEIP_MARK" table "$RT_TABLE_NAME" priority 105
     else
-        log "Marking rule exist" "debug"
+        obhod_log "Marking rule exist" "debug"
     fi
 }
 
@@ -529,11 +529,11 @@ nft_init_interfaces_set() {
 }
 
 create_nft_rules() {
-    log "Create nft table"
+    obhod_log "Create nft table"
     nft delete table inet "$NFT_TABLE_NAME" 2>/dev/null
     nft_create_table "$NFT_TABLE_NAME"
 
-    log "Create localv4 set"
+    obhod_log "Create localv4 set"
     nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_LOCALV4_SET_NAME"
     nft add element inet "$NFT_TABLE_NAME" localv4 '{
         0.0.0.0/8,
@@ -551,13 +551,13 @@ create_nft_rules() {
         240.0.0.0-255.255.255.255
     }'
 
-    log "Create common set"
+    obhod_log "Create common set"
     nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
 
-    log "Create interface set"
+    obhod_log "Create interface set"
     nft_init_interfaces_set
 
-    log "Create nft rules"
+    obhod_log "Create nft rules"
     nft add chain inet "$NFT_TABLE_NAME" mangle '{ type filter hook prerouting priority -150; policy accept; }'
     nft add chain inet "$NFT_TABLE_NAME" mangle_output '{ type route hook output priority -150; policy accept; }'
     nft add chain inet "$NFT_TABLE_NAME" proxy '{ type filter hook prerouting priority -100; policy accept; }'
@@ -580,7 +580,7 @@ create_nft_rules() {
     local exclude_ntp
     config_get_bool exclude_ntp "settings" "exclude_ntp" "0"
     if [ "$exclude_ntp" -eq 1 ]; then
-        log "NTP traffic exclude for proxy"
+        obhod_log "NTP traffic exclude for proxy"
         nft insert rule inet "$NFT_TABLE_NAME" mangle udp dport 123 return
     fi
 }
@@ -608,7 +608,7 @@ dnsmasq_configure() {
     fi
 
     if [ "$is_redirected" -eq 0 ] || [ "$has_backup" -eq 0 ]; then
-        log "Backup dnsmasq configuration"
+        obhod_log "Backup dnsmasq configuration"
         # Clear old backup list to prevent duplication (🛡️ Nyuance 1)
         uci_remove "dhcp" "@dnsmasq[0]" "obhod_server"
 
@@ -622,7 +622,7 @@ dnsmasq_configure() {
         backup_dnsmasq_config_option "noresolv" "obhod_noresolv"
         backup_dnsmasq_config_option "cachesize" "obhod_cachesize"
 
-        log "Configure dnsmasq for sing-box"
+        obhod_log "Configure dnsmasq for sing-box"
         uci_add_list "dhcp" "@dnsmasq[0]" "server" "$SB_DNS_INBOUND_ADDRESS"
         uci_set "dhcp" "@dnsmasq[0]" "noresolv" 1
         uci_set "dhcp" "@dnsmasq[0]" "cachesize" 0
@@ -630,19 +630,19 @@ dnsmasq_configure() {
 
         /etc/init.d/dnsmasq restart
     else
-        log "Dnsmasq redirection already configured and backup exists" "debug"
+        obhod_log "Dnsmasq redirection already configured and backup exists" "debug"
     fi
 }
 
 dnsmasq_restore() {
-    log "Restoring the dnsmasq configuration"
+    obhod_log "Restoring the dnsmasq configuration"
     local is_redirected=0
     if uci -q show dhcp.@dnsmasq[0].server | grep -q "127\.0\.0\.42"; then
         is_redirected=1
     fi
 
     if [ "$is_redirected" -eq 0 ]; then
-        log "Dnsmasq is not redirected, restore is not required" "debug"
+        obhod_log "Dnsmasq is not redirected, restore is not required" "debug"
         # Ensure backup fields are cleaned up
         uci_remove "dhcp" "@dnsmasq[0]" "obhod_server"
         uci_remove "dhcp" "@dnsmasq[0]" "obhod_noresolv"
@@ -652,7 +652,7 @@ dnsmasq_restore() {
     fi
 
     local cachesize noresolv backup_servers resolvfile
-    log "Restoring cachesize" "debug"
+    obhod_log "Restoring cachesize" "debug"
     cachesize="$(uci_get "dhcp" "@dnsmasq[0]" "obhod_cachesize")"
     if [ -z "$cachesize" ]; then
         uci_remove "dhcp" "@dnsmasq[0]" "cachesize"
@@ -662,7 +662,7 @@ dnsmasq_restore() {
         uci_remove "dhcp" "@dnsmasq[0]" "obhod_cachesize"
     fi
 
-    log "Restoring noresolv" "debug"
+    obhod_log "Restoring noresolv" "debug"
     noresolv="$(uci_get "dhcp" "@dnsmasq[0]" "obhod_noresolv")"
     if [ -z "$noresolv" ]; then
         uci_set "dhcp" "@dnsmasq[0]" "noresolv" 0
@@ -671,7 +671,7 @@ dnsmasq_restore() {
         uci_remove "dhcp" "@dnsmasq[0]" "obhod_noresolv"
     fi
 
-    log "Restoring DNS servers" "debug"
+    obhod_log "Restoring DNS servers" "debug"
     uci_remove "dhcp" "@dnsmasq[0]" "server"
     resolvfile="/tmp/resolv.conf.d/resolv.conf.auto"
     backup_servers="$(uci_get "dhcp" "@dnsmasq[0]" "obhod_server")"
@@ -681,14 +681,14 @@ dnsmasq_restore() {
         done
         uci_remove "dhcp" "@dnsmasq[0]" "obhod_server"
     elif file_exists "$resolvfile"; then
-        log "Backup DNS servers not found, using default resolvfile" "debug"
+        obhod_log "Backup DNS servers not found, using default resolvfile" "debug"
         uci_set "dhcp" "@dnsmasq[0]" "resolvfile" "$resolvfile"
         if [ -n "$noresolv" ] && [ "$noresolv" -eq 1 ]; then
-            log "Disabling noresolv option to use system resolvfile" "debug"
+            obhod_log "Disabling noresolv option to use system resolvfile" "debug"
             uci_set "dhcp" "@dnsmasq[0]" "noresolv" 0
         fi
     else
-        log "Backup DNS servers and default resolvfile not found, possible resolving issues" "warn"
+        obhod_log "Backup DNS servers and default resolvfile not found, possible resolving issues" "warn"
     fi
 
     uci_commit "dhcp"
@@ -706,7 +706,7 @@ add_cron_job() {
 
     # Check if crontab is available
     if ! command -v crontab >/dev/null 2>&1; then
-        log "crontab command not found, cannot create scheduled job" "warn"
+        obhod_log "crontab command not found, cannot create scheduled job" "warn"
         return 1
     fi
 
@@ -727,7 +727,7 @@ add_cron_job() {
         cron_job="13 9 */3 * * /usr/bin/obhod list_update"
         ;;
     *)
-        log "Invalid update_interval value: $update_interval" "error"
+        obhod_log "Invalid update_interval value: $update_interval" "error"
         return 1
         ;;
     esac
@@ -740,9 +740,9 @@ add_cron_job() {
         
         # Add new job with error checking
         if (crontab -l 2>/dev/null; echo "$cron_job") | crontab - 2>/dev/null; then
-            log "The cron job has been created: $cron_job"
+            obhod_log "The cron job has been created: $cron_job"
         else
-            log "Failed to create cron job: $cron_job" "error"
+            obhod_log "Failed to create cron job: $cron_job" "error"
             return 1
         fi
     fi
@@ -751,23 +751,23 @@ add_cron_job() {
 remove_cron_job() {
     # Check if crontab is available
     if ! command -v crontab >/dev/null 2>&1; then
-        log "crontab command not found, cannot remove scheduled job" "warn"
+        obhod_log "crontab command not found, cannot remove scheduled job" "warn"
         return 1
     fi
 
     # Remove job with error checking
     if (crontab -l 2>/dev/null | grep -v "/usr/bin/obhod list_update") | crontab - 2>/dev/null; then
-        log "The cron job removed"
+        obhod_log "The cron job removed"
     else
         # Fallback for empty crontab
         crontab -r 2>/dev/null || true
-        log "The cron job removed (or no jobs existed)"
+        obhod_log "The cron job removed (or no jobs existed)"
     fi
 }
 
 list_update() {
     (
-        flock -n 200 || { log "Another obhod process holds the lock. Skipping list update." "warn"; exit 0; }
+        flock -n 200 || { obhod_log "Another obhod process holds the lock. Skipping list update." "warn"; exit 0; }
         list_update_real
     ) 200>/var/run/obhod.lock
 }
@@ -851,26 +851,26 @@ sing_box_configure_service() {
     if [ "$sing_box_enabled" -ne 1 ]; then
         uci_set "sing-box" "main" "enabled" 1
         uci_commit "sing-box"
-        log "sing-box service has been enabled"
+        obhod_log "sing-box service has been enabled"
     fi
 
     if [ "$sing_box_user" != "root" ]; then
         uci_set "sing-box" "main" "user" "root"
         uci_commit "sing-box"
-        log "sing-box service user has been changed to root"
+        obhod_log "sing-box service user has been changed to root"
     fi
 
     config_get sing_box_config_path "settings" "config_path"
     sing_box_conffile="$(uci_get "sing-box" "main" "conffile")"
-    log "sing-box config path: $sing_box_config_path" "debug"
-    log "sing-box service conffile: $sing_box_conffile" "debug"
+    obhod_log "sing-box config path: $sing_box_config_path" "debug"
+    obhod_log "sing-box service conffile: $sing_box_conffile" "debug"
     if [ "$sing_box_conffile" != "$sing_box_config_path" ]; then
         uci_set "sing-box" "main" "conffile" "$sing_box_config_path"
         uci_commit "sing-box"
-        log "Configuration file path has been set to $sing_box_config_path"
+        obhod_log "Configuration file path has been set to $sing_box_config_path"
     fi
 
-    [ -f /etc/rc.d/S99sing-box ] && log "Disable sing-box" && /etc/init.d/sing-box disable
+    [ -f /etc/rc.d/S99sing-box ] && obhod_log "Disable sing-box" && /etc/init.d/sing-box disable
 }
 
 sing_box_init_config() {
@@ -879,23 +879,23 @@ sing_box_init_config() {
     config_get_bool use_legacy_generator "settings" "use_legacy_generator" 0
 
     if [ "$use_legacy_generator" -eq 1 ]; then
-        log "Using legacy Bash config generator (explicitly enabled in UCI)" "info" "config" "generator"
+        obhod_log "Using legacy Bash config generator (explicitly enabled in UCI)" "info" "config" "generator"
     elif [ -x "/usr/bin/obhod" ]; then
-        log "Generating configuration using Go core..." "info" "config" "generator"
+        obhod_log "Generating configuration using Go core..." "info" "config" "generator"
         if /usr/bin/obhod generate-config -o "$config_path"; then
-            log "Configuration generated successfully via Go core ✅" "info" "config" "generator"
+            obhod_log "Configuration generated successfully via Go core ✅" "info" "config" "generator"
             sing_box_config_check "$config_path"
             return 0
         else
-            log "Go configuration generator failed! Falling back to legacy Bash logic..." "error" "config" "generator"
+            obhod_log "Go configuration generator failed! Falling back to legacy Bash logic..." "error" "config" "generator"
         fi
     fi
 
     if [ "$use_legacy_generator" -eq 0 ]; then
-        log "Using legacy Bash config generator (DEPRECATED - fallback mode)" "warn" "config" "generator"
+        obhod_log "Using legacy Bash config generator (DEPRECATED - fallback mode)" "warn" "config" "generator"
     fi
 
-    local config='{"log":{},"dns":{},"ntp":{},"certificate":{},"endpoints":[],"inbounds":[],"outbounds":[],"route":{},"services":[],"experimental":{}}'
+    local config='{"obhod_log":{},"dns":{},"ntp":{},"certificate":{},"endpoints":[],"inbounds":[],"outbounds":[],"route":{},"services":[],"experimental":{}}'
 
     sing_box_configure_log
     sing_box_configure_inbounds
@@ -909,7 +909,7 @@ sing_box_init_config() {
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_log() {
-    log "Configure the log section of a sing-box JSON configuration"
+    obhod_log "Configure the obhod_log section of a sing-box JSON configuration"
 
     local log_level
     config_get log_level "settings" "log_level" "warn"
@@ -918,7 +918,7 @@ sing_box_configure_log() {
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_inbounds() {
-    log "Configure the inbounds section of a sing-box JSON configuration"
+    obhod_log "Configure the inbounds section of a sing-box JSON configuration"
 
     config=$(
         sing_box_cm_add_tproxy_inbound \
@@ -930,9 +930,9 @@ sing_box_configure_inbounds() {
         config=$(
             sing_box_cm_add_dns_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
         )
-        log "DNS inbound added (supported by sing-box)"
+        obhod_log "DNS inbound added (supported by sing-box)"
     else
-        log "DNS inbound not supported by this sing-box version, using Mixed inbound instead" "warn"
+        obhod_log "DNS inbound not supported by this sing-box version, using Mixed inbound instead" "warn"
         # Add Mixed inbound as fallback for DNS processing
         config=$(
             sing_box_cm_add_mixed_inbound \
@@ -943,7 +943,7 @@ sing_box_configure_inbounds() {
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_outbounds() {
-    log "Configure the outbounds section of a sing-box JSON configuration"
+    obhod_log "Configure the outbounds section of a sing-box JSON configuration"
 
     config=$(sing_box_cm_add_direct_outbound "$config" "$SB_DIRECT_OUTBOUND_TAG")
 
@@ -957,31 +957,31 @@ configure_outbound_handler() {
     config_get connection_type "$section" "connection_type"
     case "$connection_type" in
     proxy)
-        log "Configuring outbound in proxy connection type for the $section section"
+        obhod_log "Configuring outbound in proxy connection type for the $section section"
         local proxy_config_type
         config_get proxy_config_type "$section" "proxy_config_type"
 
         case "$proxy_config_type" in
         url)
-            log "Detected proxy configuration type: url" "debug"
+            obhod_log "Detected proxy configuration type: url" "debug"
             local proxy_string udp_over_tcp
             config_get proxy_string "$section" "proxy_string"
             config_get udp_over_tcp "$section" "enable_udp_over_tcp"
 
             if [ -z "$proxy_string" ]; then
-                log "Proxy string is not set. Aborted." "fatal"
+                obhod_log "Proxy string is not set. Aborted." "fatal"
                 exit 1
             fi
             config=$(sing_box_cf_add_proxy_outbound "$config" "$section" "$proxy_string" "$udp_over_tcp")
             ;;
         outbound)
-            log "Detected proxy configuration type: outbound" "debug"
+            obhod_log "Detected proxy configuration type: outbound" "debug"
             local json_outbound
             config_get json_outbound "$section" "outbound_json"
             config=$(sing_box_cf_add_json_outbound "$config" "$section" "$json_outbound")
             ;;
         selector)
-            log "Detected proxy configuration type: selector" "debug"
+            obhod_log "Detected proxy configuration type: selector" "debug"
             local selector_proxy_links udp_over_tcp i outbound_tags outbound_tag default_outbound
             
             _proxy_links=""
@@ -991,7 +991,7 @@ configure_outbound_handler() {
             config_get udp_over_tcp "$section" "enable_udp_over_tcp"
 
             if [ -z "$selector_proxy_links" ]; then
-                log "Selector proxy links is not set. Aborted." "fatal"
+                obhod_log "Selector proxy links is not set. Aborted." "fatal"
                 exit 1
             fi
 
@@ -1015,12 +1015,12 @@ configure_outbound_handler() {
                 "$default_outbound")"
             ;;
         subscription)
-            log "Detected proxy configuration type: subscription" "debug"
+            obhod_log "Detected proxy configuration type: subscription" "debug"
             local sub_url sub_links
             config_get sub_url "$section" "subscription_url"
             
             if [ -z "$sub_url" ]; then
-                log "Subscription URL is not set for $section. Aborted." "fatal"
+                obhod_log "Subscription URL is not set for $section. Aborted." "fatal"
                 exit 1
             fi
             
@@ -1030,9 +1030,9 @@ configure_outbound_handler() {
                 sub_links=$(grep -iE '^(vless|vmess|trojan|ss|hy2|hysteria2|socks[45])://' "$tmp_sub" | tr '\n' ' ')
                 
                 if [ -z "$sub_links" ]; then
-                    log "Subscription for $section contains no valid proxy links. Raw content (first 200 chars): $(head -c 200 "$tmp_sub")" "error"
+                    obhod_log "Subscription for $section contains no valid proxy links. Raw content (first 200 chars): $(head -c 200 "$tmp_sub")" "error"
                     rm -f "$tmp_sub"
-                    log "Subscription for $section is empty. Aborted." "fatal"
+                    obhod_log "Subscription for $section is empty. Aborted." "fatal"
                     exit 1
                 fi
                 
@@ -1064,19 +1064,19 @@ configure_outbound_handler() {
                         fi
                     else
                         short_link=$(printf '%.80s' "$link")
-                        log "Failed to parse subscription link #$i for $section: $short_link..." "warn"
+                        obhod_log "Failed to parse subscription link #$i for $section: $short_link..." "warn"
                         failed_count=$((failed_count + 1))
                     fi
                     i=$((i + 1))
                 done
                 
                 if [ -z "$outbound_tags" ]; then
-                    log "No valid proxy outbounds created from subscription for $section ($failed_count failures). Aborted." "fatal"
+                    obhod_log "No valid proxy outbounds created from subscription for $section ($failed_count failures). Aborted." "fatal"
                     exit 1
                 fi
                 
                 if [ "$failed_count" -gt 0 ]; then
-                    log "Subscription for $section: $failed_count link(s) failed to parse, skipped" "warn"
+                    obhod_log "Subscription for $section: $failed_count link(s) failed to parse, skipped" "warn"
                 fi
                 
                 urltest_tag="$(get_outbound_tag_by_section "$section-urltest")"
@@ -1088,12 +1088,12 @@ configure_outbound_handler() {
                     "$urltest_testing_url" "$urltest_check_interval" "$urltest_tolerance")"
                 config="$(sing_box_cm_add_selector_outbound "$config" "$selector_tag" "$selector_outbounds" "$urltest_tag")"
             else
-                log "Failed to update subscription for $section. Aborted." "fatal"
+                obhod_log "Failed to update subscription for $section. Aborted." "fatal"
                 exit 1
             fi
             ;;
         urltest)
-            log "Detected proxy configuration type: urltest" "debug"
+            obhod_log "Detected proxy configuration type: urltest" "debug"
             local urltest_proxy_links udp_over_tcp i urltest_tag selector_tag outbound_tag outbound_tags \
                 urltest_outbounds selector_outbounds urltest_check_interval urltest_tolerance urltest_testing_url
                 
@@ -1107,7 +1107,7 @@ configure_outbound_handler() {
             config_get urltest_testing_url "$section" "urltest_testing_url" "https://www.gstatic.com/generate_204"
 
             if [ -z "$urltest_proxy_links" ]; then
-                log "URLTest proxy links is not set. Aborted." "fatal"
+                obhod_log "URLTest proxy links is not set. Aborted." "fatal"
                 exit 1
             fi
 
@@ -1133,13 +1133,13 @@ configure_outbound_handler() {
             config="$(sing_box_cm_add_selector_outbound "$config" "$selector_tag" "$selector_outbounds" "$urltest_tag")"
             ;;
         *)
-            log "Unknown proxy configuration type: '$proxy_config_type'. Aborted." "fatal"
+            obhod_log "Unknown proxy configuration type: '$proxy_config_type'. Aborted." "fatal"
             exit 1
             ;;
         esac
         ;;
     vpn)
-        log "Configuring outbound in VPN connection type for the $section section"
+        obhod_log "Configuring outbound in VPN connection type for the $section section"
         local interface_name domain_resolver_enabled domain_resolver_dns_type domain_resolver_dns_server \
             domain_resolver_dns_server_address outbound_tag domain_resolver_tag dns_domain_resolver
 
@@ -1149,7 +1149,7 @@ configure_outbound_handler() {
         config_get domain_resolver_dns_server "$section" "domain_resolver_dns_server"
 
         if [ -z "$interface_name" ]; then
-            log "VPN interface is not set. Aborted." "fatal"
+            obhod_log "VPN interface is not set. Aborted." "fatal"
             exit 1
         fi
 
@@ -1169,13 +1169,13 @@ configure_outbound_handler() {
         config=$(sing_box_cm_add_interface_outbound "$config" "$outbound_tag" "$interface_name" "$domain_resolver_tag")
         ;;
     block)
-        log "Connection type 'block' detected for the $section section – no outbound will be created (handled via reject route rules)"
+        obhod_log "Connection type 'block' detected for the $section section – no outbound will be created (handled via reject route rules)"
         ;;
     exclusion)
-        log "Connection type 'exclusion' detected for the $section section – no outbound will be created (handled via route rules)"
+        obhod_log "Connection type 'exclusion' detected for the $section section – no outbound will be created (handled via route rules)"
         ;;
     *)
-        log "Unknown connection type '$connection_type' for the $section section. Aborted." "fatal"
+        obhod_log "Unknown connection type '$connection_type' for the $section section. Aborted." "fatal"
         exit 1
         ;;
     esac
@@ -1183,10 +1183,10 @@ configure_outbound_handler() {
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_dns() {
-    log "Configure the DNS section of a sing-box JSON configuration"
+    obhod_log "Configure the DNS section of a sing-box JSON configuration"
     config=$(sing_box_cm_configure_dns "$config" "$SB_DNS_SERVER_TAG" "ipv4_only" true)
 
-    log "Adding DNS Servers" "debug"
+    obhod_log "Adding DNS Servers" "debug"
     local dns_type dns_server bootstrap_dns_server dns_domain_resolver dns_server_address
     config_get dns_type "settings" "dns_type" "doh"
     config_get dns_server "settings" "dns_server" "1.1.1.1"
@@ -1201,7 +1201,7 @@ sing_box_configure_dns() {
     config=$(sing_box_cf_add_dns_server "$config" "$dns_type" "$SB_DNS_SERVER_TAG" "$dns_server" "$dns_domain_resolver")
     config=$(sing_box_cm_add_fakeip_dns_server "$config" "$SB_FAKEIP_DNS_SERVER_TAG" "$SB_FAKEIP_INET4_RANGE")
 
-    log "Adding DNS Rules"
+    obhod_log "Adding DNS Rules"
     local rewrite_ttl service_domains
     config_get rewrite_ttl "settings" "dns_rewrite_ttl" "60"
 
@@ -1215,7 +1215,7 @@ sing_box_configure_dns() {
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_route() {
-    log "Configure the route section of a sing-box JSON configuration"
+    obhod_log "Configure the route section of a sing-box JSON configuration"
 
     local output_network_interface
     config_get output_network_interface "settings" "output_network_interface"
@@ -1290,7 +1290,7 @@ configure_common_reject_route_rule() {
         if [ "$block_section_lists_enabled" -eq 1 ]; then
             config=$(sing_box_cm_add_reject_route_rule "$config" "$SB_REJECT_RULE_TAG" "$SB_TPROXY_INBOUND_TAG")
         else
-            log "Block sections does not have any enabled list, reject rule is not required" "warn"
+            obhod_log "Block sections does not have any enabled list, reject rule is not required" "warn"
         fi
     fi
 }
@@ -1311,7 +1311,7 @@ configure_common_direct_route_rule() {
             config=$(sing_box_cm_add_route_rule "$config" "$SB_EXCLUSION_RULE_TAG" "$SB_TPROXY_INBOUND_TAG" \
                 "$SB_DIRECT_OUTBOUND_TAG")
         else
-            log "Exclusion sections does not have any enabled list, route rule is not required" "warn"
+            obhod_log "Exclusion sections does not have any enabled list, route rule is not required" "warn"
         fi
     fi
 }
@@ -1333,9 +1333,9 @@ exclude_source_ip_from_routing_handler() {
 configure_routing_for_section_lists() {
     local section="$1"
 
-    log "Configuring routing for '$section' section"
+    obhod_log "Configuring routing for '$section' section"
     if ! section_has_enabled_lists "$section"; then
-        log "Section '$section' does not have any enabled list, skipping..." "warn"
+        obhod_log "Section '$section' does not have any enabled list, skipping..." "warn"
         return 0
     fi
 
@@ -1363,44 +1363,44 @@ configure_routing_for_section_lists() {
         route_rule_tag="$SB_EXCLUSION_RULE_TAG"
         ;;
     *)
-        log "Unsupported '$section_connection_type' connection type. Skipping routing for '$section' section" "fatal"
+        obhod_log "Unsupported '$section_connection_type' connection type. Skipping routing for '$section' section" "fatal"
         exit 1
         ;;
     esac
 
     if [ -n "$community_lists" ]; then
-        log "Processing community list routing rules for '$section' section"
+        obhod_log "Processing community list routing rules for '$section' section"
         config_list_foreach "$section" "community_lists" configure_community_list_handler "$section" "$route_rule_tag"
     fi
 
     if [ "$user_domain_list_type" != "disabled" ]; then
-        log "Processing user domains routing rules for '$section' section"
+        obhod_log "Processing user domains routing rules for '$section' section"
         configure_user_domain_list "$section" "$route_rule_tag"
     fi
 
     if [ "$user_subnet_list_type" != "disabled" ]; then
-        log "Processing user subnets routing rules for '$section' section"
+        obhod_log "Processing user subnets routing rules for '$section' section"
         configure_user_subnet_list "$section" "$route_rule_tag"
     fi
 
     if [ -n "$local_domain_lists" ]; then
-        log "Processing local domains routing rules for '$section' section"
+        obhod_log "Processing local domains routing rules for '$section' section"
         configure_local_domain_lists "$section" "$route_rule_tag"
     fi
 
     if [ -n "$local_subnet_lists" ]; then
-        log "Processing local subnets routing rules for '$section' section"
+        obhod_log "Processing local subnets routing rules for '$section' section"
         configure_local_subnet_lists "$section" "$route_rule_tag"
     fi
 
     if [ -n "$remote_domain_lists" ]; then
-        log "Processing remote domains routing rules for '$section' section"
+        obhod_log "Processing remote domains routing rules for '$section' section"
         config_list_foreach "$section" "remote_domain_lists" configure_remote_domain_or_subnet_list_handler \
             "domains" "$section" "$route_rule_tag"
     fi
 
     if [ -n "$remote_subnet_lists" ]; then
-        log "Processing remote subnets routing rules for '$section' section"
+        obhod_log "Processing remote subnets routing rules for '$section' section"
         config_list_foreach "$section" "remote_subnet_lists" configure_remote_domain_or_subnet_list_handler \
             "subnets" "$section" "$route_rule_tag"
     fi
@@ -1429,7 +1429,7 @@ prepare_source_ruleset() {
     local type="$3"
     local route_rule_tag="$4"
 
-    log "Preparing a $name $type rule set for '$section' section" "debug"
+    obhod_log "Preparing a $name $type rule set for '$section' section" "debug"
     ruleset_tag=$(get_ruleset_tag "$section" "$name" "$type")
     ruleset_filepath="$TMP_RULESET_FOLDER/$ruleset_tag.json"
     create_source_rule_set "$ruleset_filepath"
@@ -1443,12 +1443,12 @@ prepare_source_ruleset() {
             ;;
         subnets) ;;
         *)
-            log "Unsupported remote rule set type: $type" "error"
+            obhod_log "Unsupported remote rule set type: $type" "error"
             return 1
             ;;
         esac
         ;;
-    3) log "Source rule set $ruleset_filepath already exists, skipping." "debug" ;;
+    3) obhod_log "Source rule set $ruleset_filepath already exists, skipping." "debug" ;;
     esac
 }
 
@@ -1503,7 +1503,7 @@ import_local_domain_list_handler() {
     local ruleset_filepath="$2"
 
     if ! file_exists "$local_domain_list_filepath"; then
-        log "Local domain list file $local_domain_list_filepath not found" "error"
+        obhod_log "Local domain list file $local_domain_list_filepath not found" "error"
         return 1
     fi
 
@@ -1524,7 +1524,7 @@ import_local_subnets_list_handler() {
     local ruleset_filepath="$2"
 
     if ! file_exists "$local_subnet_list_filepath"; then
-        log "Local subnet list file $local_subnet_list_filepath not found" "error"
+        obhod_log "Local subnet list file $local_subnet_list_filepath not found" "error"
         return 1
     fi
 
@@ -1540,10 +1540,10 @@ configure_remote_domain_or_subnet_list_handler() {
 
     local file_extension
     file_extension=$(url_get_file_extension "$url")
-    log "Detected file extension: '$file_extension'" "debug"
+    obhod_log "Detected file extension: '$file_extension'" "debug"
     case "$file_extension" in
     json | srs)
-        log "Creating a remote $type ruleset from the source URL" "info"
+        obhod_log "Creating a remote $type ruleset from the source URL" "info"
         local basename ruleset_tag format detour update_interval
         basename=$(url_get_basename "$url")
         ruleset_tag=$(get_ruleset_tag "$section" "$basename" "remote-$type")
@@ -1558,7 +1558,7 @@ configure_remote_domain_or_subnet_list_handler() {
             config=$(sing_box_cm_patch_dns_route_rule "$config" "$SB_FAKEIP_DNS_RULE_TAG" "rule_set" "$ruleset_tag")
             ;;
         subnets) ;;
-        *) log "Unsupported remote rule set type: $type" "error" ;;
+        *) obhod_log "Unsupported remote rule set type: $type" "error" ;;
         esac
         ;;
     *)
@@ -1569,14 +1569,14 @@ configure_remote_domain_or_subnet_list_handler() {
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_configure_experimental() {
-    log "Configure the experimental section of a sing-box JSON configuration"
+    obhod_log "Configure the experimental section of a sing-box JSON configuration"
 
-    log "Configuring cache database"
+    obhod_log "Configuring cache database"
     local cache_file
     config_get cache_file "settings" "cache_path" "/tmp/sing-box/cache.db"
     config=$(sing_box_cm_configure_cache_file "$config" true "$cache_file" true)
 
-    log "Configuring Clash API"
+    obhod_log "Configuring Clash API"
     local enable_yacd enable_yacd_wan_access clash_api_controller_address
     config_get_bool enable_yacd "settings" "enable_yacd" 0
     config_get_bool enable_yacd_wan_access "settings" "enable_yacd_wan_access" 0
@@ -1586,13 +1586,13 @@ sing_box_configure_experimental() {
     else
         clash_api_controller_address="$(get_service_listen_address)"
         if [ -z "$clash_api_controller_address" ]; then
-            log "Could not determine the listening IP address for the Clash API controller. It will run only on localhost." "warn"
+            obhod_log "Could not determine the listening IP address for the Clash API controller. It will run only on localhost." "warn"
             clash_api_controller_address="127.0.0.1"
         fi
     fi
 
     if [ "$enable_yacd" -eq 1 ]; then
-        log "YACD is enabled, enabling Clash API with downloadable YACD" "debug"
+        obhod_log "YACD is enabled, enabling Clash API with downloadable YACD" "debug"
         local yacd_secret_key external_controller_ui
         config_get yacd_secret_key "settings" "yacd_secret_key"
         external_controller_ui="ui"
@@ -1605,7 +1605,7 @@ sing_box_configure_experimental() {
                 "$yacd_secret_key"
         )
     else
-        log "YACD is disabled, enabling Clash API in online mode" "debug"
+        obhod_log "YACD is disabled, enabling Clash API in online mode" "debug"
         config=$(
             sing_box_cm_configure_clash_api "$config" "$clash_api_controller_address:$SB_CLASH_API_CONTROLLER_PORT"
         )
@@ -1614,7 +1614,7 @@ sing_box_configure_experimental() {
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
 sing_box_additional_inbounds() {
-    log "Configure the additional inbounds of a sing-box JSON configuration"
+    obhod_log "Configure the additional inbounds of a sing-box JSON configuration"
 
     local download_lists_via_proxy
     config_get_bool download_lists_via_proxy "settings" "download_lists_via_proxy" 0
@@ -1642,7 +1642,7 @@ configure_section_mixed_proxy() {
     config_get_bool mixed_inbound_enabled "$section" "mixed_proxy_enabled" 0
     mixed_proxy_address="$(get_service_listen_address)"
     if [ -z "$mixed_proxy_address" ]; then
-        log "Could not determine the listening IP address for the Mixed Proxy. The proxy will not be created." "warn"
+        obhod_log "Could not determine the listening IP address for the Mixed Proxy. The proxy will not be created." "warn"
         return 1
     fi
     config_get mixed_proxy_port "$section" "mixed_proxy_port"
@@ -1666,27 +1666,27 @@ sing_box_save_config() {
     temp_file_path="$(mktemp)" || return 1
     register_temp_file "$temp_file_path"
 
-    log "Save sing-box temporary config to $temp_file_path" "debug"
+    obhod_log "Save sing-box temporary config to $temp_file_path" "debug"
     sing_box_cm_save_config_to_file "$config" "$temp_file_path"
 
     sing_box_config_check "$temp_file_path"
 
     current_config_hash=$(md5sum "$sing_box_config_path" 2> /dev/null | awk '{print $1}')
     temp_config_hash=$(md5sum "$temp_file_path" | awk '{print $1}')
-    log "Current sing-box config hash: $current_config_hash" "debug"
-    log "Temporary sing-box config hash: $temp_config_hash" "debug"
+    obhod_log "Current sing-box config hash: $current_config_hash" "debug"
+    obhod_log "Temporary sing-box config hash: $temp_config_hash" "debug"
     if [ "$current_config_hash" != "$temp_config_hash" ]; then
-        log "sing-box configuration has changed and will be updated"
+        obhod_log "sing-box configuration has changed and will be updated"
         mv "$temp_file_path" "$sing_box_config_path"
     else
-        log "sing-box configuration is unchanged"
+        obhod_log "sing-box configuration is unchanged"
         rm "$temp_file_path"
     fi
 }
 
 sing_box_config_check() {
     local config_path="$1"
-    local check_log="/tmp/sing-box-check.log"
+    local check_log="/tmp/sing-box-check.obhod_log"
 
     if ! sing-box -c "$config_path" check > "$check_log" 2>&1; then
         local error_msg
@@ -1696,11 +1696,11 @@ sing_box_config_check() {
         local clean_error
         clean_error=$(echo "$error_msg" | sed 's/.*load config:.*: //g')
 
-        log "Sing-box configuration is invalid. ERROR: $clean_error" "fatal" "config" "validation"
+        obhod_log "Sing-box configuration is invalid. ERROR: $clean_error" "fatal" "config" "validation"
         
         # If it's a JSON unmarshal error, try to show the problematic line
         if echo "$error_msg" | grep -q "json: "; then
-            log "Hint: Check the JSON structure in your custom outbound or DNS settings." "error" "config" "validation"
+            obhod_log "Hint: Check the JSON structure in your custom outbound or DNS settings." "error" "config" "validation"
         fi
 
         # Log to stderr as well for visibility in console
@@ -1719,7 +1719,7 @@ import_community_subnet_lists() {
     local community_lists
     config_get community_lists "$section" "community_lists"
     if [ -n "$community_lists" ]; then
-        log "Importing community subnet lists for '$section' section"
+        obhod_log "Importing community subnet lists for '$section' section"
         config_list_foreach "$section" "community_lists" import_community_service_subnet_list_handler
     fi
 }
@@ -1770,7 +1770,7 @@ import_community_service_subnet_list_handler() {
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$URL" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
-        log "Download $service list failed" "error"
+        obhod_log "Download $service list failed" "error"
         return 1
     fi
 
@@ -1788,7 +1788,7 @@ import_domains_from_remote_domain_lists() {
     local remote_domain_lists
     config_get remote_domain_lists "$section" "remote_domain_lists"
     if [ -n "$remote_domain_lists" ]; then
-        log "Importing domains from remote domain lists for '$section' section"
+        obhod_log "Importing domains from remote domain lists for '$section' section"
         config_list_foreach "$section" "remote_domain_lists" import_domains_from_remote_domain_list_handler "$section"
     fi
 }
@@ -1797,17 +1797,17 @@ import_domains_from_remote_domain_list_handler() {
     local url="$1"
     local section="$2"
 
-    log "Importing domains from URL: $url"
+    obhod_log "Importing domains from URL: $url"
 
     local file_extension
     file_extension=$(url_get_file_extension "$url")
-    log "Detected file extension: '$file_extension'" "debug"
+    obhod_log "Detected file extension: '$file_extension'" "debug"
     case "$file_extension" in
     json | srs)
-        log "No update needed - sing-box manages updates automatically."
+        obhod_log "No update needed - sing-box manages updates automatically."
         ;;
     *)
-        log "Import domains from a remote plain-text list"
+        obhod_log "Import domains from a remote plain-text list"
         import_domains_from_remote_plain_file "$url" "$section"
         ;;
     esac
@@ -1823,7 +1823,7 @@ import_domains_from_remote_plain_file() {
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
-        log "Download $url list failed" "error"
+        obhod_log "Download $url list failed" "error"
         return 1
     fi
 
@@ -1840,7 +1840,7 @@ import_subnets_from_remote_subnet_lists() {
     local remote_subnet_lists
     config_get remote_subnet_lists "$section" "remote_subnet_lists"
     if [ -n "$remote_subnet_lists" ]; then
-        log "Importing subnets from remote subnet lists for '$section' section"
+        obhod_log "Importing subnets from remote subnet lists for '$section' section"
         config_list_foreach "$section" "remote_subnet_lists" import_subnets_from_remote_subnet_list_handler "$section"
     fi
 }
@@ -1849,22 +1849,22 @@ import_subnets_from_remote_subnet_list_handler() {
     local url="$1"
     local section="$2"
 
-    log "Importing subnets from URL: $url"
+    obhod_log "Importing subnets from URL: $url"
 
     local file_extension
     file_extension="$(url_get_file_extension "$url")"
-    log "Detected file extension: '$file_extension'" "debug"
+    obhod_log "Detected file extension: '$file_extension'" "debug"
     case "$file_extension" in
     json)
-        log "Import subnets from a remote JSON list" "info"
+        obhod_log "Import subnets from a remote JSON list" "info"
         import_subnets_from_remote_json_file "$url"
         ;;
     srs)
-        log "Import subnets from a remote SRS list" "info"
+        obhod_log "Import subnets from a remote SRS list" "info"
         import_subnets_from_remote_srs_file "$url"
         ;;
     *)
-        log "Import subnets from a remote plain-text list" "info"
+        obhod_log "Import subnets from a remote plain-text list" "info"
         import_subnets_from_remote_plain_file "$url" "$section"
         ;;
     esac
@@ -1880,7 +1880,7 @@ import_subnets_from_remote_json_file() {
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$json_tmpfile" "$http_proxy_address" || [ ! -s "$json_tmpfile" ]; then
-        log "Download $url list failed" "error"
+        obhod_log "Download $url list failed" "error"
         return 1
     fi
 
@@ -1902,12 +1902,12 @@ import_subnets_from_remote_srs_file() {
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$binary_tmpfile" "$http_proxy_address" || [ ! -s "$binary_tmpfile" ]; then
-        log "Download $url list failed" "error"
+        obhod_log "Download $url list failed" "error"
         return 1
     fi
 
     if ! decompile_binary_ruleset "$binary_tmpfile" "$json_tmpfile"; then
-        log "Failed to decompile binary rule set file" "error"
+        obhod_log "Failed to decompile binary rule set file" "error"
         return 1
     fi
 
@@ -1926,7 +1926,7 @@ import_subnets_from_remote_plain_file() {
     http_proxy_address="$(get_service_proxy_address)"
 
     if ! download_to_file "$url" "$tmpfile" "$http_proxy_address" || [ ! -s "$tmpfile" ]; then
-        log "Download $url list failed" "error"
+        obhod_log "Download $url list failed" "error"
         return 1
     fi
 
@@ -1995,7 +1995,7 @@ get_sections_by_connection_type() {
             uci show obhod 2>/dev/null | grep "\.connection_type='$connection_type'" | cut -d'.' -f2
             ;;
         *)
-            log "Invalid connection_type: $connection_type" "error"
+            obhod_log "Invalid connection_type: $connection_type" "error"
             echo ""
             ;;
     esac
@@ -2042,7 +2042,7 @@ get_service_listen_address() {
 
     config_get service_listen_address "settings" "service_listen_address"
     if [ -n "$service_listen_address" ]; then
-        log "Attention! The service_listen_address option is being used, overriding the automatic detection of the listening IP address!" "warn"
+        obhod_log "Attention! The service_listen_address option is being used, overriding the automatic detection of the listening IP address!" "warn"
         echo "$service_listen_address"
         return 0
     fi
@@ -2051,7 +2051,7 @@ get_service_listen_address() {
     network_get_ipaddr service_listen_address "$interface"
 
     if [ -z "$service_listen_address" ]; then
-        log "Failed to determine the listening IP address. Please open an issue to report this problem: https://github.com/itdoginfo/obhod/issues" "error"
+        obhod_log "Failed to determine the listening IP address. Please open an issue to report this problem: https://github.com/itdoginfo/obhod/issues" "error"
         return 1
     fi
 
@@ -3112,10 +3112,10 @@ global_check() {
 }
 
 validate() {
-    log "Running configuration validation..." "info" "config" "validation"
+    obhod_log "Running configuration validation..." "info" "config" "validation"
     # sing_box_init_config already generates and calls sing_box_config_check
     sing_box_init_config
-    log "Configuration is VALID ✅" "info" "config" "validation"
+    obhod_log "Configuration is VALID ✅" "info" "config" "validation"
     echo "Configuration is VALID ✅"
 }
 
@@ -3183,29 +3183,29 @@ list_update)
     list_update
     ;;
 backup)
-    log "Creating system backup..." "info" "system" "backup"
+    obhod_log "Creating system backup..." "info" "system" "backup"
     BACKUP_FILE="/tmp/obhod_backup.tar.gz"
     if tar -czf "$BACKUP_FILE" /etc/config/obhod /tmp/obhod/subscriptions.json 2>/dev/null; then
         echo "$BACKUP_FILE"
-        log "Backup created successfully: $BACKUP_FILE" "info" "system" "backup"
+        obhod_log "Backup created successfully: $BACKUP_FILE" "info" "system" "backup"
     else
-        log "Backup failed!" "error" "system" "backup"
+        obhod_log "Backup failed!" "error" "system" "backup"
         exit 1
     fi
     ;;
 restore)
     FILE="$2"
     if [ -f "$FILE" ]; then
-        log "Restoring system from backup: $FILE" "info" "system" "restore"
+        obhod_log "Restoring system from backup: $FILE" "info" "system" "restore"
         if tar -xzf "$FILE" -C / 2>/dev/null; then
-            log "Restore successful. Reloading service..." "info" "system" "restore"
+            obhod_log "Restore successful. Reloading service..." "info" "system" "restore"
             /etc/init.d/obhod reload
         else
-            log "Restore failed! Invalid archive?" "error" "system" "restore"
+            obhod_log "Restore failed! Invalid archive?" "error" "system" "restore"
             exit 1
         fi
     else
-        log "Restore failed: File not found" "error" "system" "restore"
+        obhod_log "Restore failed: File not found" "error" "system" "restore"
         exit 1
     fi
     ;;

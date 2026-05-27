@@ -256,7 +256,7 @@ migration_add_new_option() {
     local current
     current="$(uci -q get "$package.$section.$option")"
     if [ -z "$current" ]; then
-        log "Adding missing option '$option' with value '$value'"
+        obhod_log "Adding missing option '$option' with value '$value'"
         uci set "$package.$section.$option=$value"
         uci commit "$package"
         return 0
@@ -273,7 +273,7 @@ migration_rename_config_key() {
     local new_key_name="$4"
 
     if grep -q "$key_type $old_key_name" "$config"; then
-        log "Deprecated $key_type found: $old_key_name migrating to $new_key_name"
+        obhod_log "Deprecated $key_type found: $old_key_name migrating to $new_key_name"
         sed -i "s/$key_type $old_key_name/$key_type $new_key_name/g" "$config"
     fi
 }
@@ -288,7 +288,7 @@ download_to_file() {
 
     # Check if wget is available
     if ! command -v wget >/dev/null 2>&1; then
-        log "wget command not found" "error"
+        obhod_log "wget command not found" "error"
         return 1
     fi
 
@@ -302,11 +302,11 @@ download_to_file() {
         fi
 
         if [ $wget_result -eq 0 ] && [ -s "$filepath" ]; then
-            log "Successfully downloaded $url (attempt $attempt)"
+            obhod_log "Successfully downloaded $url (attempt $attempt)"
             return 0
         fi
 
-        log "Download attempt $attempt/$retries failed for $url (wget exit code: $wget_result)" "warn"
+        obhod_log "Download attempt $attempt/$retries failed for $url (wget exit code: $wget_result)" "warn"
         
         # Clean up partial download
         [ -f "$filepath" ] && rm -f "$filepath"
@@ -314,7 +314,7 @@ download_to_file() {
         [ "$attempt" -lt "$retries" ] && sleep "$wait"
     done
 
-    log "Failed to download $url after $retries attempts" "error"
+    obhod_log "Failed to download $url after $retries attempts" "error"
     return 1
 }
 
@@ -372,7 +372,7 @@ parse_domain_or_subnet_file_to_comma_string() {
     elif [ "$type" = "subnets" ]; then
         cat ${target_file:+"$target_file"} | grep -v '^[[:space:]]*$' | awk '{$1=$1}1' | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}(/[0-9]{1,2})?$' | paste -sd, -
     else
-        log "Unknown type: $type" "error"
+        obhod_log "Unknown type: $type" "error"
         return 1
     fi
 }

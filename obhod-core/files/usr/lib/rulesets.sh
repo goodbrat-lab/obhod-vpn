@@ -149,7 +149,7 @@ get_ruleset_format_by_file_extension() {
     json) format="source" ;;
     srs) format="binary" ;;
     *)
-        log "Unsupported file extension: .$file_extension" "error"
+        obhod_log "Unsupported file extension: .$file_extension" "error"
         return 1
         ;;
     esac
@@ -162,10 +162,10 @@ decompile_binary_ruleset() {
     local binary_filepath="$1"
     local output_filepath="$2"
 
-    log "Decompiling $binary_filepath to $output_filepath" "debug"
+    obhod_log "Decompiling $binary_filepath to $output_filepath" "debug"
     sing-box rule-set decompile "$binary_filepath" -o "$output_filepath"
     if [ $? -ne 0 ]; then
-        log "Decompilation command failed for $binary_filepath" "error"
+        obhod_log "Decompilation command failed for $binary_filepath" "error"
         return 1
     fi
 }
@@ -175,6 +175,6 @@ extract_ip_cidr_from_json_ruleset_to_file() {
     local json_file="$1"
     local output_file="$2"
 
-    log "Extracting ip_cidr entries from $json_file to $output_file" "debug"
+    obhod_log "Extracting ip_cidr entries from $json_file to $output_file" "debug"
     jq -r '.rules[].ip_cidr[]' "$json_file" > "$output_file"
 }

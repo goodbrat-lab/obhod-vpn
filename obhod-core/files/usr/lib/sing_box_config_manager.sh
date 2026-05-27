@@ -386,7 +386,7 @@ sing_box_cm_add_dns_inbound() {
 
     # Check if DNS type is supported (fallback to mixed if not)
     if ! check_sing_box_supports_dns_inbound; then
-        log "DNS inbound not supported, using Mixed inbound instead" "warn"
+        obhod_log "DNS inbound not supported, using Mixed inbound instead" "warn"
         sing_box_cm_add_mixed_inbound "$config" "$tag" "$listen_address" "$listen_port"
         return
     fi

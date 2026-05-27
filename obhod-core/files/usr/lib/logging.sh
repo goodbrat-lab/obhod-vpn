@@ -27,7 +27,7 @@ _get_current_log_level() {
     echo "$_CACHED_LOG_LEVEL"
 }
 
-log() {
+obhod_log() {
     local message="$1"
     local level="${2:-info}"
     local component="${3:-$OBHOD_LOG_COMPONENT}"
@@ -80,6 +80,6 @@ nolog() {
 }
 
 echolog() {
-    log "$1" "$2"
+    obhod_log "$1" "$2"
 }
 

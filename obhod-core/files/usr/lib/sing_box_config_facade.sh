@@ -34,7 +34,7 @@ sing_box_cf_add_dns_server() {
             "$domain_resolver" "$detour")
         ;;
     *)
-        log "Unsupported DNS server type: $type. Aborted." "fatal"
+        obhod_log "Unsupported DNS server type: $type. Aborted." "fatal"
         exit 1
         ;;
     esac
@@ -164,7 +164,7 @@ sing_box_cf_add_proxy_outbound() {
         if ! is_shadowsocks_userinfo_format "$userinfo"; then
             userinfo=$(base64_decode "$userinfo")
             if [ $? -ne 0 ]; then
-                log "Cannot decode shadowsocks userinfo or it does not match the expected format. Aborted." "fatal"
+                obhod_log "Cannot decode shadowsocks userinfo or it does not match the expected format. Aborted." "fatal"
                 exit 1
             fi
         fi
@@ -214,7 +214,7 @@ sing_box_cf_add_proxy_outbound() {
         config=$(_add_outbound_security "$config" "$tag" "$url")
         ;;
     *)
-        log "Unsupported proxy $scheme type. Aborted." "fatal"
+        obhod_log "Unsupported proxy $scheme type. Aborted." "fatal"
         exit 1
         ;;
     esac
@@ -260,7 +260,7 @@ _add_outbound_security() {
         ;;
     none) ;;
     *)
-        log "Unknown security '$security' detected." "error"
+        obhod_log "Unknown security '$security' detected." "error"
         ;;
     esac
 
@@ -308,7 +308,7 @@ _add_outbound_transport() {
         )
         ;;
     *)
-        log "Unknown transport '$transport' detected." "error"
+        obhod_log "Unknown transport '$transport' detected." "error"
         ;;
     esac
 
