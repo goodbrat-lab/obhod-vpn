@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 )
 
-var version = "1.1.25"
+var version = "1.1.26"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
@@ -41,7 +41,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if len(os.Args) < 2 {
+	if len(flag.Args()) < 1 {
 		forwardToBackend()
 	}
 
@@ -54,9 +54,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	switch os.Args[1] {
+	switch flag.Arg(0) {
 	case "watchdog":
-		watchdogCmd.Parse(os.Args[2:])
+		watchdogCmd.Parse(flag.Args()[1:])
 		// Start subscription updater in background
 		updateInterval := "1d"
 		if uci, err := config.LoadUCI(); err == nil {
@@ -81,14 +81,14 @@ func main() {
 		data, _ := json.MarshalIndent(health, "", "  ")
 		fmt.Println(string(data))
 	case "update-subscriptions":
-		updateSubCmd.Parse(os.Args[2:])
+		updateSubCmd.Parse(flag.Args()[1:])
 		err := subscription.UpdateManual(*cacheFile)
 		if err != nil {
 			logger.Error("config", "main", "Failed to update subscriptions: %v", err)
 			os.Exit(1)
 		}
 	case "generate-config":
-		genConfigCmd.Parse(os.Args[2:])
+		genConfigCmd.Parse(flag.Args()[1:])
 		uci, err := config.LoadUCI()
 		if err != nil {
 			logger.Error("config", "main", "Failed to load UCI: %v", err)
