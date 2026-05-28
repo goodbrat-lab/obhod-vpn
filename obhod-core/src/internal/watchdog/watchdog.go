@@ -216,7 +216,9 @@ func isWanUp(mark int) bool {
 	}
 
 	for _, target := range targets {
-		conn, err := dialWithMark(target.network, target.address, mark, 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		conn, err := dialWithMark(ctx, target.network, target.address, mark, 2*time.Second)
+		cancel()
 		if err == nil {
 			conn.Close()
 			return true
@@ -252,7 +254,7 @@ func checkDnsDirect(domain string, mark int) bool {
 		r := net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				return dialWithMark("udp", dnsServer, mark, 2*time.Second)
+				return dialWithMark(ctx, "udp", dnsServer, mark, 2*time.Second)
 			},
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

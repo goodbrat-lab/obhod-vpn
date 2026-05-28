@@ -176,5 +176,5 @@ extract_ip_cidr_from_json_ruleset_to_file() {
     local output_file="$2"
 
     obhod_log "Extracting ip_cidr entries from $json_file to $output_file" "debug"
-    jq -r '.rules[].ip_cidr[]' "$json_file" > "$output_file"
+    jq -r '.rules[].ip_cidr[]?' "$json_file" > "$output_file"
 }
