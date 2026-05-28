@@ -134,7 +134,9 @@ func processWanCheck(ctx context.Context, bot *telegram.Bot, mark int) {
 	watchdogMutex.Lock()
 	defer watchdogMutex.Unlock()
 	
-	if !isWanUp(mark) {
+	wanUp := isWanUp(mark)
+	logger.Debug("watchdog", "connectivity", "WAN link check: up=%v", wanUp)
+	if !wanUp {
 		if failCount > 0 {
 			logger.Info("watchdog", "connectivity", "WAN is down, pausing checks")
 			failCount = 0
@@ -142,7 +144,9 @@ func processWanCheck(ctx context.Context, bot *telegram.Bot, mark int) {
 		return
 	}
 
-	if checkDns() {
+	dnsUp := checkDns()
+	logger.Debug("watchdog", "connectivity", "Local DNS via sing-box check: working=%v", dnsUp)
+	if dnsUp {
 		if failCount > 0 {
 			logger.Info("watchdog", "connectivity", "DNS restored")
 			if bot != nil {
@@ -221,8 +225,10 @@ func isWanUp(mark int) bool {
 		cancel()
 		if err == nil {
 			conn.Close()
+			logger.Debug("watchdog", "connectivity", "WAN connection to %s:%s succeeded", target.network, target.address)
 			return true
 		}
+		logger.Debug("watchdog", "connectivity", "WAN connection to %s:%s failed: %v", target.network, target.address, err)
 	}
 	return false
 }
@@ -242,8 +248,10 @@ func checkDns() bool {
 		_, err := r.LookupHost(ctx, domain)
 		cancel()
 		if err == nil {
+			logger.Debug("watchdog", "connectivity", "Local DNS query for %s succeeded", domain)
 			return true
 		}
+		logger.Debug("watchdog", "connectivity", "Local DNS query for %s failed: %v", domain, err)
 	}
 	return false
 }
@@ -261,8 +269,10 @@ func checkDnsDirect(domain string, mark int) bool {
 		_, err := r.LookupHost(ctx, domain)
 		cancel()
 		if err == nil {
+			logger.Debug("watchdog", "connectivity", "Direct WAN DNS check via %s succeeded for %s", dnsServer, domain)
 			return true
 		}
+		logger.Debug("watchdog", "connectivity", "Direct WAN DNS check via %s failed for %s: %v", dnsServer, domain, err)
 	}
 	return false
 }

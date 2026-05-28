@@ -416,14 +416,17 @@ sing_box_cm_add_dns_inbound() {
 #   CONFIG=$(sing_box_cm_add_mixed_inbound "$CONFIG" "tproxy-in" "192.168.1.1" 2080)
 #######################################
 check_sing_box_supports_dns_inbound() {
-    # Quick test to check if DNS inbound type is supported
-    local test='{"inbounds":[{"type":"dns"}]}'
+    # Create minimal config to test DNS inbound support
+    local test='{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"test"}],"outbounds":[{"type":"direct","tag":"direct"}]}'
     echo "$test" > /tmp/sb_dns_test.json
-    if sing-box check -c /tmp/sb_dns_test.json >/dev/null 2>&1; then
-        rm -f /tmp/sb_dns_test.json
+    local check_output
+    check_output=$(sing-box check -c /tmp/sb_dns_test.json 2>&1)
+    local ret=$?
+    rm -f /tmp/sb_dns_test.json
+    if [ "$ret" -eq 0 ]; then
         return 0
     else
-        rm -f /tmp/sb_dns_test.json
+        obhod_log "Sing-box check for DNS inbound support failed: $check_output" "debug"
         return 1
     fi
 }

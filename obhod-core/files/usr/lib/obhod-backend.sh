@@ -259,12 +259,14 @@ check_dns_inbound_support() {
     local test_config='{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"test"}],"outbounds":[{"type":"direct","tag":"direct"}]}'
     echo "$test_config" > /tmp/obhod_dns_test.json
     
-    # Test if sing-box accepts DNS inbound type
-    if sing-box check -c /tmp/obhod_dns_test.json >/dev/null 2>&1; then
-        rm -f /tmp/obhod_dns_test.json
+    local check_output
+    check_output=$(sing-box check -c /tmp/obhod_dns_test.json 2>&1)
+    local ret=$?
+    rm -f /tmp/obhod_dns_test.json
+    if [ "$ret" -eq 0 ]; then
         return 0
     else
-        rm -f /tmp/obhod_dns_test.json
+        obhod_log "Sing-box DNS inbound test check failed: $check_output" "error"
         return 1
     fi
 }

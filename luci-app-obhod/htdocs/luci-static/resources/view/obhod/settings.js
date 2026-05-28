@@ -406,7 +406,7 @@ function createSettingsContent(section) {
   o.value("error", "Error");
   o.value("fatal", "Fatal");
   o.value("panic", "Panic");
-  o.default = "warn";
+  o.default = "info";
   o.rmempty = false;
 
   o = section.option(
