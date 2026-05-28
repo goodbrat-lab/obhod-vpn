@@ -117,8 +117,9 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 
 	// 3. Outbounds & Route Rules
 	config.Outbounds = append(config.Outbounds, OutboundConfig{
-		Type: "direct",
-		Tag:  "direct-out",
+		Type:        "direct",
+		Tag:         "direct-out",
+		RoutingMark: 2097152, // 0x00200000 — bypass nftables tproxy rules
 	})
 
 	// Add sniff route rule first (required for hijack-dns to work - sing-box needs to detect DNS protocol)
@@ -127,8 +128,11 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 	})
 
 	// Add hijack-dns route rule (sing-box 1.12+ replacement for dns inbound)
-	// This intercepts DNS traffic coming through tproxy and routes it to sing-box DNS module
+	// IMPORTANT: Only intercept DNS from tproxy-in (client traffic).
+	// Without this restriction, sing-box's own outbound DNS queries (e.g. resolving
+	// the proxy server address via dns-direct) would also be hijacked, creating a loop.
 	config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{
+		Inbound:  []string{"tproxy-in"},
 		Protocol: []string{"dns"},
 		Action:   "hijack-dns",
 	})
@@ -271,8 +275,9 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 		if len(outbounds) == 0 {
 			logger.Warn("config", "generator", "No valid proxies found for section %s. Creating a fallback direct outbound to prevent startup failure.", section.Name)
 			outbounds = append(outbounds, OutboundConfig{
-				Type: "direct",
-				Tag:  outboundTag,
+				Type:        "direct",
+				Tag:         outboundTag,
+				RoutingMark: 2097152,
 			})
 		}
 
@@ -427,6 +432,11 @@ func getCommunityURL(service string) string {
 }
 
 func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
+	// Sanitize: trim whitespace and remove stray \r\n from Windows or UCI quirks
+	proxyStr = strings.TrimSpace(proxyStr)
+	proxyStr = strings.ReplaceAll(proxyStr, "\r", "")
+	proxyStr = strings.ReplaceAll(proxyStr, "\n", "")
+
 	if proxyStr == "" {
 		return nil, fmt.Errorf("empty proxy URL")
 	}
@@ -440,7 +450,8 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 	}
 
 	outbound := &OutboundConfig{
-		Tag: tag,
+		Tag:         tag,
+		RoutingMark: 2097152, // 0x00200000 — bypass nftables tproxy rules
 	}
 
 	switch u.Scheme {
@@ -571,11 +582,12 @@ func parseVMess(proxyStr string, tag string) (*OutboundConfig, error) {
 	}
 
 	outbound := &OutboundConfig{
-		Type:     "vmess",
-		Tag:      tag,
-		Server:   fmt.Sprintf("%v", v["add"]),
-		UUID:     fmt.Sprintf("%v", v["id"]),
-		Security: "auto",
+		Type:        "vmess",
+		Tag:         tag,
+		Server:      fmt.Sprintf("%v", v["add"]),
+		UUID:        fmt.Sprintf("%v", v["id"]),
+		Security:    "auto",
+		RoutingMark: 2097152,
 	}
 
 	if port, ok := v["port"].(float64); ok {

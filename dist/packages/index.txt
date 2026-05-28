@@ -1,6 +1,6 @@
-obhod_1.1.29-1_mipsel_24kc.ipk
-obhod_1.1.29-1_mips_24kc.ipk
-obhod_1.1.29-1_aarch64_cortex-a53.ipk
-obhod_1.1.29-1_arm_cortex-a7_neon-vfpv4.ipk
-obhod_1.1.29-1_x86_64.ipk
-luci-app-obhod_1.1.29-1_all.ipk
+obhod_1.1.30-1_mipsel_24kc.ipk
+obhod_1.1.30-1_mips_24kc.ipk
+obhod_1.1.30-1_aarch64_cortex-a53.ipk
+obhod_1.1.30-1_arm_cortex-a7_neon-vfpv4.ipk
+obhod_1.1.30-1_x86_64.ipk
+luci-app-obhod_1.1.30-1_all.ipk

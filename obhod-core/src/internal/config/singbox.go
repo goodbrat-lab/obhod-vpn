@@ -96,6 +96,10 @@ type OutboundConfig struct {
 
 	// Multiplex
 	Multiplex *MultiplexConfig `json:"multiplex,omitempty"`
+
+	// Routing mark (Linux only) — prevents routing loops by marking packets
+	// so nftables rules skip them (0x00200000 = 2097152)
+	RoutingMark int `json:"routing_mark,omitempty"`
 }
 
 type TLSConfig struct {
