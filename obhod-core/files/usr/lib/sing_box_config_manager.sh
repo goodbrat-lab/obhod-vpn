@@ -384,13 +384,6 @@ sing_box_cm_add_dns_inbound() {
     local listen_address="$3"
     local listen_port="$4"
 
-    # Check if DNS type is supported (fallback to mixed if not)
-    if ! check_sing_box_supports_dns_inbound; then
-        obhod_log "DNS inbound not supported, using Mixed inbound instead" "warn"
-        sing_box_cm_add_mixed_inbound "$config" "$tag" "$listen_address" "$listen_port"
-        return
-    fi
-
     echo "$config" | jq \
         --arg tag "$tag" \
         --arg listen_address "$listen_address" \
@@ -401,34 +394,6 @@ sing_box_cm_add_dns_inbound() {
 			listen: $listen_address,
 			listen_port: $listen_port
 		}]'
-}
-
-#######################################
-# Add a Mixed inbound to the inbounds section of a sing-box JSON configuration.
-# Arguments:
-#   config: string (JSON), sing-box configuration to modify
-#   tag: string, identifier for the inbound
-#   listen_address: string, IP address to listen on
-#   listen_port: integer, port to listen on
-# Outputs:
-#   Writes updated JSON configuration to stdout
-# Example:
-#   CONFIG=$(sing_box_cm_add_mixed_inbound "$CONFIG" "tproxy-in" "192.168.1.1" 2080)
-#######################################
-check_sing_box_supports_dns_inbound() {
-    # Create minimal config to test DNS inbound support
-    local test='{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"test"}],"outbounds":[{"type":"direct","tag":"direct"}]}'
-    echo "$test" > /tmp/sb_dns_test.json
-    local check_output
-    check_output=$(sing-box check -c /tmp/sb_dns_test.json 2>&1)
-    local ret=$?
-    rm -f /tmp/sb_dns_test.json
-    if [ "$ret" -eq 0 ]; then
-        return 0
-    else
-        obhod_log "Sing-box check for DNS inbound support failed: $check_output" "debug"
-        return 1
-    fi
 }
 
 sing_box_cm_add_mixed_inbound() {

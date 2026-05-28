@@ -117,7 +117,18 @@ Maintainer: Obhod Team <obhod@itdog.info>
 Description: LuCI web interface for Obhod VPN
 Filename: luci-app-obhod_1.1.20-1_all.ipk
 Size: 44766
-SHA256sum: 943fe4251c06de00487e038972b181fb0e9ea2dd6d8453cc31326c1f095de35a
+SHA256sum: 59deda6cb80b585466eb749e7f71cd09c511c90fe69b42e9679e2248cbf5eaef
+
+Package: luci-app-obhod
+Version: 1.1.21-1
+Depends: obhod, luci-base, luci-compat, rpcd-mod-file
+Section: luci
+Architecture: all
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: LuCI web interface for Obhod VPN
+Filename: luci-app-obhod_1.1.21-1_all.ipk
+Size: 44767
+SHA256sum: f139141ccb204a2eb673a8845a8feb704ef9a0e0f516fd61ab6126d1b88f8a5c
 
 Package: luci-app-obhod
 Version: 1.1.9-1
@@ -892,8 +903,8 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.20-1_aarch64_cortex-a53.ipk
-Size: 2601377
-SHA256sum: 7ec5ce1f31267e23fd11a3753d45fc8ab660f5e1be4d9276a80b6547a78f83da
+Size: 2600558
+SHA256sum: ec7a88910b0b53d73f62743ae83febaa35d1c1fa0ade2996c4f4a19cbed7ff21
 
 Package: obhod
 Version: 1.1.20-1
@@ -907,8 +918,8 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.20-1_arm_cortex-a7_neon-vfpv4.ipk
-Size: 2772583
-SHA256sum: dae242be94617ef7a3f0814df7c9e9e8297b54a7288aa879b50b557e53a9d3e1
+Size: 2771598
+SHA256sum: de105f1e3158649674de57bb00669f6f87eb18dff39d3c765bed4fe5c517fa63
 
 Package: obhod
 Version: 1.1.20-1
@@ -922,8 +933,8 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.20-1_mips_24kc.ipk
-Size: 2715780
-SHA256sum: 2df9d30de1cc00d26eac168bc04a0b3fe415330abcc40c3a8190fa45cfb29091
+Size: 2714755
+SHA256sum: 729d3a59f10d9f7f2d9621f9c1e97b49ccedbe2ec7f8f2a41b9305e84725772d
 
 Package: obhod
 Version: 1.1.20-1
@@ -937,8 +948,8 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.20-1_mipsel_24kc.ipk
-Size: 2689464
-SHA256sum: a3271b9ced715cc4d7d11ba5e691aa2380bb6102f2a4c0658c560d79b774d436
+Size: 2688496
+SHA256sum: 689a959e3eeda90c53aa956f2f203b19bcdd286d277d68b7ed155c706609f75c
 
 Package: obhod
 Version: 1.1.20-1
@@ -952,8 +963,83 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
  OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
  FakeIP cache management, nftables TProxy routing.
 Filename: obhod_1.1.20-1_x86_64.ipk
-Size: 2887597
-SHA256sum: dcf75daca516fbb3530fd8ac04e77882fdb8f14311d57e84e4deafb0e0eaa663
+Size: 2886637
+SHA256sum: e66e489fb2c5581c5a219a033e87b6c846ef4655d7c4c0bde391bd97afce67f8
+
+Package: obhod
+Version: 1.1.21-1
+Architecture: aarch64_cortex-a53
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.21-1_aarch64_cortex-a53.ipk
+Size: 2600558
+SHA256sum: e7ab54ddbfa5ae3a0e2184a09f69dc280b8cc8d42f87de022928787c4b0f1f03
+
+Package: obhod
+Version: 1.1.21-1
+Architecture: arm_cortex-a7_neon-vfpv4
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.21-1_arm_cortex-a7_neon-vfpv4.ipk
+Size: 2771597
+SHA256sum: ceed7c98d8f700a2f3c5313f0ccadd25615c718b28eb051ddb51c6d2f6163ccb
+
+Package: obhod
+Version: 1.1.21-1
+Architecture: mips_24kc
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.21-1_mips_24kc.ipk
+Size: 2714762
+SHA256sum: e5c762f8975b9cb477b7dc717fe0f733362b6873aea9f54980b9646ffc25889e
+
+Package: obhod
+Version: 1.1.21-1
+Architecture: mipsel_24kc
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.21-1_mipsel_24kc.ipk
+Size: 2688497
+SHA256sum: e4e8bc9257cab2fc7412e06565b1068e45028d0206155bdd1fb2933ba72f4562
+
+Package: obhod
+Version: 1.1.21-1
+Architecture: x86_64
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.21-1_x86_64.ipk
+Size: 2886640
+SHA256sum: 6a36ae48b92f1849a82afa87ad42d2fe65268090ce0220c0ab8bf2dc649bdc56
 
 Package: obhod
 Version: 1.1.9-1

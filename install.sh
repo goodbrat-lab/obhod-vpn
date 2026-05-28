@@ -1,19 +1,20 @@
 #!/bin/sh
 
-# Universal Installer for Obhod VPN v1.1.1 (Apk Support & DNS Fix)
-# High compatibility with OpenWrt standard architecture names and OpenWrt 25.xx (OneWrt/apk).
+# Universal Installer for Obhod VPN
+# Always installs full sing-box from GitHub for complete DNS inbound support.
+# Compatible with OpenWrt 25.xx (apk) and older versions (opkg).
 
 set -e
 
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="${REPO_URL:-https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages}"
-VERSION="1.1.20"
+VERSION="1.1.21"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.20      "
+echo "      Obhod VPN - Universal Installer v1.1.21      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -37,21 +38,7 @@ else
     OPKG_WORKS=0
 fi
 
-# 3. Check for sing-box DNS support
-check_sb_dns_at() {
-    sb_path="$1"
-    if [ ! -x "$sb_path" ]; then return 1; fi
-    echo '{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}],"outbounds":[{"type":"direct","tag":"direct"}]}' > /tmp/obhod_sb_test.json
-    if "$sb_path" check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
-        rm -f /tmp/obhod_sb_test.json
-        return 0
-    else
-        rm -f /tmp/obhod_sb_test.json
-        return 1
-    fi
-}
-
-# 4. Architecture Detection
+# 3. Architecture Detection
 echo "Detecting architecture..."
 ARCH=""
 if [ "$OPKG_WORKS" -eq 1 ]; then
@@ -115,87 +102,86 @@ get_latest_singbox_version() {
     fi
 }
 
-install_deps() {
-    needs_fix=0
-    ARCH_M=""
-    SB_ARCH=""
-
-    echo "Updating package lists..."
+# Install system dependencies (without sing-box — we always install it from GitHub)
+install_system_deps() {
+    echo "Updating package lists and installing dependencies..."
     if [ -x "$APK_CMD" ] && [ "$OPKG_WORKS" -eq 0 ]; then
         $APK_CMD update
-        $APK_CMD add jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle sing-box || true
+        $APK_CMD add jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle || true
     else
         $OPKG_CMD update
-        $OPKG_CMD install jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle sing-box || true
+        $OPKG_CMD install jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle || true
     fi
+}
 
-    local sb_found=0
-    if [ -x /usr/bin/sing-box ]; then
-        sb_found=1
-        if ! check_sb_dns_at /usr/bin/sing-box; then
-            needs_fix=1
+# Always install full sing-box from GitHub (OpenWrt packages are lite versions without DNS inbound)
+install_singbox_full() {
+    local ARCH_M SB_ARCH sb_ver sb_ver_no_v dl_ok
+    ARCH_M=$(uname -m)
+    SB_ARCH=""
+    dl_ok=0
+
+    # Map uname -m to sing-box GitHub release arch name
+    case "$ARCH_M" in
+        x86_64)  SB_ARCH="amd64" ;;
+        aarch64) SB_ARCH="arm64" ;;
+        armv7*)  SB_ARCH="armv7" ;;
+        mips)    SB_ARCH="mips-softfloat" ;;
+        mipsel)  SB_ARCH="mipsle-softfloat" ;;
+        *)
+            echo "  ⚠️  Unknown architecture: $ARCH_M. Cannot auto-install sing-box."
+            return 1
+            ;;
+    esac
+
+    sb_ver=$(get_latest_singbox_version)
+    sb_ver_no_v="${sb_ver#v}"
+    # Ensure sb_ver has 'v' prefix
+    [ "${sb_ver#v}" = "$sb_ver" ] && sb_ver="v$sb_ver"
+
+    echo "Installing full sing-box $sb_ver for $SB_ARCH (from GitHub)..."
+    set +e
+    # Try musl variant first (statically linked, preferred for OpenWrt)
+    wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}-musl.tar.gz" -O /tmp/sb.tar.gz 2>/dev/null
+    if [ $? -eq 0 ] && [ -s /tmp/sb.tar.gz ]; then
+        dl_ok=1
+        echo "  -> Downloaded musl variant"
+    else
+        # Fallback to standard variant
+        rm -f /tmp/sb.tar.gz
+        wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz" -O /tmp/sb.tar.gz 2>/dev/null
+        if [ $? -eq 0 ] && [ -s /tmp/sb.tar.gz ]; then
+            dl_ok=1
+            echo "  -> Downloaded standard variant"
         fi
     fi
-    if [ -x /usr/sbin/sing-box ]; then
-        sb_found=1
-        if ! check_sb_dns_at /usr/sbin/sing-box; then
-            needs_fix=1
+    set -e
+
+    if [ "$dl_ok" -eq 1 ]; then
+        tar -xzf /tmp/sb.tar.gz -C /tmp
+        # Install to existing location or default to /usr/bin
+        if [ -f /usr/bin/sing-box ]; then
+            cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
+        elif [ -f /usr/sbin/sing-box ]; then
+            cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
+        else
+            cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
         fi
+        cleanup_tmp
+        echo "  ✅ Full sing-box $sb_ver installed successfully."
+        sing-box version 2>/dev/null | head -n1 || true
+    else
+        rm -f /tmp/sb.tar.gz
+        echo "  ❌ Failed to download sing-box $sb_ver for $SB_ARCH."
+        echo "     Check your internet connection or set SINGBOX_VERSION env variable."
+        echo "     Manual install: download from https://github.com/SagerNet/sing-box/releases"
+        return 1
     fi
-    if [ "$sb_found" -eq 0 ]; then
-        needs_fix=1
-    fi
+}
 
-    if [ "$needs_fix" -eq 1 ]; then
-        echo "⚠️  Detected limited 'sing-box' (no DNS support). Replacing with full version..."
-        ARCH_M=$(uname -m)
-        case "$ARCH_M" in
-            x86_64) SB_ARCH="amd64" ;;
-            aarch64) SB_ARCH="arm64" ;;
-            armv7*) SB_ARCH="armv7" ;;
-            mips) SB_ARCH="mips" ;;
-            mipsel) SB_ARCH="mipsel" ;;
-        esac
-
-        if [ -n "$SB_ARCH" ]; then
-            local sb_ver
-            sb_ver=$(get_latest_singbox_version)
-            local sb_ver_no_v="${sb_ver#v}"
-            # Ensure sb_ver has 'v' prefix
-            if [ "${sb_ver#v}" = "$sb_ver" ]; then
-                sb_ver="v$sb_ver"
-            fi
-
-            echo "  -> Downloading full sing-box $sb_ver for $SB_ARCH..."
-            local dl_ok=0
-            set +e
-            # Try downloading musl version first (recommended for OpenWrt)
-            wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}-musl.tar.gz" -O /tmp/sb.tar.gz
-            if [ $? -eq 0 ]; then
-                dl_ok=1
-            else
-                # Fallback to standard version if musl version doesn't exist
-                wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz" -O /tmp/sb.tar.gz
-                if [ $? -eq 0 ]; then
-                    dl_ok=1
-                fi
-            fi
-            set -e
-
-            if [ "$dl_ok" -eq 1 ]; then
-                tar -xzf /tmp/sb.tar.gz -C /tmp
-                [ -f /usr/bin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
-                [ -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
-                [ ! -f /usr/bin/sing-box ] && [ ! -f /usr/sbin/sing-box ] && cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
-                echo "  ✅ Full sing-box binary replaced successfully."
-                cleanup_tmp
-            else
-                echo "  ⚠️  Failed to download precompiled full sing-box binary for $SB_ARCH (possibly 404 on SagerNet releases)."
-                echo "     Obhod will be installed, but it cannot start until you manually install"
-                echo "     a full version of sing-box (with DNS inbound support)."
-            fi
-        fi
-    fi
+install_deps() {
+    install_system_deps
+    install_singbox_full
 }
 
 # 6. Service Cleanup

@@ -254,22 +254,6 @@ fetch_subscription() {
     return 0
 }
 
-check_dns_inbound_support() {
-    # Create minimal config to test DNS inbound support
-    local test_config='{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"test"}],"outbounds":[{"type":"direct","tag":"direct"}]}'
-    echo "$test_config" > /tmp/obhod_dns_test.json
-    
-    local check_output
-    check_output=$(sing-box check -c /tmp/obhod_dns_test.json 2>&1)
-    local ret=$?
-    rm -f /tmp/obhod_dns_test.json
-    if [ "$ret" -eq 0 ]; then
-        return 0
-    else
-        obhod_log "Sing-box DNS inbound test check failed: $check_output" "error"
-        return 1
-    fi
-}
 
 start_main() {
     (
@@ -327,12 +311,6 @@ start_main_real() {
     # 1. Generate sing-box configuration (Uses original system DNS to download lists/subscriptions)
     obhod_log "Generating sing-box configuration..."
     export OBHOD_LOG_COMPONENT="config"
-
-    # Check if sing-box supports DNS inbound type
-    # If not supported (OpenWrt lite package), the config manager will use Mixed inbound as fallback
-    if ! check_dns_inbound_support; then
-        obhod_log "Sing-box does not support native DNS inbounds (likely lite package). Will use Mixed inbound on port 53 as fallback. This is fully functional." "warn"
-    fi
 
     sing_box_init_config
 
@@ -980,21 +958,9 @@ sing_box_configure_inbounds() {
         sing_box_cm_add_tproxy_inbound \
             "$config" "$SB_TPROXY_INBOUND_TAG" "$SB_TPROXY_INBOUND_ADDRESS" "$SB_TPROXY_INBOUND_PORT" true true
     )
-    
-    # Only add DNS inbound if supported
-    if check_dns_inbound_support; then
-        config=$(
-            sing_box_cm_add_dns_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
-        )
-        obhod_log "DNS inbound added (supported by sing-box)"
-    else
-        obhod_log "DNS inbound not supported by this sing-box version, using Mixed inbound instead" "warn"
-        # Add Mixed inbound as fallback for DNS processing
-        config=$(
-            sing_box_cm_add_mixed_inbound \
-                "$config" "$SB_SERVICE_MIXED_INBOUND_TAG" "$SB_SERVICE_MIXED_INBOUND_ADDRESS" "$SB_SERVICE_MIXED_INBOUND_PORT"
-        )
-    fi
+    config=$(
+        sing_box_cm_add_dns_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
+    )
 }
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
