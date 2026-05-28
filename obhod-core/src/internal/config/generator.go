@@ -86,8 +86,9 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		},
 	}
 
+	// Always enable Clash API on 127.0.0.1:9090 for internal diagnostics and outbounds checks
+	config.Experimental.ClashAPI.ExternalController = "127.0.0.1:9090"
 	if uci.Settings.EnableYacd {
-		config.Experimental.ClashAPI.ExternalController = "127.0.0.1:9090"
 		if uci.Settings.EnableYacdWanAccess {
 			config.Experimental.ClashAPI.ExternalController = "0.0.0.0:9090"
 		}
