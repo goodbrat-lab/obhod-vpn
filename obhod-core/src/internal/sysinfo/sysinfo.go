@@ -86,9 +86,14 @@ func safeReadFile(path string) ([]byte, error) {
 	
 	// Validate path is within allowed directories
 	allowedPrefixes := []string{"/etc/", "/tmp/", "/var/"}
+	if filepath.Separator == '\\' {
+		allowedPrefixes = append(allowedPrefixes, os.TempDir())
+	}
+	
 	isAllowed := false
 	for _, prefix := range allowedPrefixes {
-		if strings.HasPrefix(cleanPath, prefix) {
+		cleanPrefix := filepath.Clean(prefix)
+		if strings.HasPrefix(cleanPath, cleanPrefix) {
 			isAllowed = true
 			break
 		}
