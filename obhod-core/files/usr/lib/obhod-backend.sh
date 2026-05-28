@@ -175,14 +175,17 @@ fetch_subscription() {
     
     if [ "$curl_exit" -eq 6 ]; then
         obhod_log "DNS resolution failed for subscription URL, attempting bootstrap DNS" "warn" "$component" "$context"
+        local bootstrap_dns
+        bootstrap_dns=$(uci -q get obhod.settings.bootstrap_dns_server)
+        [ -z "$bootstrap_dns" ] && bootstrap_dns="77.88.8.8"
         domain=$(echo "$url" | awk -F[/:] '{print $4}')
-        resolved_ip=$(nslookup "$domain" 1.1.1.1 2>/dev/null | grep -A 1 "Name:" | grep "Address" | awk '{print $2}' | head -n 1)
+        resolved_ip=$(nslookup "$domain" "$bootstrap_dns" 2>/dev/null | grep -A 1 "Name:" | grep "Address" | awk '{print $2}' | head -n 1)
         if [ -n "$resolved_ip" ] && is_ipv4 "$resolved_ip"; then
-            obhod_log "Resolved $domain to $resolved_ip via 1.1.1.1. Retrying..." "info" "$component" "$context"
+            obhod_log "Resolved $domain to $resolved_ip via $bootstrap_dns. Retrying..." "info" "$component" "$context"
             http_code=$(curl -sL -m 30 --resolve "$domain:443:$resolved_ip" --resolve "$domain:80:$resolved_ip" -w '%{http_code}' -o "$tmpfile" "$url" 2>/dev/null)
             curl_exit=$?
         else
-            obhod_log "Failed to resolve $domain via 1.1.1.1" "error" "$component" "$context"
+            obhod_log "Failed to resolve $domain via $bootstrap_dns" "error" "$component" "$context"
             rm -f "$tmpfile"
             return 1
         fi

@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 )
 
-var version = "1.1.14"
+var version = "1.1.15"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
@@ -58,7 +58,11 @@ func main() {
 	case "watchdog":
 		watchdogCmd.Parse(os.Args[2:])
 		// Start subscription updater in background
-		go subscription.StartUpdater("")
+		updateInterval := "1d"
+		if uci, err := config.LoadUCI(); err == nil {
+			updateInterval = uci.Settings.UpdateInterval
+		}
+		go subscription.StartUpdater("", updateInterval)
 		watchdog.Start(ctx, *interval, *mark)
 	case "auto-setup":
 		info, err := sysinfo.GetNetworkInfo()

@@ -10,7 +10,8 @@
         "/etc/init.d/obhod": [ "exec" ],
         "/sbin/logread": [ "exec" ],
         "/usr/bin/dig": [ "exec" ],
-        "/tmp/sing-box/config.json": [ "read" ]
+        "/tmp/sing-box/config.json": [ "read" ],
+        "/tmp/obhod_backup.tar.gz": [ "read" ]
       },
       "ubus": {
         "file": [ "exec", "read", "list" ],

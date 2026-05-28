@@ -13,9 +13,24 @@ func UpdateManual(cachePath string) error {
 }
 
 // BackgroundWorker handles periodic updates
-func StartUpdater(cachePath string) {
+func StartUpdater(cachePath string, updateInterval string) {
 	fetcher := NewFetcher(cachePath)
-	ticker := time.NewTicker(24 * time.Hour) // Default
+	interval := 24 * time.Hour // Default 1d
+
+	switch updateInterval {
+	case "1h":
+		interval = 1 * time.Hour
+	case "3h":
+		interval = 3 * time.Hour
+	case "12h":
+		interval = 12 * time.Hour
+	case "1d":
+		interval = 24 * time.Hour
+	case "3d":
+		interval = 3 * 24 * time.Hour
+	}
+
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {

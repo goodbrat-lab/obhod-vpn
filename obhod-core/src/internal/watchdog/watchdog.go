@@ -208,6 +208,7 @@ func isWanUp(mark int) bool {
 		network string
 		address string
 	}{
+		{"tcp", "77.88.8.8:53"},
 		{"tcp", "1.1.1.1:53"},
 		{"tcp", "8.8.8.8:53"},
 		{"tcp", "1.1.1.1:80"},

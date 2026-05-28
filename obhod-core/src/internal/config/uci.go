@@ -115,7 +115,7 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 	case "config_path":
 		s.ConfigPath = value
 	case "source_network_interfaces":
-		s.SourceNetworkInterfaces = strings.Fields(value)
+		s.SourceNetworkInterfaces = append(s.SourceNetworkInterfaces, strings.Fields(value)...)
 	case "exclude_ntp":
 		s.ExcludeNTP = value == "1"
 	case "cache_path":
