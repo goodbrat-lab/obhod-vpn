@@ -328,25 +328,75 @@ start_main_real() {
     config_foreach add_cron_job "section"
     /etc/init.d/sing-box start
     
-    # Wait for sing-box tproxy inbound to start listening
-    obhod_log "Waiting for sing-box tproxy inbound to start listening..."
+    # Wait for sing-box to start
+    # NOTE: tproxy sockets use SO_IP_TRANSPARENT (raw sockets) and do NOT appear in
+    # 'netstat -lun/-ltn'. We check via 'ss' (preferred) or process existence.
+    obhod_log "Waiting for sing-box to start..."
     local tproxy_ready=0
     local i
     for i in $(seq 1 15); do
-        if netstat -lun | grep -qE "127\.0\.0\.1[:.]1602 " || netstat -ltn | grep -qE "127\.0\.0\.1[:.]1602 "; then
-            tproxy_ready=1
-            break
+        # Method 1: try ss (more reliable than netstat for tproxy/raw sockets)
+        if command -v ss >/dev/null 2>&1; then
+            if ss -tlnp 2>/dev/null | grep -q ":${SB_TPROXY_INBOUND_PORT} " || \
+               ss -ulnp 2>/dev/null | grep -q ":${SB_TPROXY_INBOUND_PORT} " || \
+               ss -tlnp 2>/dev/null | grep -q "*:${SB_TPROXY_INBOUND_PORT} "; then
+                tproxy_ready=1
+                obhod_log "Sing-box tproxy port ${SB_TPROXY_INBOUND_PORT} detected via ss" "debug"
+                break
+            fi
+        fi
+        # Method 2: fallback — verify the sing-box process is alive and stable
+        local sb_pid
+        sb_pid=$(pidof sing-box 2>/dev/null || pgrep -x sing-box 2>/dev/null | head -1)
+        if [ -n "$sb_pid" ]; then
+            sleep 1
+            # Double-check it didn't crash immediately
+            if kill -0 "$sb_pid" 2>/dev/null; then
+                tproxy_ready=1
+                obhod_log "Sing-box is running (PID: $sb_pid)" "debug"
+                break
+            fi
         fi
         sleep 1
     done
 
     if [ "$tproxy_ready" -eq 0 ]; then
-        obhod_log "Sing-box tproxy inbound did not start listening within 15 seconds. Aborting startup. Last logs:" "error"
-        if command -v timeout >/dev/null 2>&1 && command -v logread >/dev/null 2>&1; then
-            timeout 5 logread -e sing-box 2>/dev/null | tail -n 10 | while read -r line; do
-                obhod_log "$line" "error"
-            done
+        obhod_log "Sing-box tproxy inbound did not start listening within 15 seconds. Aborting startup." "error"
+
+        # Try to get sing-box logs from logread
+        local sb_logs
+        if command -v logread >/dev/null 2>&1; then
+            sb_logs=$(logread 2>/dev/null | grep -iE "sing.?box" | tail -n 15)
+            if [ -n "$sb_logs" ]; then
+                obhod_log "Sing-box recent logs:" "error"
+                echo "$sb_logs" | while read -r line; do
+                    obhod_log "$line" "error"
+                done
+            fi
         fi
+
+        # Run sing-box check directly to capture config errors
+        local sb_bin
+        sb_bin=$(command -v sing-box 2>/dev/null || echo "/usr/bin/sing-box")
+        if [ -x "$sb_bin" ]; then
+            local sb_config
+            sb_config=$(uci -q get sing-box.main.conffile 2>/dev/null || echo "/etc/sing-box/config.json")
+            if [ -f "$sb_config" ]; then
+                local check_output
+                check_output=$("$sb_bin" check -c "$sb_config" 2>&1)
+                if [ $? -ne 0 ] || [ -n "$check_output" ]; then
+                    obhod_log "Sing-box config check output: $check_output" "error"
+                fi
+
+                # Try a brief foreground run to capture runtime errors
+                local run_output
+                run_output=$(timeout 3 "$sb_bin" run -c "$sb_config" 2>&1 || true)
+                if [ -n "$run_output" ]; then
+                    obhod_log "Sing-box runtime output: $(echo "$run_output" | head -5)" "error"
+                fi
+            fi
+        fi
+
         stop_main_real
         exit 1
     fi

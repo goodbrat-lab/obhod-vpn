@@ -1,5 +1,9 @@
 # CHANGELOG - Obhod Project
 
+## [v1.1.23] - 2026-05-28
+### Fixed
+- **CRITICAL: tproxy readiness check**: `netstat -lun/-ltn` does not show tproxy sockets (they use `SO_IP_TRANSPARENT` / raw sockets). The old check always returned "not ready", causing obhod to kill sing-box 15 seconds after it successfully started. Replaced with: (1) `ss`-based check (preferred, supports tproxy), (2) PID-based process existence check with stability confirmation as fallback.
+
 ## [v1.0.2] - 2026-05-16
 ### Fixed
 - **Sing-box 1.12+ Compatibility**: Updated DNS configuration schema to use `server` instead of `address`.

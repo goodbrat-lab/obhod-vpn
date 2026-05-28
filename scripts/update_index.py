@@ -26,26 +26,29 @@ def update_index():
         print(f"  Processing {ipk.name}...")
         control_data = ""
         
-        # Read control.tar.gz from IPK
-        with tarfile.open(ipk, "r:gz") as tar:
-            # Extract control.tar.gz
-            control_member = None
-            for member in tar.getmembers():
-                if "control.tar.gz" in member.name:
-                    control_member = member
-                    break
-            
-            if control_member:
-                f_control_tar = tar.extractfile(control_member)
-                if f_control_tar:
-                    # Parse the control file inside control.tar.gz
-                    with tarfile.open(fileobj=f_control_tar, mode="r:gz") as ctrl_tar:
-                        for member in ctrl_tar.getmembers():
-                            if member.name.endswith("control") or member.name == "./control":
-                                control_file = ctrl_tar.extractfile(member)
-                                if control_file:
-                                    control_data = control_file.read().decode("utf-8")
-                                    break
+        # Read control.tar.gz from IPK (new format: tar.gz; old format: ar — skip gracefully)
+        try:
+            with tarfile.open(ipk, "r:gz") as tar:
+                # Extract control.tar.gz
+                control_member = None
+                for member in tar.getmembers():
+                    if "control.tar.gz" in member.name:
+                        control_member = member
+                        break
+                
+                if control_member:
+                    f_control_tar = tar.extractfile(control_member)
+                    if f_control_tar:
+                        # Parse the control file inside control.tar.gz
+                        with tarfile.open(fileobj=f_control_tar, mode="r:gz") as ctrl_tar:
+                            for member in ctrl_tar.getmembers():
+                                if member.name.endswith("control") or member.name == "./control":
+                                    control_file = ctrl_tar.extractfile(member)
+                                    if control_file:
+                                        control_data = control_file.read().decode("utf-8")
+                                        break
+        except Exception as e:
+            print(f"    SKIP: {ipk.name} — cannot parse ({e})")
 
         if control_data:
             # Ensure the control fields end with a newline
