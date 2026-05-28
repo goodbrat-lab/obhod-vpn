@@ -8,12 +8,12 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages"
-VERSION="1.1.13"
+VERSION="1.1.14"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.13      "
+echo "      Obhod VPN - Universal Installer v1.1.14      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -129,8 +129,22 @@ install_deps() {
         $OPKG_CMD install jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle sing-box || true
     fi
 
-    [ -x /usr/bin/sing-box ] && ! check_sb_dns_at /usr/bin/sing-box && needs_fix=1
-    [ -x /usr/sbin/sing-box ] && ! check_sb_dns_at /usr/sbin/sing-box && needs_fix=1
+    local sb_found=0
+    if [ -x /usr/bin/sing-box ]; then
+        sb_found=1
+        if ! check_sb_dns_at /usr/bin/sing-box; then
+            needs_fix=1
+        fi
+    fi
+    if [ -x /usr/sbin/sing-box ]; then
+        sb_found=1
+        if ! check_sb_dns_at /usr/sbin/sing-box; then
+            needs_fix=1
+        fi
+    fi
+    if [ "$sb_found" -eq 0 ]; then
+        needs_fix=1
+    fi
 
     if [ "$needs_fix" -eq 1 ]; then
         echo "⚠️  Detected limited 'sing-box' (no DNS support). Replacing with full version..."

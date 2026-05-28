@@ -894,7 +894,7 @@ var STATUS_COLORS = {
   ERROR: "#f44336",
   WARNING: "#ff9800"
 };
-var OBHOD_LUCI_APP_VERSION = "1.1.13";
+var OBHOD_LUCI_APP_VERSION = "1.1.14";
 var FAKEIP_CHECK_DOMAIN = "fakeip.podkop.fyi";
 var IP_CHECK_DOMAIN = "ip.podkop.fyi";
 var REGIONAL_OPTIONS = [
@@ -1520,6 +1520,12 @@ var ObhodLogWatcher = class _ObhodLogWatcher {
     );
   }
   async checkOnce() {
+    if (typeof document !== "undefined") {
+      if (!document.getElementById("cbi-obhod") && !document.querySelector('.cbi-map[id="cbi-obhod"]')) {
+        this.stop();
+        return;
+      }
+    }
     if (!this.fetcher) {
       logger.warn("[ObhodLogWatcher]", "fetcher not found");
       return;
@@ -2350,11 +2356,26 @@ async function renderBandwidthWidget() {
   const traffic = store.get().bandwidthWidget;
   const container = document.getElementById("dashboard-widget-traffic");
   if (!container) return;
+  container.style.display = "";
   if (traffic.failed) {
-    container.style.display = "none";
+    const isHttps = window.location.protocol === 'https:';
+    const errorMsg = isHttps
+      ? _("WebSocket blocked due to HTTPS Mixed Content. Use HTTP to view graphs.")
+      : _("Failed to connect to Clash WebSocket API.");
+    const renderedWidget = renderWidget({
+      loading: false,
+      failed: false,
+      title: _("Traffic"),
+      items: [
+        {
+          key: _("Status"),
+          value: E("div", { style: "white-space: normal; color: #f44336; font-size: 11px;" }, errorMsg)
+        }
+      ]
+    });
+    container.replaceChildren(renderedWidget);
     return;
   }
-  container.style.display = "";
   if (traffic.loading) {
     const renderedWidget2 = renderWidget({
       loading: traffic.loading,
@@ -2382,11 +2403,26 @@ async function renderTrafficTotalWidget() {
   const trafficTotalWidget = store.get().trafficTotalWidget;
   const container = document.getElementById("dashboard-widget-traffic-total");
   if (!container) return;
+  container.style.display = "";
   if (trafficTotalWidget.failed) {
-    container.style.display = "none";
+    const isHttps = window.location.protocol === 'https:';
+    const errorMsg = isHttps
+      ? _("WebSocket blocked due to HTTPS Mixed Content. Use HTTP to view statistics.")
+      : _("Failed to connect to Clash WebSocket API.");
+    const renderedWidget = renderWidget({
+      loading: false,
+      failed: false,
+      title: _("Traffic Total"),
+      items: [
+        {
+          key: _("Status"),
+          value: E("div", { style: "white-space: normal; color: #f44336; font-size: 11px;" }, errorMsg)
+        }
+      ]
+    });
+    container.replaceChildren(renderedWidget);
     return;
   }
-  container.style.display = "";
   if (trafficTotalWidget.loading) {
     const renderedWidget2 = renderWidget({
       loading: trafficTotalWidget.loading,
@@ -2418,11 +2454,26 @@ async function renderSystemInfoWidget() {
   const systemInfoWidget = store.get().systemInfoWidget;
   const container = document.getElementById("dashboard-widget-system-info");
   if (!container) return;
+  container.style.display = "";
   if (systemInfoWidget.failed) {
-    container.style.display = "none";
+    const isHttps = window.location.protocol === 'https:';
+    const errorMsg = isHttps
+      ? _("WebSocket blocked due to HTTPS Mixed Content. Use HTTP to view system statistics.")
+      : _("Failed to connect to Clash WebSocket API.");
+    const renderedWidget = renderWidget({
+      loading: false,
+      failed: false,
+      title: _("System info"),
+      items: [
+        {
+          key: _("Status"),
+          value: E("div", { style: "white-space: normal; color: #f44336; font-size: 11px;" }, errorMsg)
+        }
+      ]
+    });
+    container.replaceChildren(renderedWidget);
     return;
   }
-  container.style.display = "";
   if (systemInfoWidget.loading) {
     const renderedWidget2 = renderWidget({
       loading: systemInfoWidget.loading,

@@ -8,7 +8,7 @@
         "/usr/bin/obhod": [ "exec" ],
         "/usr/lib/obhod/obhod-backend.sh": [ "exec" ],
         "/etc/init.d/obhod": [ "exec" ],
-        "/usr/bin/logread": [ "exec" ],
+        "/sbin/logread": [ "exec" ],
         "/usr/bin/dig": [ "exec" ],
         "/tmp/sing-box/config.json": [ "read" ]
       },

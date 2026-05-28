@@ -813,10 +813,11 @@ remove_cron_job() {
 
 list_update() {
     (
-        flock -n 9 || { obhod_log "Another obhod process holds the lock. Skipping list update." "warn"; exit 0; }
+        flock -n 9 || { obhod_log "Another list update process is already running. Skipping list update." "warn"; exit 0; }
         list_update_real
-    ) 9>/var/run/obhod.lock
+    ) 9>/var/run/obhod_list_update.lock
 }
+
 
 list_update_real() {
     echo "$$" > /var/run/obhod_list_update.pid
@@ -882,7 +883,11 @@ list_update_real() {
        config_foreach import_domains_from_remote_domain_lists "section" && \
        config_foreach import_subnets_from_remote_subnet_lists "section"; then
         echolog "✅ Lists update completed successfully"
-        /etc/init.d/sing-box reload 2>/dev/null || /etc/init.d/sing-box restart 2>/dev/null
+        if [ "$(uci -q get obhod.settings.enabled)" = "1" ]; then
+            /etc/init.d/sing-box reload 2>/dev/null || /etc/init.d/sing-box restart 2>/dev/null
+        else
+            echolog "Obhod is disabled, skipping sing-box reload"
+        fi
     else
         echolog "❌ Lists update failed"
     fi
