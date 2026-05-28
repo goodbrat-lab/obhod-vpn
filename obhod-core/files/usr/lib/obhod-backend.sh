@@ -294,7 +294,7 @@ start_main_real() {
 
     obhod_log "Waiting for WAN interface to be ready..."
     local retry=0
-    while ! ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; do
+    while ! ping -c 1 -W 1 77.88.8.8 >/dev/null 2>&1 && ! ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1 && ! ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1; do
         retry=$((retry+1))
         if [ "$retry" -ge 120 ]; then
             obhod_log "WAN not ready after 120 seconds, proceeding anyway..." "warn"
