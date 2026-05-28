@@ -256,7 +256,7 @@ fetch_subscription() {
 
 check_dns_inbound_support() {
     # Create minimal config to test DNS inbound support
-    local test_config='{"inbounds":[{"type":"dns","tag":"test"}]}'
+    local test_config='{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"test"}],"outbounds":[{"type":"direct","tag":"direct"}]}'
     echo "$test_config" > /tmp/obhod_dns_test.json
     
     # Test if sing-box accepts DNS inbound type
