@@ -328,10 +328,10 @@ start_main_real() {
     obhod_log "Generating sing-box configuration..."
     export OBHOD_LOG_COMPONENT="config"
 
-    # Check if sing-box supports DNS inbound (it's required for Obhod)
+    # Check if sing-box supports DNS inbound type
+    # If not supported (OpenWrt lite package), the config manager will use Mixed inbound as fallback
     if ! check_dns_inbound_support; then
-        obhod_log "Sing-box does not support DNS inbounds. Obhod cannot start. Please install full version of sing-box." "fatal"
-        exit 1
+        obhod_log "Sing-box does not support native DNS inbounds (likely lite package). Will use Mixed inbound on port 53 as fallback. This is fully functional." "warn"
     fi
 
     sing_box_init_config
