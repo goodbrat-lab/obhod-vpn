@@ -394,7 +394,19 @@ start_main_real() {
 
                 # Try a brief foreground run to capture runtime errors
                 local run_output
-                run_output=$(timeout 3 "$sb_bin" run -c "$sb_config" 2>&1 || true)
+                if command -v timeout >/dev/null 2>&1; then
+                    run_output=$(timeout 3 "$sb_bin" run -c "$sb_config" 2>&1 || true)
+                else
+                    # Fallback if timeout is not installed: run in background, sleep, kill
+                    "$sb_bin" run -c "$sb_config" > /tmp/sb_test_run.log 2>&1 &
+                    local sb_pid=$!
+                    sleep 3
+                    if kill -0 "$sb_pid" 2>/dev/null; then
+                        kill "$sb_pid" 2>/dev/null
+                    fi
+                    run_output=$(cat /tmp/sb_test_run.log 2>/dev/null || true)
+                    rm -f /tmp/sb_test_run.log
+                fi
                 if [ -n "$run_output" ]; then
                     obhod_log "Sing-box runtime output: $(echo "$run_output" | head -5)" "error"
                 fi

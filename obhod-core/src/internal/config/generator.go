@@ -178,7 +178,6 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 		Type:   "udp",
 		Tag:    "dns-direct",
 		Server: bootstrapServer,
-		Detour: "direct-out",
 	})
 
 	// 2. Default Tunnel DNS
