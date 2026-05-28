@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=obhod
 
-PKG_VERSION := 1.1.28
+PKG_VERSION := 1.1.29
 
 PKG_RELEASE:=1
 

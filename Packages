@@ -197,6 +197,17 @@ Size: 44754
 SHA256sum: 626e09eff5629e766e6a11657245b4fb623dd989fd77d8a1b3dd73a91f2534d6
 
 Package: luci-app-obhod
+Version: 1.1.29-1
+Depends: obhod, luci-base, luci-compat, rpcd-mod-file
+Section: luci
+Architecture: all
+Maintainer: Obhod Team <obhod@itdog.info>
+Description: LuCI web interface for Obhod VPN
+Filename: luci-app-obhod_1.1.29-1_all.ipk
+Size: 44754
+SHA256sum: ab10ea710f8f5cd7952861bf33790dc90b264714ca01108788e15394b8de3daf
+
+Package: luci-app-obhod
 Version: 1.1.9-1
 Depends: obhod, luci-base, luci-compat, rpcd-mod-file
 Section: luci
@@ -1556,6 +1567,81 @@ Description: Obhod VPN - reliable selective routing for OpenWrt
 Filename: obhod_1.1.28-1_x86_64.ipk
 Size: 2888564
 SHA256sum: 1958049a2e56cccae19a19c6e6532093323370cc141b463752bb7d7ffcc178fc
+
+Package: obhod
+Version: 1.1.29-1
+Architecture: aarch64_cortex-a53
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.29-1_aarch64_cortex-a53.ipk
+Size: 2602141
+SHA256sum: c3ec9db2f268a82ba05fe444ed15d2b2b417561171daf4bbaa75d19ac28d02db
+
+Package: obhod
+Version: 1.1.29-1
+Architecture: arm_cortex-a7_neon-vfpv4
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.29-1_arm_cortex-a7_neon-vfpv4.ipk
+Size: 2773271
+SHA256sum: 749cf376472b3e569b117cc0cc59ddbdc6ae3446f4dd9376a972eb8a369a5796
+
+Package: obhod
+Version: 1.1.29-1
+Architecture: mips_24kc
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.29-1_mips_24kc.ipk
+Size: 2716374
+SHA256sum: a428dc5191b3bfac6ca5dc89e29bdc871d999038b15dd3c1f3cd47d16e6cc58b
+
+Package: obhod
+Version: 1.1.29-1
+Architecture: mipsel_24kc
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.29-1_mipsel_24kc.ipk
+Size: 2690367
+SHA256sum: a65d9c9d603832fa6bb9fd35e6cde1d701d63de047f271989bd7be2c4b5e4cd5
+
+Package: obhod
+Version: 1.1.29-1
+Architecture: x86_64
+Maintainer: Obhod Team <obhod@itdog.info>
+Section: net
+Priority: optional
+Depends: sing-box, nftables, dnsmasq-full, ip-full, curl, jq, coreutils-base64
+Description: Obhod VPN - reliable selective routing for OpenWrt
+ Obhod provides stable and intelligent selective traffic routing on
+ OpenWrt routers. Features: WAN-ready startup, DNS health watchdog,
+ FakeIP cache management, nftables TProxy routing.
+Filename: obhod_1.1.29-1_x86_64.ipk
+Size: 2888496
+SHA256sum: 4e925e9c33cfaa975b00a2cfa7ccc31ee5b604860e83e9e85bdc90ed874aeaac
 
 Package: obhod
 Version: 1.1.9-1
