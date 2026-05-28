@@ -41,7 +41,7 @@ fi
 check_sb_dns_at() {
     sb_path="$1"
     if [ ! -x "$sb_path" ]; then return 1; fi
-    echo '{"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}]}' > /tmp/obhod_sb_test.json
+    echo '{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"dns-in","listen":"127.0.0.1","listen_port":5353}],"outbounds":[{"type":"direct","tag":"direct"}]}' > /tmp/obhod_sb_test.json
     if "$sb_path" check -c /tmp/obhod_sb_test.json >/dev/null 2>&1; then
         rm -f /tmp/obhod_sb_test.json
         return 0

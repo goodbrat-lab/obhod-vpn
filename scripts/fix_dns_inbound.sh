@@ -45,7 +45,7 @@ cat > /tmp/dns_fix.patch << 'EOF'
 +}
 +
 +check_dns_inbound_support() {
-+    local test='{"inbounds":[{"type":"dns","tag":"test"}]}'
++    local test='{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"test"}],"outbounds":[{"type":"direct","tag":"direct"}]}'
 +    echo "$test" > /tmp/obhod_dns_test.json
 +    if sing-box check -c /tmp/obhod_dns_test.json >/dev/null 2>&1; then
 +        rm -f /tmp/obhod_dns_test.json
@@ -87,7 +87,7 @@ cat > /tmp/manager_fix.patch << 'EOF'
  }
  
 +check_sing_box_supports_dns_inbound() {
-+    local test='{"inbounds":[{"type":"dns"}]}'
++    local test='{"dns":{"servers":[{"type":"udp","tag":"dns-direct","server":"8.8.8.8"}]},"inbounds":[{"type":"dns","tag":"test"}],"outbounds":[{"type":"direct","tag":"direct"}]}'
 +    echo "$test" > /tmp/sb_dns_test.json
 +    if sing-box check -c /tmp/sb_dns_test.json >/dev/null 2>&1; then
 +        rm -f /tmp/sb_dns_test.json
