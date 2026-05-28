@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Universal Installer for Obhod VPN
-# Always installs full sing-box from GitHub for complete DNS inbound support.
+# Installs full sing-box from GitHub (requires 1.12+ for hijack-dns route action).
 # Compatible with OpenWrt 25.xx (apk) and older versions (opkg).
 
 set -e
@@ -9,12 +9,12 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="${REPO_URL:-https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages}"
-VERSION="1.1.21"
+VERSION="1.1.22"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.21      "
+echo "      Obhod VPN - Universal Installer v1.1.22      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"

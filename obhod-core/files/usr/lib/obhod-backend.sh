@@ -328,20 +328,20 @@ start_main_real() {
     config_foreach add_cron_job "section"
     /etc/init.d/sing-box start
     
-    # Wait for sing-box DNS inbound (127.0.0.42:53) to start listening
-    obhod_log "Waiting for sing-box DNS inbound to start listening..."
-    local dns_ready=0
+    # Wait for sing-box tproxy inbound to start listening
+    obhod_log "Waiting for sing-box tproxy inbound to start listening..."
+    local tproxy_ready=0
     local i
     for i in $(seq 1 15); do
-        if netstat -lun | grep -qE "127\.0\.0\.42[:.]53 "; then
-            dns_ready=1
+        if netstat -lun | grep -qE "127\.0\.0\.1[:.]1602 " || netstat -ltn | grep -qE "127\.0\.0\.1[:.]1602 "; then
+            tproxy_ready=1
             break
         fi
         sleep 1
     done
 
-    if [ "$dns_ready" -eq 0 ]; then
-        obhod_log "Sing-box DNS inbound did not start listening within 15 seconds. Aborting startup. Last logs:" "error"
+    if [ "$tproxy_ready" -eq 0 ]; then
+        obhod_log "Sing-box tproxy inbound did not start listening within 15 seconds. Aborting startup. Last logs:" "error"
         if command -v timeout >/dev/null 2>&1 && command -v logread >/dev/null 2>&1; then
             timeout 5 logread -e sing-box 2>/dev/null | tail -n 10 | while read -r line; do
                 obhod_log "$line" "error"
@@ -599,12 +599,23 @@ create_nft_rules() {
     nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto tcp tproxy ip to 127.0.0.1:1602 counter
     nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto udp tproxy ip to 127.0.0.1:1602 counter
 
+    # DNS from loopback (dnsmasq → sing-box DNS module via tproxy + hijack-dns)
+    # sing-box 1.12+: DNS inbound removed, use nft redirect + hijack-dns route action
+    nft add rule inet "$NFT_TABLE_NAME" proxy iif lo meta l4proto udp udp dport 53 tproxy ip to 127.0.0.1:1602 counter
+    nft add rule inet "$NFT_TABLE_NAME" proxy iif lo meta l4proto tcp tcp dport 53 tproxy ip to 127.0.0.1:1602 counter
+
     nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_LOCALV4_SET_NAME" return
     nft add rule inet "$NFT_TABLE_NAME" mangle_output meta mark "$NFT_OUTBOUND_MARK" counter return
     nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
     nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
     nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
     nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
+
+    # DNS from loopback: mark for tproxy routing (must be before "localv4 return" rule)
+    # This handles dnsmasq DNS forwarding to sing-box via tproxy redirect
+    nft insert rule inet "$NFT_TABLE_NAME" mangle_output meta mark "$NFT_OUTBOUND_MARK" counter return
+    nft insert rule inet "$NFT_TABLE_NAME" mangle_output oif lo meta l4proto udp udp dport 53 meta mark set "$NFT_FAKEIP_MARK" counter
+    nft insert rule inet "$NFT_TABLE_NAME" mangle_output oif lo meta l4proto tcp tcp dport 53 meta mark set "$NFT_FAKEIP_MARK" counter
 
     local exclude_ntp
     config_get_bool exclude_ntp "settings" "exclude_ntp" "0"
@@ -627,7 +638,8 @@ backup_dnsmasq_config_option() {
 
 dnsmasq_configure() {
     local is_redirected=0
-    if uci -q show dhcp.@dnsmasq[0].server | grep -q "127\.0\.0\.42"; then
+    # Check for both old (127.0.0.42) and new (127.0.0.1) sing-box DNS forwarding addresses
+    if uci -q show dhcp.@dnsmasq[0].server | grep -qE "127\.0\.0\.(42|1)"; then
         is_redirected=1
     fi
 
@@ -641,9 +653,9 @@ dnsmasq_configure() {
         # Clear old backup list to prevent duplication (🛡️ Nyuance 1)
         uci_remove "dhcp" "@dnsmasq[0]" "obhod_server"
 
-        # Backup servers list excluding 127.0.0.42 (🛡️ Nyuance 1 & Oshi B)
+        # Backup servers list excluding sing-box DNS addresses (both old 127.0.0.42 and new 127.0.0.1)
         local server
-        for server in $(uci -q get dhcp.@dnsmasq[0].server | tr " " "\n" | grep -v "127.0.0.42"); do
+        for server in $(uci -q get dhcp.@dnsmasq[0].server | tr " " "\n" | grep -vE "^127\.0\.0\.(42|1)$"); do
             [ -n "$server" ] && uci_add_list "dhcp" "@dnsmasq[0]" "obhod_server" "$server"
         done
         uci_remove "dhcp" "@dnsmasq[0]" "server"
@@ -652,7 +664,9 @@ dnsmasq_configure() {
         backup_dnsmasq_config_option "cachesize" "obhod_cachesize"
 
         obhod_log "Configure dnsmasq for sing-box"
-        uci_add_list "dhcp" "@dnsmasq[0]" "server" "$SB_DNS_INBOUND_ADDRESS"
+        # sing-box 1.12+: no DNS inbound, DNS is intercepted via tproxy + hijack-dns route rule.
+        # dnsmasq forwards to 127.0.0.1 (standard DNS port), nft intercepts and redirects to tproxy.
+        uci_add_list "dhcp" "@dnsmasq[0]" "server" "127.0.0.1"
         uci_set "dhcp" "@dnsmasq[0]" "noresolv" 1
         uci_set "dhcp" "@dnsmasq[0]" "cachesize" 0
         uci_commit "dhcp"
@@ -666,7 +680,8 @@ dnsmasq_configure() {
 dnsmasq_restore() {
     obhod_log "Restoring the dnsmasq configuration"
     local is_redirected=0
-    if uci -q show dhcp.@dnsmasq[0].server | grep -q "127\.0\.0\.42"; then
+    # Check for both old (127.0.0.42) and new (127.0.0.1) sing-box DNS forwarding addresses
+    if uci -q show dhcp.@dnsmasq[0].server | grep -qE "127\.0\.0\.(42|1)"; then
         is_redirected=1
     fi
 
@@ -958,9 +973,8 @@ sing_box_configure_inbounds() {
         sing_box_cm_add_tproxy_inbound \
             "$config" "$SB_TPROXY_INBOUND_TAG" "$SB_TPROXY_INBOUND_ADDRESS" "$SB_TPROXY_INBOUND_PORT" true true
     )
-    config=$(
-        sing_box_cm_add_dns_inbound "$config" "$SB_DNS_INBOUND_TAG" "$SB_DNS_INBOUND_ADDRESS" "$SB_DNS_INBOUND_PORT"
-    )
+    # sing-box 1.12+: DNS inbound removed. DNS is handled via tproxy + hijack-dns route action.
+    # No DNS inbound needed - nft rules redirect port 53 from loopback to tproxy.
 }
 
 # DEPRECATED: Legacy config generator helper. Use Go generator instead.
@@ -1249,7 +1263,8 @@ sing_box_configure_route() {
     fi
 
     local sniff_inbounds
-    sniff_inbounds=$(comma_string_to_json_array "$SB_TPROXY_INBOUND_TAG,$SB_DNS_INBOUND_TAG")
+    # sing-box 1.12+: DNS inbound removed, only tproxy inbound remains
+    sniff_inbounds=$(comma_string_to_json_array "$SB_TPROXY_INBOUND_TAG")
     config=$(sing_box_cm_sniff_route_rule "$config" "inbound" "$sniff_inbounds")
 
     config=$(sing_box_cm_add_hijack_dns_route_rule "$config" "protocol" "dns")
@@ -2403,7 +2418,8 @@ get_sing_box_status() {
     # Check DNS configuration
     local dns_server
     dns_server=$(uci get dhcp.@dnsmasq[0].server 2> /dev/null)
-    if [ "$dns_server" = "127.0.0.42" ]; then
+    # sing-box 1.12+: DNS forwarded to 127.0.0.1 (old: 127.0.0.42) via nft tproxy
+    if [ "$dns_server" = "127.0.0.42" ] || [ "$dns_server" = "127.0.0.1" ]; then
         dns_configured=1
     fi
 
@@ -2498,7 +2514,7 @@ check_dns_available() {
         fi
     fi
 
-    # Check if /etc/config/dhcp has server 127.0.0.42
+    # Check if /etc/config/dhcp has server 127.0.0.1 (or legacy 127.0.0.42)
     config_load dhcp
     config_foreach check_dhcp_has_obhod_dns dnsmasq
     config_load "$OBHOD_CONFIG"
@@ -2516,7 +2532,8 @@ check_dhcp_has_obhod_dns() {
 
     if [ -n "$server_list" ]; then
         for server in $server_list; do
-            if [ "$server" = "127.0.0.42" ]; then
+            # sing-box 1.12+: accept both old (127.0.0.42) and new (127.0.0.1) DNS forwarding addresses
+            if [ "$server" = "127.0.0.42" ] || [ "$server" = "127.0.0.1" ]; then
                 server_found=1
                 break
             fi
@@ -2660,19 +2677,15 @@ check_sing_box() {
     fi
 
     # Check if sing-box is listening on required ports
-    local port_53_ok=0
+    # sing-box 1.12+: DNS inbound removed, only tproxy port 1602 is checked
     local port_1602_ok=0
-
-    if netstat -ln 2> /dev/null | grep -q "127.0.0.42:53"; then
-        port_53_ok=1
-    fi
 
     if netstat -ln 2> /dev/null | grep -q "127.0.0.1:1602"; then
         port_1602_ok=1
     fi
 
-    # Both ports must be listening
-    if [ "$port_53_ok" = "1" ] && [ "$port_1602_ok" = "1" ]; then
+    # Tproxy port must be listening (DNS handled via nft redirect + hijack-dns)
+    if [ "$port_1602_ok" = "1" ]; then
         sing_box_ports_listening=1
     fi
 
@@ -3124,7 +3137,9 @@ global_check() {
     fi
 
     local fakeip_address
-    fakeip_address=$(dig +short @127.0.0.42 "$FAKEIP_TEST_DOMAIN")
+    # sing-box 1.12+: DNS goes via dnsmasq (127.0.0.1) -> nft tproxy -> sing-box hijack-dns
+    # Use system resolver to test FakeIP
+    fakeip_address=$(dig +short "$FAKEIP_TEST_DOMAIN" 2>/dev/null || nslookup "$FAKEIP_TEST_DOMAIN" 2>/dev/null | grep -A1 'Name:' | grep 'Address' | awk '{print $2}' | head -1)
 
     if echo "$fakeip_address" | grep -q "^198\.18\."; then
         print_global "✅ Sing-box works with FakeIP: $fakeip_address"

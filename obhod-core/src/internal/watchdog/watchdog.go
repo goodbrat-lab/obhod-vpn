@@ -239,7 +239,9 @@ func checkDns() bool {
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: 3 * time.Second}
-			return d.DialContext(ctx, "udp", "127.0.0.42:53")
+			// sing-box 1.12+: DNS goes via dnsmasq (127.0.0.1:53) -> nft tproxy -> sing-box hijack-dns
+			// Old approach was direct DNS inbound at 127.0.0.42:53, which no longer exists
+			return d.DialContext(ctx, "udp", "127.0.0.1:53")
 		},
 	}
 

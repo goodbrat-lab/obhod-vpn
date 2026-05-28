@@ -136,8 +136,43 @@ cd "$BUILD_DIR/control" && tar -czf "../control.tar.gz" .
 cd "$BUILD_DIR"
 echo "2.0" > debian-binary
 OUTPUT_FILE="$DIST_PKG_DIR/obhod_${VERSION}-${RELEASE}_${ARCH}.ipk"
-# Standard .ipk is an 'ar' archive
-ar r "$OUTPUT_FILE" debian-binary control.tar.gz data.tar.gz
+# Standard .ipk is an 'ar' archive; fall back to Python if ar is not available
+if command -v ar >/dev/null 2>&1; then
+    ar r "$OUTPUT_FILE" debian-binary control.tar.gz data.tar.gz
+else
+    # Python fallback: build a minimal POSIX ar archive (Debian format)
+    python3 - "$OUTPUT_FILE" debian-binary control.tar.gz data.tar.gz << 'PYEOF'
+import sys, os, struct, time
+
+out_file = sys.argv[1]
+members = sys.argv[2:]
+
+GLOBAL_HDR = b"!<arch>\n"
+
+def ar_header(name, size):
+    mtime = int(time.time())
+    name_field = (name + "/").ljust(16).encode()[:16]
+    hdr = name_field
+    hdr += str(mtime).ljust(12).encode()[:12]
+    hdr += b"0     "   # uid
+    hdr += b"0     "   # gid
+    hdr += b"100644  "  # mode
+    hdr += str(size).ljust(10).encode()[:10]
+    hdr += b"`\n"
+    return hdr
+
+with open(out_file, "wb") as ar:
+    ar.write(GLOBAL_HDR)
+    for member in members:
+        data = open(member, "rb").read()
+        ar.write(ar_header(os.path.basename(member), len(data)))
+        ar.write(data)
+        if len(data) % 2 != 0:
+            ar.write(b"\n")
+
+print(f"Created {out_file}")
+PYEOF
+fi
 cp "$BUILD_DIR/data.tar.gz" "$DIST_PKG_DIR/obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
 
 echo "Built: $OUTPUT_FILE ($(du -h "$OUTPUT_FILE" | cut -f1))"

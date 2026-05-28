@@ -105,12 +105,9 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		SniffOverrideDestination: true,
 	})
 
-	config.Inbounds = append(config.Inbounds, InboundConfig{
-		Type:       "dns",
-		Tag:        "dns-in",
-		Listen:     "127.0.0.42",
-		ListenPort: 53,
-	})
+	// NOTE: In sing-box 1.12+, the 'dns' inbound type was removed.
+	// DNS hijacking is now handled via a route rule with action: 'hijack-dns'.
+	// The hijack-dns route rule is added in the route setup section below.
 
 	// 2. DNS setup
 	dnsStrategy := uci.Settings.DNSStrategy
@@ -124,6 +121,18 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 	config.Outbounds = append(config.Outbounds, OutboundConfig{
 		Type: "direct",
 		Tag:  "direct-out",
+	})
+
+	// Add sniff route rule first (required for hijack-dns to work - sing-box needs to detect DNS protocol)
+	config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{
+		Action: "sniff",
+	})
+
+	// Add hijack-dns route rule (sing-box 1.12+ replacement for dns inbound)
+	// This intercepts DNS traffic coming through tproxy and routes it to sing-box DNS module
+	config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{
+		Protocol: []string{"dns"},
+		Action:   "hijack-dns",
 	})
 
 	fetcher := subscription.NewFetcher("")

@@ -150,10 +150,17 @@ type RuleSetConfig struct {
 }
 
 type RouteRuleConfig struct {
-	Inbound  []string `json:"inbound,omitempty"`
-	IPCIDR   []string `json:"ip_cidr,omitempty"`
-	RuleSet  []string `json:"rule_set,omitempty"`
-	Outbound string   `json:"outbound,omitempty"`
+	// Match conditions
+	Inbound     []string `json:"inbound,omitempty"`
+	IPCIDR      []string `json:"ip_cidr,omitempty"`
+	RuleSet     []string `json:"rule_set,omitempty"`
+	Port        []int    `json:"port,omitempty"`
+	PortRange   []string `json:"port_range,omitempty"`
+	Protocol    []string `json:"protocol,omitempty"`
+	// Actions (sing-box 1.12+)
+	// When Action is set, use action-based routing instead of Outbound
+	Action   string `json:"action,omitempty"`
+	Outbound string `json:"outbound,omitempty"`
 }
 
 type ExperimentalConfig struct {

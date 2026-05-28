@@ -1279,7 +1279,7 @@ sing_box_cm_sniff_route_rule() {
         '.route.rules += [{
             action: "sniff",
             ($key): $value,
-            sniffer: ["http", "tls", "quic"],
+            sniffer: ["http", "tls", "quic", "dns"],
             override_destination: true
         }]'
 }
