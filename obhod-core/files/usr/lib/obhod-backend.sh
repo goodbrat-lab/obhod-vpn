@@ -303,7 +303,11 @@ start_main_real() {
     br_netfilter_disable
 
     obhod_log "Synchronizing system time..." "debug"
-    /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123
+    if command -v timeout >/dev/null 2>&1; then
+        timeout 10 /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123 || true
+    else
+        /usr/sbin/ntpd -q -p 194.190.168.1 -p 216.239.35.0 -p 216.239.35.4 -p 162.159.200.1 -p 162.159.200.123 &
+    fi
 
     mkdir -p "$TMP_SING_BOX_FOLDER"
     mkdir -p "$TMP_RULESET_FOLDER"
@@ -2691,22 +2695,12 @@ check_sing_box() {
     if command -v sing-box > /dev/null 2>&1; then
         sing_box_installed=1
 
-        # Check version (must be >= 1.12.4)
+        # Check version (must be >= 1.12.0)
         local version
         version=$(sing-box version 2> /dev/null | head -n 1 | awk '{print $3}')
         if [ -n "$version" ]; then
             version=$(echo "$version" | sed 's/^v//')
-            local major
-            local minor
-            local patch
-            major=$(echo "$version" | cut -d. -f1)
-            minor=$(echo "$version" | cut -d. -f2)
-            patch=$(echo "$version" | cut -d. -f3)
-
-            # Compare version: must be >= 1.12.4
-            if [ "$major" -gt 1 ] ||
-                [ "$major" -eq 1 ] && [ "$minor" -gt 12 ] ||
-                [ "$major" -eq 1 ] && [ "$minor" -eq 12 ] && [ "$patch" -ge 4 ]; then
+            if is_min_package_version "$version" "1.12.0"; then
                 sing_box_version_ok=1
             fi
         fi
@@ -2730,8 +2724,18 @@ check_sing_box() {
     # sing-box 1.12+: DNS inbound removed, only tproxy port 1602 is checked
     local port_1602_ok=0
 
-    if netstat -ln 2> /dev/null | grep -q "127.0.0.1:1602"; then
-        port_1602_ok=1
+    if command -v ss >/dev/null 2>&1; then
+        if ss -tlnp 2>/dev/null | grep -q ":1602 " || \
+           ss -ulnp 2>/dev/null | grep -q ":1602 " || \
+           ss -tlnp 2>/dev/null | grep -q "*:1602 "; then
+            port_1602_ok=1
+        fi
+    fi
+
+    if [ "$port_1602_ok" = "0" ]; then
+        if netstat -ln 2> /dev/null | grep -q ":1602"; then
+            port_1602_ok=1
+        fi
     fi
 
     # Tproxy port must be listening (DNS handled via nft redirect + hijack-dns)
@@ -2988,9 +2992,9 @@ global_check() {
         fi
 
         if [ "$sing_box_version_ok" -eq 1 ]; then
-            print_global "✅ Sing-box version is compatible (newer than 1.12.4)"
+            print_global "✅ Sing-box version is compatible (>= 1.12.0)"
         else
-            print_global "❌ Sing-box version is not compatible (older than 1.12.4)"
+            print_global "❌ Sing-box version is not compatible (< 1.12.0)"
         fi
 
         if [ "$sing_box_service_exist" -eq 1 ]; then

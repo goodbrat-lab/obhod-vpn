@@ -271,6 +271,14 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 			}
 		}
 
+		if len(outbounds) == 0 {
+			logger.Warn("config", "generator", "No valid proxies found for section %s. Creating a fallback direct outbound to prevent startup failure.", section.Name)
+			outbounds = append(outbounds, OutboundConfig{
+				Type: "direct",
+				Tag:  outboundTag,
+			})
+		}
+
 		if len(outbounds) > 0 {
 			finalOutboundTag := outboundTag
 
@@ -422,6 +430,9 @@ func getCommunityURL(service string) string {
 }
 
 func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
+	if proxyStr == "" {
+		return nil, fmt.Errorf("empty proxy URL")
+	}
 	if strings.HasPrefix(proxyStr, "vmess://") {
 		return parseVMess(proxyStr, tag)
 	}
@@ -499,6 +510,8 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 			}
 		}
 		applyTLS(outbound, u)
+	default:
+		return nil, fmt.Errorf("unsupported proxy scheme: %s", u.Scheme)
 	}
 
 	return outbound, nil

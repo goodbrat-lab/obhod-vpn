@@ -872,7 +872,7 @@ msgid "Sing-box service exist"
 msgstr ""
 
 #: src/obhod/tabs/diagnostic/checks/runSingBoxCheck.ts:67
-msgid "Sing-box version is compatible (newer than 1.12.4)"
+msgid "Sing-box version is compatible (>= 1.12.0)"
 msgstr ""
 
 #: ../luci-app-obhod/htdocs/luci-static/resources/view/obhod/settings.js:89
