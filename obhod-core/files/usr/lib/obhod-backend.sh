@@ -2787,11 +2787,10 @@ clash_api() {
     CLASH_URL="$clash_api_controller_address:$SB_CLASH_API_CONTROLLER_PORT"
     TEST_URL="https://www.gstatic.com/generate_204"
 
-    local enable_yacd_wan_access yacd_secret_key auth_header
-    config_get_bool enable_yacd_wan_access "settings" "enable_yacd_wan_access" 0
+    local yacd_secret_key auth_header
     config_get yacd_secret_key "settings" "yacd_secret_key"
 
-    if [ "$enable_yacd_wan_access" -eq 1 ]; then
+    if [ -n "$yacd_secret_key" ]; then
         auth_header="Authorization: Bearer $yacd_secret_key"
     else
         auth_header=""

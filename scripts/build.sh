@@ -6,11 +6,11 @@ set -e
 
 ARCH="${1:-x86_64}"
 SDK_PATH="${SDK_PATH:-/opt/openwrt-sdk}"
-VERSION="1.1.26"
+VERSION="1.1.27"
 RELEASE="1"
 
 echo "=================================================="
-echo "      Obhod VPN Build Script v1.1.26"
+echo "      Obhod VPN Build Script v1.1.27"
 echo "=================================================="
 echo "Architecture: $ARCH"
 echo "SDK Path: $SDK_PATH"
