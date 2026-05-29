@@ -175,6 +175,44 @@ func TestNewFeatures(t *testing.T) {
 		t.Errorf("Socks parse mismatch: %+v", gotSocks)
 	}
 
+	// 3b. WS transport host mapping test
+	gotWS, err := parseProxyURL("vless://ae374246-862d-45f8-b395-926f63459ad2@example.com:443?security=tls&sni=example.com&type=ws&path=/ws&host=example.com", "vless-ws")
+	if err != nil {
+		t.Fatalf("Failed to parse VLESS with ws: %v", err)
+	}
+	if gotWS.Transport == nil {
+		t.Fatalf("Expected TransportConfig to be non-nil")
+	}
+	if gotWS.Transport.Type != "ws" || gotWS.Transport.Path != "/ws" {
+		t.Errorf("Unexpected transport type/path: %+v", gotWS.Transport)
+	}
+	if len(gotWS.Transport.Host) != 0 {
+		t.Errorf("Expected Host array to be empty for ws transport, got %v", gotWS.Transport.Host)
+	}
+	if gotWS.Transport.Headers == nil || gotWS.Transport.Headers["Host"] != "example.com" {
+		t.Errorf("Expected Headers to contain Host: example.com, got %v", gotWS.Transport.Headers)
+	}
+
+	// 3c. VMess base64 JSON ws transport host mapping test
+	// JSON: {"add":"example.com","port":443,"id":"ae374246-862d-45f8-b395-926f63459ad2","net":"ws","path":"/vmess-path","host":"example.com","tls":"tls"}
+	// encoded: eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOjQ0MywiaWQiOiJhZTM3NDI0Ni04NjJkLTQ1ZjgtYjM5NS05MjZmNjM0NTlhZDIiLCJuZXQiOiJ3cyIsInBhdGgiOiIvdm1lc3MtcGF0aCIsImhvc3QiOiJleGFtcGxlLmNvbSIsInRscyI6InRscyJ9
+	gotVMessWS, err := parseProxyURL("vmess://eyJhZGQiOiJleGFtcGxlLmNvbSIsInBvcnQiOjQ0MywiaWQiOiJhZTM3NDI0Ni04NjJkLTQ1ZjgtYjM5NS05MjZmNjM0NTlhZDIiLCJuZXQiOiJ3cyIsInBhdGgiOiIvdm1lc3MtcGF0aCIsImhvc3QiOiJleGFtcGxlLmNvbSIsInRscyI6InRscyJ9", "vmess-ws")
+	if err != nil {
+		t.Fatalf("Failed to parse VMess base64 JSON with ws: %v", err)
+	}
+	if gotVMessWS.Transport == nil {
+		t.Fatalf("Expected VMess TransportConfig to be non-nil")
+	}
+	if gotVMessWS.Transport.Type != "ws" || gotVMessWS.Transport.Path != "/vmess-path" {
+		t.Errorf("Unexpected VMess transport type/path: %+v", gotVMessWS.Transport)
+	}
+	if len(gotVMessWS.Transport.Host) != 0 {
+		t.Errorf("Expected VMess Host array to be empty for ws transport, got %v", gotVMessWS.Transport.Host)
+	}
+	if gotVMessWS.Transport.Headers == nil || gotVMessWS.Transport.Headers["Host"] != "example.com" {
+		t.Errorf("Expected VMess Headers to contain Host: example.com, got %v", gotVMessWS.Transport.Headers)
+	}
+
 	// 4. setupDNS detour / domain_resolver / rewrite_ttl test
 	uci := &UCIConfig{
 		Settings: SettingsUCI{

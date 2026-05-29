@@ -1,6 +1,6 @@
 # shellcheck disable=SC2034
 
-OBHOD_VERSION="1.1.35"
+OBHOD_VERSION="1.1.36"
 ## Common
 OBHOD_CONFIG="/etc/config/obhod"
 RESOLV_CONF="/etc/resolv.conf"

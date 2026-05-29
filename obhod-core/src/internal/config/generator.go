@@ -78,7 +78,7 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 			RuleSet:               []RuleSetConfig{},
 			Final:                 "direct-out",
 			AutoDetectInterface:   true,
-			DefaultDomainResolver: "dns-proxy",
+			DefaultDomainResolver: "dns-direct",
 		},
 		Experimental: &ExperimentalConfig{
 			CacheFile: &CacheFileConfig{
@@ -751,7 +751,10 @@ func applyTransport(outbound *OutboundConfig, u *url.URL) {
 			Path: u.Query().Get("path"),
 		}
 		if host := u.Query().Get("host"); host != "" {
-			outbound.Transport.Host = []string{host}
+			if outbound.Transport.Headers == nil {
+				outbound.Transport.Headers = make(map[string]string)
+			}
+			outbound.Transport.Headers["Host"] = host
 		}
 		// WebSocket 0-RTT early data
 		if ed := u.Query().Get("ed"); ed != "" {
@@ -814,7 +817,10 @@ func parseVMess(proxyStr string, tag string) (*OutboundConfig, error) {
 						Path: fmt.Sprintf("%v", v["path"]),
 					}
 					if host, ok := v["host"].(string); ok && host != "" {
-						outbound.Transport.Host = []string{host}
+						if outbound.Transport.Headers == nil {
+							outbound.Transport.Headers = make(map[string]string)
+						}
+						outbound.Transport.Headers["Host"] = host
 					}
 				} else if net == "grpc" {
 					outbound.Transport = &TransportConfig{
