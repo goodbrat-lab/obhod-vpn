@@ -1105,3 +1105,15 @@ msgstr ""
 #: ../luci-app-obhod/htdocs/luci-static/resources/view/obhod/settings.js:127
 msgid "You can select Output Network Interface, by default autodetect"
 msgstr ""
+
+#: ../luci-app-obhod/htdocs/luci-static/resources/view/obhod/settings.js:394
+msgid "Service Listen Address"
+msgstr ""
+
+#: ../luci-app-obhod/htdocs/luci-static/resources/view/obhod/settings.js:395
+msgid "IP address for the mixed proxy inbounds to listen on (default: 0.0.0.0)"
+msgstr ""
+
+#: ../luci-app-obhod/htdocs/luci-static/resources/view/obhod/settings.js:313
+msgid "First active proxy"
+msgstr ""
