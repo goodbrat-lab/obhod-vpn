@@ -95,7 +95,6 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		config.Experimental.ClashAPI.ExternalUI = "ui"
 	}
 
-	// 1. Inbounds
 	config.Inbounds = append(config.Inbounds, InboundConfig{
 		Type:                     "tproxy",
 		Tag:                      "tproxy-in",
@@ -104,6 +103,15 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		Sniff:                    true,
 		SniffOverrideDestination: true,
 	})
+
+	if uci.Settings.DownloadListsViaProxy {
+		config.Inbounds = append(config.Inbounds, InboundConfig{
+			Type:       "mixed",
+			Tag:        "service-mixed-in",
+			Listen:     "127.0.0.1",
+			ListenPort: 4534,
+		})
+	}
 
 	// NOTE: In sing-box 1.12+, the 'dns' inbound type was removed.
 	// DNS hijacking is now handled via a route rule with action: 'hijack-dns'.
@@ -139,6 +147,24 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		Action:   "hijack-dns",
 	})
 
+	if uci.Settings.DownloadListsViaProxy {
+		detourTag := ""
+		if uci.Settings.DownloadListsViaProxySection != "" {
+			if sec, ok := uci.Sections[uci.Settings.DownloadListsViaProxySection]; ok && sec.Enabled && sec.ConnectionType == "proxy" {
+				detourTag = sec.Name + "-out"
+			}
+		}
+		if detourTag == "" {
+			detourTag = getFirstProxyOutboundTag(uci)
+		}
+		if detourTag != "" {
+			config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{
+				Inbound:  []string{"service-mixed-in"},
+				Outbound: detourTag,
+			})
+		}
+	}
+
 	fetcher := subscription.NewFetcher("")
 	if uci.Settings.DownloadListsViaProxy {
 		secName := uci.Settings.DownloadListsViaProxySection
@@ -161,7 +187,7 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		if !section.Enabled {
 			continue
 		}
-		processSection(config, section, fetcher, cache)
+		processSection(config, section, fetcher, cache, uci)
 	}
 
 	return config, nil
@@ -271,7 +297,7 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	})
 }
 
-func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscription.Fetcher, cache *subscription.CacheData) {
+func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscription.Fetcher, cache *subscription.CacheData, uci *UCIConfig) {
 	outboundTag := section.Name + "-out"
 
 	if section.ConnectionType == "proxy" {
@@ -360,6 +386,23 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				config.Outbounds = append(config.Outbounds, group)
 			} else {
 				config.Outbounds = append(config.Outbounds, outbounds[0])
+			}
+
+			if section.MixedProxyEnabled && section.MixedProxyPort > 0 {
+				listenAddr := "0.0.0.0"
+				if uci.Settings.ServiceListenAddress != "" {
+					listenAddr = uci.Settings.ServiceListenAddress
+				}
+				config.Inbounds = append(config.Inbounds, InboundConfig{
+					Type:       "mixed",
+					Tag:        section.Name + "-mixed",
+					Listen:     listenAddr,
+					ListenPort: section.MixedProxyPort,
+				})
+				config.Route.Rules = append(config.Route.Rules, RouteRuleConfig{
+					Inbound:  []string{section.Name + "-mixed"},
+					Outbound: finalOutboundTag,
+				})
 			}
 
 			sectionDNSTag := "dns-" + section.Name

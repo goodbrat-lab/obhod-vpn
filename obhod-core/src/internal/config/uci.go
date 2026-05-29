@@ -37,6 +37,7 @@ type SettingsUCI struct {
 	SingBoxVersion           string
 	UseLegacyGenerator       bool
 	DNSRewriteTTL            int
+	ServiceListenAddress     string
 }
 
 type SectionUCI struct {
@@ -156,6 +157,8 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 		if ttl, err := strconv.Atoi(value); err == nil {
 			s.DNSRewriteTTL = ttl
 		}
+	case "service_listen_address":
+		s.ServiceListenAddress = value
 	}
 }
 

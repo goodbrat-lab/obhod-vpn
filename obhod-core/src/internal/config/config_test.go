@@ -233,4 +233,82 @@ func TestNewFeatures(t *testing.T) {
 	if fakeipRule.RewriteTTL != 120 {
 		t.Errorf("Expected fakeip rule RewriteTTL = 120, got %d", fakeipRule.RewriteTTL)
 	}
+
+	// 5. Test mixed inbounds (system and section)
+	uciMixed := &UCIConfig{
+		Settings: SettingsUCI{
+			DownloadListsViaProxy: true,
+			ServiceListenAddress:  "192.168.1.1",
+		},
+		Sections: map[string]SectionUCI{
+			"proxy1": {
+				Name:               "proxy1",
+				Enabled:            true,
+				ConnectionType:     "proxy",
+				ProxyConfigType:    "url",
+				ProxyString:        "vless://ae374246-862d-45f8-b395-926f63459ad2@example.com:443",
+				MixedProxyEnabled:  true,
+				MixedProxyPort:     8080,
+			},
+		},
+	}
+	cfgMixed, err := Generate(uciMixed)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Check system service-mixed-in inbound
+	var serviceMixed *InboundConfig
+	var userMixed *InboundConfig
+	for i := range cfgMixed.Inbounds {
+		if cfgMixed.Inbounds[i].Tag == "service-mixed-in" {
+			serviceMixed = &cfgMixed.Inbounds[i]
+		}
+		if cfgMixed.Inbounds[i].Tag == "proxy1-mixed" {
+			userMixed = &cfgMixed.Inbounds[i]
+		}
+	}
+
+	if serviceMixed == nil {
+		t.Errorf("system mixed inbound (service-mixed-in) was not generated")
+	} else {
+		if serviceMixed.Type != "mixed" || serviceMixed.Listen != "127.0.0.1" || serviceMixed.ListenPort != 4534 {
+			t.Errorf("system mixed inbound configuration mismatch: %+v", serviceMixed)
+		}
+	}
+
+	if userMixed == nil {
+		t.Errorf("user section-level mixed inbound (proxy1-mixed) was not generated")
+	} else {
+		if userMixed.Type != "mixed" || userMixed.Listen != "192.168.1.1" || userMixed.ListenPort != 8080 {
+			t.Errorf("user mixed inbound configuration mismatch: %+v", userMixed)
+		}
+	}
+
+	// Verify route rules for these inbounds
+	var serviceMixedRule *RouteRuleConfig
+	var userMixedRule *RouteRuleConfig
+	for i := range cfgMixed.Route.Rules {
+		r := &cfgMixed.Route.Rules[i]
+		if len(r.Inbound) > 0 {
+			if r.Inbound[0] == "service-mixed-in" {
+				serviceMixedRule = r
+			}
+			if r.Inbound[0] == "proxy1-mixed" {
+				userMixedRule = r
+			}
+		}
+	}
+
+	if serviceMixedRule == nil {
+		t.Errorf("route rule for service-mixed-in not found")
+	} else if serviceMixedRule.Outbound != "proxy1-out" {
+		t.Errorf("expected service-mixed-in route to proxy1-out, got %s", serviceMixedRule.Outbound)
+	}
+
+	if userMixedRule == nil {
+		t.Errorf("route rule for proxy1-mixed not found")
+	} else if userMixedRule.Outbound != "proxy1-out" {
+		t.Errorf("expected proxy1-mixed route to proxy1-out, got %s", userMixedRule.Outbound)
+	}
 }
