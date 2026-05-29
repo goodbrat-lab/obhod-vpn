@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -73,10 +74,11 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 			Strategy: uci.Settings.DNSStrategy,
 		},
 		Route: &RouteConfig{
-			Rules:               []RouteRuleConfig{},
-			RuleSet:             []RuleSetConfig{},
-			Final:               "direct-out",
-			AutoDetectInterface: true,
+			Rules:                 []RouteRuleConfig{},
+			RuleSet:               []RuleSetConfig{},
+			Final:                 "direct-out",
+			AutoDetectInterface:   true,
+			DefaultDomainResolver: "dns-proxy",
 		},
 		Experimental: &ExperimentalConfig{
 			CacheFile: &CacheFileConfig{
@@ -165,6 +167,20 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 	return config, nil
 }
 
+func getFirstProxyOutboundTag(uci *UCIConfig) string {
+	if uci.Settings.DownloadListsViaProxySection != "" {
+		if sec, ok := uci.Sections[uci.Settings.DownloadListsViaProxySection]; ok && sec.Enabled && sec.ConnectionType == "proxy" {
+			return sec.Name + "-out"
+		}
+	}
+	for _, sec := range uci.Sections {
+		if sec.Enabled && sec.ConnectionType == "proxy" {
+			return sec.Name + "-out"
+		}
+	}
+	return ""
+}
+
 func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	dnsServer := uci.Settings.DNSServer
 	if dnsServer == "" {
@@ -202,6 +218,31 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 	default:
 		server.Type = "udp"
 	}
+
+	// Set detour if a proxy outbound is available
+	firstProxyTag := getFirstProxyOutboundTag(uci)
+	if firstProxyTag != "" {
+		server.Detour = firstProxyTag
+	}
+
+	// Set domain resolver if host is not an IPv4 address
+	dnsServerHost := dnsServer
+	if strings.Contains(dnsServer, "://") {
+		if u, err := url.Parse(dnsServer); err == nil {
+			dnsServerHost = u.Hostname()
+		}
+	} else if strings.Contains(dnsServer, "/") {
+		parts := strings.SplitN(dnsServer, "/", 2)
+		dnsServerHost = parts[0]
+	}
+	if h, _, err := net.SplitHostPort(dnsServerHost); err == nil {
+		dnsServerHost = h
+	}
+	ip := net.ParseIP(dnsServerHost)
+	if ip == nil || ip.To4() == nil {
+		server.DomainResolver = "dns-direct"
+	}
+
 	config.DNS.Servers = append(config.DNS.Servers, server)
 
 	// 3. FakeIP DNS (1.12+ format)
@@ -219,10 +260,14 @@ func setupDNS(config *SingBoxConfig, uci *UCIConfig) {
 		Server:   "dns-direct",
 	})
 	
+	rewriteTTL := uci.Settings.DNSRewriteTTL
+	if rewriteTTL <= 0 {
+		rewriteTTL = 60
+	}
 	config.DNS.Rules = append(config.DNS.Rules, DNSRuleConfig{
 		Domain:     []string{"fakeip.podkop.fyi", "ip.podkop.fyi"},
 		Server:     "fakeip-server",
-		RewriteTTL: 60,
+		RewriteTTL: rewriteTTL,
 	})
 }
 
@@ -268,6 +313,17 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				outbound, err := parseProxyURL(link, tag)
 				if err == nil && outbound != nil {
 					outbounds = append(outbounds, *outbound)
+				}
+			}
+		}
+
+		if section.EnableUDPOverTCP {
+			for i := range outbounds {
+				if outbounds[i].Type == "shadowsocks" || outbounds[i].Type == "socks" {
+					outbounds[i].UdpOverTcp = map[string]interface{}{
+						"enabled": true,
+						"version": 2,
+					}
 				}
 			}
 		}
@@ -464,7 +520,11 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 		}
 		outbound.UUID = u.User.String()
 		outbound.Flow = u.Query().Get("flow")
-		outbound.Security = u.Query().Get("security")
+		if pe := u.Query().Get("packetEncoding"); pe != "" {
+			outbound.PacketEncoding = pe
+		} else if pe := u.Query().Get("packet_encoding"); pe != "" {
+			outbound.PacketEncoding = pe
+		}
 		applyTLS(outbound, u)
 		applyTransport(outbound, u)
 
@@ -488,6 +548,22 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 				outbound.Method = parts[0]
 				outbound.Password = parts[1]
 			}
+		}
+
+	case "socks", "socks5", "socks4", "socks4a":
+		outbound.Type = "socks"
+		outbound.Server = u.Hostname()
+		outbound.ServerPort = 1080
+		if u.Port() != "" {
+			fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
+		}
+		if u.User != nil {
+			outbound.Username = u.User.Username()
+			outbound.Password, _ = u.User.Password()
+		}
+		outbound.Version = "5"
+		if u.Scheme == "socks4" || u.Scheme == "socks4a" {
+			outbound.Version = "4"
 		}
 
 	case "trojan":
@@ -548,12 +624,25 @@ func applyTLS(outbound *OutboundConfig, u *url.URL) {
 				Fingerprint: fp,
 			}
 		}
+		// Reality TLS — requires public_key (pbk) and short_id (sid)
+		if security == "reality" {
+			pbk := u.Query().Get("pbk")
+			sid := u.Query().Get("sid")
+			if pbk != "" {
+				outbound.TLS.Reality = &RealityConfig{
+					Enabled:   true,
+					PublicKey: pbk,
+					ShortID:   sid,
+				}
+			}
+		}
 	}
 }
 
 func applyTransport(outbound *OutboundConfig, u *url.URL) {
 	tType := u.Query().Get("type")
-	if tType == "ws" {
+	switch tType {
+	case "ws":
 		outbound.Transport = &TransportConfig{
 			Type: "ws",
 			Path: u.Query().Get("path"),
@@ -561,66 +650,107 @@ func applyTransport(outbound *OutboundConfig, u *url.URL) {
 		if host := u.Query().Get("host"); host != "" {
 			outbound.Transport.Host = []string{host}
 		}
-	} else if tType == "grpc" {
+		// WebSocket 0-RTT early data
+		if ed := u.Query().Get("ed"); ed != "" {
+			if edInt, err := strconv.Atoi(ed); err == nil && edInt > 0 {
+				outbound.Transport.MaxEarlyData = edInt
+				outbound.Transport.EarlyDataHeaderName = "Sec-WebSocket-Protocol"
+			}
+		}
+	case "grpc":
 		outbound.Transport = &TransportConfig{
 			Type:        "grpc",
 			ServiceName: u.Query().Get("serviceName"),
 		}
+	case "http", "h2":
+		outbound.Transport = &TransportConfig{
+			Type: "http",
+			Path: u.Query().Get("path"),
+		}
+		if host := u.Query().Get("host"); host != "" {
+			outbound.Transport.Host = []string{host}
+		}
+	case "tcp", "raw", "":
+		// No transport needed
 	}
 }
 
 func parseVMess(proxyStr string, tag string) (*OutboundConfig, error) {
 	data := strings.TrimPrefix(proxyStr, "vmess://")
 	decoded, err := DecodeBase64Tolerant(data)
+	if err == nil {
+		var v map[string]interface{}
+		if err := json.Unmarshal(decoded, &v); err == nil {
+			outbound := &OutboundConfig{
+				Type:        "vmess",
+				Tag:         tag,
+				Server:      fmt.Sprintf("%v", v["add"]),
+				UUID:        fmt.Sprintf("%v", v["id"]),
+				Security:    "auto",
+				RoutingMark: 2097152,
+			}
+
+			if port, ok := v["port"].(float64); ok {
+				outbound.ServerPort = int(port)
+			} else if portStr, ok := v["port"].(string); ok {
+				fmt.Sscanf(portStr, "%d", &outbound.ServerPort)
+			}
+
+			if tls, ok := v["tls"].(string); ok && (tls == "tls" || tls == "reality") {
+				outbound.TLS = &TLSConfig{
+					Enabled:    true,
+					ServerName: fmt.Sprintf("%v", v["sni"]),
+				}
+			}
+
+			// Transport for VMess (V2RayN)
+			if net, ok := v["net"].(string); ok {
+				if net == "ws" {
+					outbound.Transport = &TransportConfig{
+						Type: "ws",
+						Path: fmt.Sprintf("%v", v["path"]),
+					}
+					if host, ok := v["host"].(string); ok && host != "" {
+						outbound.Transport.Host = []string{host}
+					}
+				} else if net == "grpc" {
+					outbound.Transport = &TransportConfig{
+						Type:        "grpc",
+						ServiceName: fmt.Sprintf("%v", v["path"]),
+					}
+				}
+			}
+			return outbound, nil
+		}
+	}
+
+	// Fallback to URL format: vmess://uuid@host:port?security=auto&packetEncoding=x...
+	u, err := url.Parse(proxyStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode vmess base64: %v", err)
+		return nil, fmt.Errorf("failed to parse vmess: not base64 and not valid url: %v", err)
 	}
-
-	var v map[string]interface{}
-	if err := json.Unmarshal(decoded, &v); err != nil {
-		return nil, fmt.Errorf("failed to parse vmess json: %v", err)
-	}
-
 	outbound := &OutboundConfig{
 		Type:        "vmess",
 		Tag:         tag,
-		Server:      fmt.Sprintf("%v", v["add"]),
-		UUID:        fmt.Sprintf("%v", v["id"]),
+		Server:      u.Hostname(),
+		ServerPort:  443,
+		UUID:        u.User.String(),
 		Security:    "auto",
 		RoutingMark: 2097152,
 	}
-
-	if port, ok := v["port"].(float64); ok {
-		outbound.ServerPort = int(port)
-	} else if portStr, ok := v["port"].(string); ok {
-		fmt.Sscanf(portStr, "%d", &outbound.ServerPort)
+	if u.Port() != "" {
+		fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
 	}
-
-	if tls, ok := v["tls"].(string); ok && (tls == "tls" || tls == "reality") {
-		outbound.TLS = &TLSConfig{
-			Enabled:    true,
-			ServerName: fmt.Sprintf("%v", v["sni"]),
-		}
+	if sec := u.Query().Get("security"); sec != "" {
+		outbound.Security = sec
 	}
-
-	// Transport for VMess (V2RayN)
-	if net, ok := v["net"].(string); ok {
-		if net == "ws" {
-			outbound.Transport = &TransportConfig{
-				Type: "ws",
-				Path: fmt.Sprintf("%v", v["path"]),
-			}
-			if host, ok := v["host"].(string); ok && host != "" {
-				outbound.Transport.Host = []string{host}
-			}
-		} else if net == "grpc" {
-			outbound.Transport = &TransportConfig{
-				Type:        "grpc",
-				ServiceName: fmt.Sprintf("%v", v["path"]),
-			}
-		}
+	if pe := u.Query().Get("packetEncoding"); pe != "" {
+		outbound.PacketEncoding = pe
+	} else if pe := u.Query().Get("packet_encoding"); pe != "" {
+		outbound.PacketEncoding = pe
 	}
-
+	applyTLS(outbound, u)
+	applyTransport(outbound, u)
 	return outbound, nil
 }
 

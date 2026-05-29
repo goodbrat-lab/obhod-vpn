@@ -137,3 +137,100 @@ func TestParseSettingsUCI_ListAppend(t *testing.T) {
 		t.Errorf("Unexpected interfaces list content: %v", s2.SourceNetworkInterfaces)
 	}
 }
+
+func TestNewFeatures(t *testing.T) {
+	// 1. VLESS packetEncoding test
+	got, err := parseProxyURL("vless://ae374246-862d-45f8-b395-926f63459ad2@example.com:443?packetEncoding=xudp", "vless-pe")
+	if err != nil {
+		t.Fatalf("Failed to parse VLESS with packetEncoding: %v", err)
+	}
+	if got.PacketEncoding != "xudp" {
+		t.Errorf("Expected PacketEncoding = xudp, got %s", got.PacketEncoding)
+	}
+	if got.Security != "" {
+		t.Errorf("Expected Security to be empty for VLESS, got %s", got.Security)
+	}
+
+	// 2. VMess plain URL fallback test
+	gotVmess, err := parseProxyURL("vmess://ae374246-862d-45f8-b395-926f63459ad2@example.com:8080?security=aes-128-gcm&packetEncoding=xudp", "vmess-fallback")
+	if err != nil {
+		t.Fatalf("Failed to parse fallback VMess URL: %v", err)
+	}
+	if gotVmess.Type != "vmess" || gotVmess.Server != "example.com" || gotVmess.ServerPort != 8080 || gotVmess.UUID != "ae374246-862d-45f8-b395-926f63459ad2" {
+		t.Errorf("VMess fallback parse mismatch: %+v", gotVmess)
+	}
+	if gotVmess.Security != "aes-128-gcm" {
+		t.Errorf("Expected VMess security = aes-128-gcm, got %s", gotVmess.Security)
+	}
+	if gotVmess.PacketEncoding != "xudp" {
+		t.Errorf("Expected VMess PacketEncoding = xudp, got %s", gotVmess.PacketEncoding)
+	}
+
+	// 3. Socks URL parsing test
+	gotSocks, err := parseProxyURL("socks5://user:pass@example.com:1080", "socks-test")
+	if err != nil {
+		t.Fatalf("Failed to parse Socks: %v", err)
+	}
+	if gotSocks.Type != "socks" || gotSocks.Server != "example.com" || gotSocks.ServerPort != 1080 || gotSocks.Username != "user" || gotSocks.Password != "pass" || gotSocks.Version != "5" {
+		t.Errorf("Socks parse mismatch: %+v", gotSocks)
+	}
+
+	// 4. setupDNS detour / domain_resolver / rewrite_ttl test
+	uci := &UCIConfig{
+		Settings: SettingsUCI{
+			DNSServer:          "dns.google/dns-query", // domain name, requires domain_resolver
+			BootstrapDNSServer: "77.88.8.8",
+			DNSType:            "doh",
+			DNSRewriteTTL:      120,
+		},
+		Sections: map[string]SectionUCI{
+			"proxy1": {
+				Name:           "proxy1",
+				Enabled:        true,
+				ConnectionType: "proxy",
+			},
+		},
+	}
+	cfg := &SingBoxConfig{
+		DNS: &DNSConfig{
+			Servers: []DNSServerConfig{},
+			Rules:   []DNSRuleConfig{},
+		},
+		Route: &RouteConfig{},
+	}
+	setupDNS(cfg, uci)
+	
+	// Verify dns-proxy server configuration
+	var dnsProxy *DNSServerConfig
+	for i := range cfg.DNS.Servers {
+		if cfg.DNS.Servers[i].Tag == "dns-proxy" {
+			dnsProxy = &cfg.DNS.Servers[i]
+		}
+	}
+	if dnsProxy == nil {
+		t.Fatalf("dns-proxy server not found in DNS configuration")
+	}
+	if dnsProxy.Type != "https" {
+		t.Errorf("Expected dns-proxy Type = https, got %s", dnsProxy.Type)
+	}
+	if dnsProxy.Detour != "proxy1-out" {
+		t.Errorf("Expected dns-proxy Detour = proxy1-out, got %s", dnsProxy.Detour)
+	}
+	if dnsProxy.DomainResolver != "dns-direct" {
+		t.Errorf("Expected dns-proxy DomainResolver = dns-direct, got %s", dnsProxy.DomainResolver)
+	}
+
+	// Verify rewrite_ttl on fakeip DNS rule
+	var fakeipRule *DNSRuleConfig
+	for i := range cfg.DNS.Rules {
+		if cfg.DNS.Rules[i].Server == "fakeip-server" {
+			fakeipRule = &cfg.DNS.Rules[i]
+		}
+	}
+	if fakeipRule == nil {
+		t.Fatalf("fakeip-server rule not found in DNS rules")
+	}
+	if fakeipRule.RewriteTTL != 120 {
+		t.Errorf("Expected fakeip rule RewriteTTL = 120, got %d", fakeipRule.RewriteTTL)
+	}
+}

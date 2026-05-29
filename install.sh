@@ -9,12 +9,12 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="${REPO_URL:-https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages}"
-VERSION="1.1.30"
+VERSION="1.1.31"
 RELEASE="1"
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.30      "
+echo "      Obhod VPN - Universal Installer v1.1.31      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"

@@ -36,6 +36,7 @@ type SettingsUCI struct {
 	DownloadListsViaProxySection string
 	SingBoxVersion           string
 	UseLegacyGenerator       bool
+	DNSRewriteTTL            int
 }
 
 type SectionUCI struct {
@@ -51,6 +52,7 @@ type SectionUCI struct {
 	MixedProxyEnabled       bool
 	MixedProxyPort          int
 	SelectorProxyLinks      []string
+	EnableUDPOverTCP        bool
 }
 
 func LoadUCI() (*UCIConfig, error) {
@@ -150,6 +152,10 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 		s.SingBoxVersion = value
 	case "use_legacy_generator":
 		s.UseLegacyGenerator = value == "1"
+	case "dns_rewrite_ttl":
+		if ttl, err := strconv.Atoi(value); err == nil {
+			s.DNSRewriteTTL = ttl
+		}
 	}
 }
 
@@ -183,5 +189,7 @@ func parseSection(s *SectionUCI, keyParts []string, value string) {
 		}
 	case "selector_proxy_links":
 		s.SelectorProxyLinks = append(s.SelectorProxyLinks, value)
+	case "enable_udp_over_tcp":
+		s.EnableUDPOverTCP = value == "1"
 	}
 }

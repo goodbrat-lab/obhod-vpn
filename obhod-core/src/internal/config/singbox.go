@@ -103,16 +103,23 @@ type OutboundConfig struct {
 }
 
 type TLSConfig struct {
-	Enabled    bool        `json:"enabled,omitempty"`
-	ServerName string      `json:"server_name,omitempty"`
-	Insecure   bool        `json:"insecure,omitempty"`
-	Alpn       []string    `json:"alpn,omitempty"`
-	UTLS       *UTLSConfig `json:"utls,omitempty"`
+	Enabled    bool           `json:"enabled,omitempty"`
+	ServerName string         `json:"server_name,omitempty"`
+	Insecure   bool           `json:"insecure,omitempty"`
+	Alpn       []string       `json:"alpn,omitempty"`
+	UTLS       *UTLSConfig    `json:"utls,omitempty"`
+	Reality    *RealityConfig `json:"reality,omitempty"`
 }
 
 type UTLSConfig struct {
 	Enabled     bool   `json:"enabled,omitempty"`
 	Fingerprint string `json:"fingerprint,omitempty"`
+}
+
+type RealityConfig struct {
+	Enabled   bool   `json:"enabled,omitempty"`
+	PublicKey string `json:"public_key,omitempty"`
+	ShortID   string `json:"short_id,omitempty"`
 }
 
 type TransportConfig struct {
@@ -121,6 +128,7 @@ type TransportConfig struct {
 	Headers             map[string]string `json:"headers,omitempty"`
 	Host                []string          `json:"host,omitempty"`
 	ServiceName         string            `json:"service_name,omitempty"`
+	MaxEarlyData        int               `json:"max_early_data,omitempty"`
 	EarlyDataHeaderName string            `json:"early_data_header_name,omitempty"`
 }
 
@@ -136,10 +144,11 @@ type MultiplexConfig struct {
 }
 
 type RouteConfig struct {
-	Rules               []RouteRuleConfig `json:"rules,omitempty"`
-	RuleSet             []RuleSetConfig   `json:"rule_set,omitempty"`
-	Final               string            `json:"final,omitempty"`
-	AutoDetectInterface bool              `json:"auto_detect_interface,omitempty"`
+	Rules                 []RouteRuleConfig `json:"rules,omitempty"`
+	RuleSet               []RuleSetConfig   `json:"rule_set,omitempty"`
+	Final                 string            `json:"final,omitempty"`
+	AutoDetectInterface   bool              `json:"auto_detect_interface,omitempty"`
+	DefaultDomainResolver string            `json:"default_domain_resolver,omitempty"`
 }
 
 type RuleSetConfig struct {
