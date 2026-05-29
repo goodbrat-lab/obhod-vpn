@@ -286,28 +286,50 @@ download_to_file() {
     local retries="${4:-3}"
     local wait="${5:-2}"
 
-    # Check if wget is available
-    if ! command -v wget >/dev/null 2>&1; then
-        obhod_log "wget command not found" "error"
+    # Determine downloader
+    local use_curl=0
+    local use_wget=0
+
+    if command -v curl >/dev/null 2>&1; then
+        use_curl=1
+    elif command -v wget >/dev/null 2>&1; then
+        use_wget=1
+    else
+        obhod_log "Neither curl nor wget command found" "error"
         return 1
     fi
 
     for attempt in $(seq 1 "$retries"); do
-        if [ -n "$http_proxy_address" ]; then
-            http_proxy="http://$http_proxy_address" https_proxy="http://$http_proxy_address" wget -q -O "$filepath" "$url" 2>/dev/null
-            wget_result=$?
+        if [ "$use_curl" -eq 1 ]; then
+            if [ -n "$http_proxy_address" ]; then
+                curl -s -k -L -x "http://$http_proxy_address" -o "$filepath" "$url"
+                curl_result=$?
+            else
+                curl -s -k -L -o "$filepath" "$url"
+                curl_result=$?
+            fi
+            
+            if [ $curl_result -eq 0 ] && [ -s "$filepath" ]; then
+                obhod_log "Successfully downloaded $url using curl (attempt $attempt)"
+                return 0
+            fi
+            obhod_log "Download attempt $attempt/$retries failed for $url via curl (curl exit code: $curl_result)" "warn"
         else
-            wget -q -O "$filepath" "$url" 2>/dev/null
-            wget_result=$?
+            if [ -n "$http_proxy_address" ]; then
+                http_proxy="http://$http_proxy_address" https_proxy="http://$http_proxy_address" wget -q -O "$filepath" "$url" 2>/dev/null
+                wget_result=$?
+            else
+                wget -q -O "$filepath" "$url" 2>/dev/null
+                wget_result=$?
+            fi
+
+            if [ $wget_result -eq 0 ] && [ -s "$filepath" ]; then
+                obhod_log "Successfully downloaded $url using wget (attempt $attempt)"
+                return 0
+            fi
+            obhod_log "Download attempt $attempt/$retries failed for $url via wget (wget exit code: $wget_result)" "warn"
         fi
 
-        if [ $wget_result -eq 0 ] && [ -s "$filepath" ]; then
-            obhod_log "Successfully downloaded $url (attempt $attempt)"
-            return 0
-        fi
-
-        obhod_log "Download attempt $attempt/$retries failed for $url (wget exit code: $wget_result)" "warn"
-        
         # Clean up partial download
         [ -f "$filepath" ] && rm -f "$filepath"
         

@@ -135,6 +135,10 @@ func performUpdate(f *Fetcher) error {
 				}
 			}
 		}
+		// Fallback to system-level mixed proxy port (4534) if section-level mixed proxy is not enabled/configured
+		if f.ProxyPort == 0 {
+			f.ProxyPort = 4534
+		}
 	}
 
 	if len(urls) == 0 {

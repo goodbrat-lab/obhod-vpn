@@ -310,6 +310,7 @@ function createSettingsContent(section) {
     _("Download Lists via specific proxy section"),
     _("Downloading all lists via specific Proxy/VPN"),
   );
+  o.value("", _("First active proxy"));
 
   o.rmempty = false;
   o.depends("download_lists_via_proxy", "1");
@@ -319,8 +320,8 @@ function createSettingsContent(section) {
   o.load = function () {
     const sections = this.map?.data?.state?.values?.obhod ?? {};
 
-    this.keylist = [];
-    this.vallist = [];
+    this.keylist = [""];
+    this.vallist = [_("First active proxy")];
 
     for (const secName in sections) {
       const sec = sections[secName];
@@ -390,6 +391,16 @@ function createSettingsContent(section) {
 
     return true;
   };
+
+  o = section.option(
+    form.Value,
+    "service_listen_address",
+    _("Service Listen Address"),
+    _("IP address for the mixed proxy inbounds to listen on (default: 0.0.0.0)"),
+  );
+  o.placeholder = "0.0.0.0";
+  o.datatype = "ipaddr";
+  o.rmempty = true;
 
   o = section.option(
     form.ListValue,

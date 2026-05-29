@@ -707,6 +707,7 @@ function createSectionContent(section) {
         "Make sure the selected port is not used by another service",
     ),
   );
+  o.datatype = "port";
   o.rmempty = false;
   o.depends("mixed_proxy_enabled", "1");
 }
