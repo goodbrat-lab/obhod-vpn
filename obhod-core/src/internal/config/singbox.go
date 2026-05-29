@@ -65,6 +65,9 @@ type OutboundConfig struct {
 	// Group fields
 	Outbounds []string `json:"outbounds,omitempty"`
 	Default   string   `json:"default,omitempty"`
+	URL       string   `json:"url,omitempty"`
+	Interval  string   `json:"interval,omitempty"`
+	Tolerance int      `json:"tolerance,omitempty"`
 
 	// Common Proxy fields
 	Server     string `json:"server,omitempty"`

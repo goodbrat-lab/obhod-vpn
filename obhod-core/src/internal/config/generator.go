@@ -341,6 +341,27 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 					outbounds = append(outbounds, *outbound)
 				}
 			}
+		case "urltest":
+			for i, link := range section.URLTestProxyLinks {
+				tag := fmt.Sprintf("%s-%d", outboundTag, i+1)
+				outbound, err := parseProxyURL(link, tag)
+				if err == nil && outbound != nil {
+					outbounds = append(outbounds, *outbound)
+				}
+			}
+		case "outbound":
+			if section.OutboundJSON != "" {
+				var customOutbound OutboundConfig
+				if err := json.Unmarshal([]byte(section.OutboundJSON), &customOutbound); err == nil {
+					customOutbound.Tag = outboundTag
+					if customOutbound.RoutingMark == 0 {
+						customOutbound.RoutingMark = 2097152
+					}
+					outbounds = append(outbounds, customOutbound)
+				} else {
+					logger.Error("config", "generator", "Failed to parse custom outbound JSON for section %s: %v", section.Name, err)
+				}
+			}
 		}
 
 		if section.EnableUDPOverTCP {
@@ -366,7 +387,46 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 		if len(outbounds) > 0 {
 			finalOutboundTag := outboundTag
 
-			if len(outbounds) > 1 || section.ProxyConfigType == "selector" {
+			if section.ProxyConfigType == "urltest" {
+				var tags []string
+				for _, o := range outbounds {
+					config.Outbounds = append(config.Outbounds, o)
+					tags = append(tags, o.Tag)
+				}
+
+				testURL := section.URLTestTestingURL
+				if testURL == "" {
+					testURL = "https://www.gstatic.com/generate_204"
+				}
+				testInterval := section.URLTestCheckInterval
+				if testInterval == "" {
+					testInterval = "3m"
+				}
+				testTolerance := section.URLTestTolerance
+				if testTolerance == 0 {
+					testTolerance = 50
+				}
+
+				urltestGroup := OutboundConfig{
+					Type:      "urltest",
+					Tag:       section.Name + "-urltest-out",
+					Outbounds: tags,
+					URL:       testURL,
+					Interval:  testInterval,
+					Tolerance: testTolerance,
+				}
+				config.Outbounds = append(config.Outbounds, urltestGroup)
+
+				selectorTags := append([]string{urltestGroup.Tag}, tags...)
+				selectorGroup := OutboundConfig{
+					Type:      "selector",
+					Tag:       outboundTag,
+					Outbounds: selectorTags,
+					Default:   urltestGroup.Tag,
+				}
+				config.Outbounds = append(config.Outbounds, selectorGroup)
+
+			} else if len(outbounds) > 1 || section.ProxyConfigType == "selector" {
 				var tags []string
 				for _, o := range outbounds {
 					config.Outbounds = append(config.Outbounds, o)

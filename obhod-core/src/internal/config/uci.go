@@ -54,6 +54,11 @@ type SectionUCI struct {
 	MixedProxyPort          int
 	SelectorProxyLinks      []string
 	EnableUDPOverTCP        bool
+	URLTestProxyLinks      []string
+	URLTestCheckInterval   string
+	URLTestTolerance       int
+	URLTestTestingURL      string
+	OutboundJSON           string
 }
 
 func LoadUCI() (*UCIConfig, error) {
@@ -194,5 +199,17 @@ func parseSection(s *SectionUCI, keyParts []string, value string) {
 		s.SelectorProxyLinks = append(s.SelectorProxyLinks, value)
 	case "enable_udp_over_tcp":
 		s.EnableUDPOverTCP = value == "1"
+	case "urltest_proxy_links":
+		s.URLTestProxyLinks = append(s.URLTestProxyLinks, value)
+	case "urltest_check_interval":
+		s.URLTestCheckInterval = value
+	case "urltest_tolerance":
+		if tol, err := strconv.Atoi(value); err == nil {
+			s.URLTestTolerance = tol
+		}
+	case "urltest_testing_url":
+		s.URLTestTestingURL = value
+	case "outbound_json":
+		s.OutboundJSON = value
 	}
 }

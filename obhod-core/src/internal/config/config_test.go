@@ -311,4 +311,89 @@ func TestNewFeatures(t *testing.T) {
 	} else if userMixedRule.Outbound != "proxy1-out" {
 		t.Errorf("expected proxy1-mixed route to proxy1-out, got %s", userMixedRule.Outbound)
 	}
+
+	// 6. Test urltest and custom outbound generation
+	uciURLTest := &UCIConfig{
+		Settings: SettingsUCI{
+			Enabled: true,
+		},
+		Sections: map[string]SectionUCI{
+			"urltest_sec": {
+				Name:                 "urltest_sec",
+				Enabled:              true,
+				ConnectionType:       "proxy",
+				ProxyConfigType:      "urltest",
+				URLTestProxyLinks:    []string{
+					"vless://ae374246-862d-45f8-b395-926f63459ad2@example1.com:443",
+					"vless://ae374246-862d-45f8-b395-926f63459ad2@example2.com:443",
+				},
+				URLTestCheckInterval: "5m",
+				URLTestTolerance:     30,
+				URLTestTestingURL:    "https://www.google.com/generate_204",
+			},
+			"custom_sec": {
+				Name:            "custom_sec",
+				Enabled:         true,
+				ConnectionType:  "proxy",
+				ProxyConfigType: "outbound",
+				OutboundJSON:    `{"type":"shadowsocks","server":"example.com","server_port":8388,"method":"aes-256-gcm","password":"pwd"}`,
+			},
+		},
+	}
+	cfgURLTest, err := Generate(uciURLTest)
+	if err != nil {
+		t.Fatalf("Generate failed for urltest/custom: %v", err)
+	}
+
+	// Validate urltest_sec outbounds
+	var nodes []OutboundConfig
+	var urltestGrp *OutboundConfig
+	var selectorGrp *OutboundConfig
+	var customOut *OutboundConfig
+
+	for i := range cfgURLTest.Outbounds {
+		o := &cfgURLTest.Outbounds[i]
+		if o.Tag == "urltest_sec-out-1" || o.Tag == "urltest_sec-out-2" {
+			nodes = append(nodes, *o)
+		} else if o.Tag == "urltest_sec-urltest-out" {
+			urltestGrp = o
+		} else if o.Tag == "urltest_sec-out" {
+			selectorGrp = o
+		} else if o.Tag == "custom_sec-out" {
+			customOut = o
+		}
+	}
+
+	if len(nodes) != 2 {
+		t.Errorf("Expected 2 urltest individual nodes, got %d", len(nodes))
+	}
+	if urltestGrp == nil {
+		t.Errorf("urltest group not found")
+	} else {
+		if urltestGrp.Type != "urltest" || urltestGrp.Interval != "5m" || urltestGrp.Tolerance != 30 || urltestGrp.URL != "https://www.google.com/generate_204" {
+			t.Errorf("urltest group configuration mismatch: %+v", urltestGrp)
+		}
+		if len(urltestGrp.Outbounds) != 2 || urltestGrp.Outbounds[0] != "urltest_sec-out-1" || urltestGrp.Outbounds[1] != "urltest_sec-out-2" {
+			t.Errorf("urltest group outbounds mismatch: %+v", urltestGrp.Outbounds)
+		}
+	}
+
+	if selectorGrp == nil {
+		t.Errorf("selector group not found")
+	} else {
+		if selectorGrp.Type != "selector" || selectorGrp.Default != "urltest_sec-urltest-out" {
+			t.Errorf("selector group configuration mismatch: %+v", selectorGrp)
+		}
+		if len(selectorGrp.Outbounds) != 3 || selectorGrp.Outbounds[0] != "urltest_sec-urltest-out" || selectorGrp.Outbounds[1] != "urltest_sec-out-1" {
+			t.Errorf("selector group outbounds mismatch: %+v", selectorGrp.Outbounds)
+		}
+	}
+
+	if customOut == nil {
+		t.Errorf("custom outbound not found")
+	} else {
+		if customOut.Type != "shadowsocks" || customOut.Server != "example.com" || customOut.ServerPort != 8388 || customOut.Method != "aes-256-gcm" || customOut.Password != "pwd" {
+			t.Errorf("custom outbound configuration mismatch: %+v", customOut)
+		}
+	}
 }
