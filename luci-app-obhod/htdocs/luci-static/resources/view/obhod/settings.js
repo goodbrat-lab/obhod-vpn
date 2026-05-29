@@ -312,7 +312,7 @@ function createSettingsContent(section) {
   );
   o.value("", _("First active proxy"));
 
-  o.rmempty = false;
+  o.rmempty = true;
   o.depends("download_lists_via_proxy", "1");
   o.cfgvalue = function (section_id) {
     return uci.get("obhod", section_id, "download_lists_via_proxy_section");
