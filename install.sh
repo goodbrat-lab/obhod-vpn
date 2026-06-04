@@ -237,7 +237,7 @@ fi
 
 cd /tmp
 echo "Downloading Obhod packages..."
-cb="?v=\$(date +%s)"
+cb="?v=$(date +%s)"
 if [ "$USE_TARBALLS" -eq 1 ]; then
     CORE_PKG_FILE="obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
     LUCI_PKG_FILE="luci-app-obhod_${VERSION}-${RELEASE}_all.tar.gz"
