@@ -237,7 +237,7 @@ fi
 
 cd /tmp
 echo "Downloading Obhod packages..."
-local cb="?v=\$(date +%s)"
+cb="?v=\$(date +%s)"
 if [ "$USE_TARBALLS" -eq 1 ]; then
     CORE_PKG_FILE="obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
     LUCI_PKG_FILE="luci-app-obhod_${VERSION}-${RELEASE}_all.tar.gz"
@@ -252,10 +252,10 @@ fi
 wget -q "$REPO_URL/SHA256SUMS$cb" -O SHA256SUMS || true
 if [ -f SHA256SUMS ]; then
     echo "Verifying package integrity..."
-    local core_expected_hash=""
-    local luci_expected_hash=""
-    local core_actual_hash=""
-    local luci_actual_hash=""
+    core_expected_hash=""
+    luci_expected_hash=""
+    core_actual_hash=""
+    luci_actual_hash=""
     
     if [ "$USE_TARBALLS" -eq 1 ]; then
         core_expected_hash=$(grep "$CORE_PKG_FILE" SHA256SUMS | awk '{print $1}')
