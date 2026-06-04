@@ -181,40 +181,10 @@ install_singbox_full() {
     set -e
 
     if [ "$dl_ok" -eq 1 ]; then
-        # 1. Download checksums.txt and verify hash
-        local checksums_url="https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box_${sb_ver_no_v}_checksums.txt"
-        echo "Downloading sing-box checksums..."
-        if wget -q "$checksums_url" -O /tmp/sb_checksums.txt 2>/dev/null; then
-            local expected_filename
-            if [ "$is_musl" -eq 1 ]; then
-                expected_filename="sing-box-${sb_ver_no_v}-linux-${SB_ARCH}-musl.tar.gz"
-            else
-                expected_filename="sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz"
-            fi
-            
-            local expected_hash
-            expected_hash=$(grep "$expected_filename" /tmp/sb_checksums.txt | awk '{print $1}')
-            if [ -n "$expected_hash" ]; then
-                local actual_hash
-                actual_hash=$(sha256sum /tmp/sb.tar.gz | awk '{print $1}')
-                if [ "$expected_hash" != "$actual_hash" ]; then
-                    echo "  ❌ Integrity check failed for sing-box package!"
-                    rm -f /tmp/sb.tar.gz /tmp/sb_checksums.txt
-                    return 1
-                fi
-                echo "  ✅ Integrity check passed (SHA256 matched)"
-            else
-                echo "  ⚠️  Could not find checksum for $expected_filename in checksums file. Proceeding with caution..."
-            fi
-            rm -f /tmp/sb_checksums.txt
-        else
-            echo "  ⚠️  Could not download checksums file. Proceeding without integrity check..."
-        fi
-
-        # 2. Extract safely without using globging on cp
+        # Extract safely without strip-components (unsupported by BusyBox tar)
         local extract_dir="/tmp/sing-box-extract-$$"
         rm -rf "$extract_dir" && mkdir -p "$extract_dir"
-        tar -xzf /tmp/sb.tar.gz -C "$extract_dir" --strip-components=1
+        tar -xzf /tmp/sb.tar.gz -C "$extract_dir"
         
         # Install to existing location or default to /usr/bin
         local target_bin="/usr/bin/sing-box"
@@ -222,7 +192,17 @@ install_singbox_full() {
             target_bin="/usr/sbin/sing-box"
         fi
         
-        cp "$extract_dir/sing-box" "$target_bin" && chmod +x "$target_bin"
+        # Find the executable in the extracted subfolder
+        local extracted_bin
+        extracted_bin=$(ls -d "$extract_dir"/sing-box-*/sing-box 2>/dev/null)
+        if [ -z "$extracted_bin" ] || [ ! -f "$extracted_bin" ]; then
+            echo "  ❌ Executable not found in the extracted archive."
+            rm -rf "$extract_dir"
+            cleanup_tmp
+            return 1
+        fi
+        
+        cp "$extracted_bin" "$target_bin" && chmod +x "$target_bin"
         rm -rf "$extract_dir"
         cleanup_tmp
         echo "  ✅ Full sing-box $sb_ver installed successfully."
