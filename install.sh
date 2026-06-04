@@ -237,18 +237,19 @@ fi
 
 cd /tmp
 echo "Downloading Obhod packages..."
+local cb="?v=\$(date +%s)"
 if [ "$USE_TARBALLS" -eq 1 ]; then
     CORE_PKG_FILE="obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
     LUCI_PKG_FILE="luci-app-obhod_${VERSION}-${RELEASE}_all.tar.gz"
-    wget -q "$REPO_URL/$CORE_PKG_FILE" -O obhod.tar.gz
-    wget -q "$REPO_URL/$LUCI_PKG_FILE" -O luci.tar.gz
+    wget -q "$REPO_URL/$CORE_PKG_FILE$cb" -O "/tmp/$CORE_PKG_FILE"
+    wget -q "$REPO_URL/$LUCI_PKG_FILE$cb" -O "/tmp/$LUCI_PKG_FILE"
 else
-    wget -q "$REPO_URL/$CORE_PKG" -O obhod.ipk
-    wget -q "$REPO_URL/$LUCI_PKG" -O luci.ipk
+    wget -q "$REPO_URL/$CORE_PKG$cb" -O "/tmp/$CORE_PKG"
+    wget -q "$REPO_URL/$LUCI_PKG$cb" -O "/tmp/$LUCI_PKG"
 fi
 
 # Verify checksums if SHA256SUMS is available
-wget -q "$REPO_URL/SHA256SUMS" -O SHA256SUMS || true
+wget -q "$REPO_URL/SHA256SUMS$cb" -O SHA256SUMS || true
 if [ -f SHA256SUMS ]; then
     echo "Verifying package integrity..."
     if [ "$USE_TARBALLS" -eq 1 ]; then
@@ -271,12 +272,12 @@ else
 fi
 
 if [ "$OPKG_WORKS" -eq 1 ]; then
-    $OPKG_CMD install "/tmp/obhod.ipk" --force-reinstall --force-overwrite
-    $OPKG_CMD install "/tmp/luci.ipk" --force-reinstall --force-overwrite
+    $OPKG_CMD install "/tmp/$CORE_PKG" --force-reinstall --force-overwrite
+    $OPKG_CMD install "/tmp/$LUCI_PKG" --force-reinstall --force-overwrite
 elif [ "$USE_TARBALLS" -eq 1 ]; then
     echo "Extracting packages via manual tarball mode..."
-    tar -xzf /tmp/obhod.tar.gz -C /
-    tar -xzf /tmp/luci.tar.gz -C /
+    tar -xzf "/tmp/$CORE_PKG_FILE" -C /
+    tar -xzf "/tmp/$LUCI_PKG_FILE" -C /
     
     # Run post-install hooks manually
     chmod +x /usr/bin/obhod /usr/lib/obhod/obhod-backend.sh /etc/init.d/obhod 2>/dev/null
@@ -285,7 +286,7 @@ elif [ "$USE_TARBALLS" -eq 1 ]; then
     /etc/init.d/rpcd restart 2>/dev/null
 else
     echo "Extracting packages via manual ipk mode..."
-    for p in obhod.ipk luci.ipk; do
+    for p in "$CORE_PKG" "$LUCI_PKG"; do
        EXT="/tmp/ex_$p"
        rm -rf "$EXT" && mkdir -p "$EXT" && cd "$EXT"
        ar x "/tmp/$p"
