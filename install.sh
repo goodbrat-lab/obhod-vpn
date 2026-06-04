@@ -9,13 +9,13 @@ set -e
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
 REPO_URL="${REPO_URL:-https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages}"
-VERSION="1.1.36"
+VERSION="1.1.39"
 RELEASE="1"
 
 LUCI_PKG="luci-app-obhod_${VERSION}-${RELEASE}_all.ipk"
 
 echo "=================================================="
-echo "      Obhod VPN - Universal Installer v1.1.36      "
+echo "      Obhod VPN - Universal Installer v1.1.39      "
 echo "=================================================="
 echo "System Debug Info:"
 echo "  PATH: $PATH"
@@ -113,14 +113,34 @@ install_system_deps() {
         $OPKG_CMD update
         $OPKG_CMD install jq curl nftables kmod-nft-tproxy coreutils-base64 bind-dig ca-bundle || true
     fi
+
+    # Verify critical dependencies are installed
+    local missing_deps=""
+    for cmd in jq curl nft base64 dig; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            missing_deps="$missing_deps $cmd"
+        fi
+    done
+
+    # For ca-bundle, we can check if it exists
+    if [ ! -d "/etc/ssl/certs" ] && [ ! -f "/etc/ssl/certs/ca-certificates.crt" ]; then
+        missing_deps="$missing_deps ca-bundle"
+    fi
+
+    if [ -n "$missing_deps" ]; then
+        echo "❌ Error: Failed to install required dependencies:$missing_deps"
+        echo "Please make sure your internet connection is working and try again."
+        exit 1
+    fi
 }
 
 # Always install full sing-box from GitHub (OpenWrt packages are lite versions without DNS inbound)
 install_singbox_full() {
-    local ARCH_M SB_ARCH sb_ver sb_ver_no_v dl_ok
+    local ARCH_M SB_ARCH sb_ver sb_ver_no_v dl_ok is_musl
     ARCH_M=$(uname -m)
     SB_ARCH=""
     dl_ok=0
+    is_musl=0
 
     # Map uname -m to sing-box GitHub release arch name
     case "$ARCH_M" in
@@ -146,6 +166,7 @@ install_singbox_full() {
     wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}-musl.tar.gz" -O /tmp/sb.tar.gz 2>/dev/null
     if [ $? -eq 0 ] && [ -s /tmp/sb.tar.gz ]; then
         dl_ok=1
+        is_musl=1
         echo "  -> Downloaded musl variant"
     else
         # Fallback to standard variant
@@ -153,21 +174,56 @@ install_singbox_full() {
         wget -q "https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz" -O /tmp/sb.tar.gz 2>/dev/null
         if [ $? -eq 0 ] && [ -s /tmp/sb.tar.gz ]; then
             dl_ok=1
+            is_musl=0
             echo "  -> Downloaded standard variant"
         fi
     fi
     set -e
 
     if [ "$dl_ok" -eq 1 ]; then
-        tar -xzf /tmp/sb.tar.gz -C /tmp
-        # Install to existing location or default to /usr/bin
-        if [ -f /usr/bin/sing-box ]; then
-            cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
-        elif [ -f /usr/sbin/sing-box ]; then
-            cp /tmp/sing-box-*/sing-box /usr/sbin/sing-box && chmod +x /usr/sbin/sing-box
+        # 1. Download checksums.txt and verify hash
+        local checksums_url="https://github.com/SagerNet/sing-box/releases/download/${sb_ver}/sing-box_${sb_ver_no_v}_checksums.txt"
+        echo "Downloading sing-box checksums..."
+        if wget -q "$checksums_url" -O /tmp/sb_checksums.txt 2>/dev/null; then
+            local expected_filename
+            if [ "$is_musl" -eq 1 ]; then
+                expected_filename="sing-box-${sb_ver_no_v}-linux-${SB_ARCH}-musl.tar.gz"
+            else
+                expected_filename="sing-box-${sb_ver_no_v}-linux-${SB_ARCH}.tar.gz"
+            fi
+            
+            local expected_hash
+            expected_hash=$(grep "$expected_filename" /tmp/sb_checksums.txt | awk '{print $1}')
+            if [ -n "$expected_hash" ]; then
+                local actual_hash
+                actual_hash=$(sha256sum /tmp/sb.tar.gz | awk '{print $1}')
+                if [ "$expected_hash" != "$actual_hash" ]; then
+                    echo "  ❌ Integrity check failed for sing-box package!"
+                    rm -f /tmp/sb.tar.gz /tmp/sb_checksums.txt
+                    return 1
+                fi
+                echo "  ✅ Integrity check passed (SHA256 matched)"
+            else
+                echo "  ⚠️  Could not find checksum for $expected_filename in checksums file. Proceeding with caution..."
+            fi
+            rm -f /tmp/sb_checksums.txt
         else
-            cp /tmp/sing-box-*/sing-box /usr/bin/sing-box && chmod +x /usr/bin/sing-box
+            echo "  ⚠️  Could not download checksums file. Proceeding without integrity check..."
         fi
+
+        # 2. Extract safely without using globging on cp
+        local extract_dir="/tmp/sing-box-extract-$$"
+        rm -rf "$extract_dir" && mkdir -p "$extract_dir"
+        tar -xzf /tmp/sb.tar.gz -C "$extract_dir" --strip-components=1
+        
+        # Install to existing location or default to /usr/bin
+        local target_bin="/usr/bin/sing-box"
+        if [ -f /usr/sbin/sing-box ]; then
+            target_bin="/usr/sbin/sing-box"
+        fi
+        
+        cp "$extract_dir/sing-box" "$target_bin" && chmod +x "$target_bin"
+        rm -rf "$extract_dir"
         cleanup_tmp
         echo "  ✅ Full sing-box $sb_ver installed successfully."
         sing-box version 2>/dev/null | head -n1 || true
@@ -204,11 +260,34 @@ echo "Downloading Obhod packages..."
 if [ "$USE_TARBALLS" -eq 1 ]; then
     CORE_PKG_FILE="obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
     LUCI_PKG_FILE="luci-app-obhod_${VERSION}-${RELEASE}_all.tar.gz"
-    wget -q --no-check-certificate "$REPO_URL/$CORE_PKG_FILE" -O obhod.tar.gz
-    wget -q --no-check-certificate "$REPO_URL/$LUCI_PKG_FILE" -O luci.tar.gz
+    wget -q "$REPO_URL/$CORE_PKG_FILE" -O obhod.tar.gz
+    wget -q "$REPO_URL/$LUCI_PKG_FILE" -O luci.tar.gz
 else
-    wget -q --no-check-certificate "$REPO_URL/$CORE_PKG" -O obhod.ipk
-    wget -q --no-check-certificate "$REPO_URL/$LUCI_PKG" -O luci.ipk
+    wget -q "$REPO_URL/$CORE_PKG" -O obhod.ipk
+    wget -q "$REPO_URL/$LUCI_PKG" -O luci.ipk
+fi
+
+# Verify checksums if SHA256SUMS is available
+wget -q "$REPO_URL/SHA256SUMS" -O SHA256SUMS || true
+if [ -f SHA256SUMS ]; then
+    echo "Verifying package integrity..."
+    if [ "$USE_TARBALLS" -eq 1 ]; then
+        grep -E "$CORE_PKG_FILE|$LUCI_PKG_FILE" SHA256SUMS > /tmp/check_sums.txt
+        if ! sha256sum -c /tmp/check_sums.txt >/dev/null 2>&1; then
+            echo "❌ Error: Checksum verification failed for downloaded tarballs!"
+            exit 1
+        fi
+    else
+        grep -E "$CORE_PKG|$LUCI_PKG" SHA256SUMS > /tmp/check_sums.txt
+        if ! sha256sum -c /tmp/check_sums.txt >/dev/null 2>&1; then
+            echo "❌ Error: Checksum verification failed for downloaded ipk packages!"
+            exit 1
+        fi
+    fi
+    echo "✅ Checksum verification succeeded!"
+    rm -f SHA256SUMS /tmp/check_sums.txt
+else
+    echo "⚠️ Warning: SHA256SUMS file not found on repository. Skipping package integrity check."
 fi
 
 if [ "$OPKG_WORKS" -eq 1 ]; then

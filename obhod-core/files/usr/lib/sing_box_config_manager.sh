@@ -16,6 +16,8 @@
 #   After that, sing_box_cm_* functions are available for generating
 #   and modifying sing-box JSON configuration.
 
+set -u
+
 SERVICE_TAG="__service_tag"
 
 #######################################

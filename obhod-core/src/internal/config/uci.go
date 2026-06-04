@@ -2,10 +2,33 @@ package config
 
 import (
 	"bufio"
+	"net"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
+
+var allowedConfigDirs = []string{
+	"/etc/sing-box/", "/tmp/sing-box/", "/tmp/obhod/", "/etc/config/",
+}
+
+func validateFilePath(p string) string {
+	cleaned := filepath.Clean(p)
+	if strings.Contains(cleaned, "..") {
+		return ""
+	}
+	for _, dir := range allowedConfigDirs {
+		if strings.HasPrefix(cleaned+"/", dir) || cleaned == strings.TrimSuffix(dir, "/") {
+			return cleaned
+		}
+	}
+	return ""
+}
+
+func isValidIP(ip string) bool {
+	return net.ParseIP(ip) != nil
+}
 
 type UCIConfig struct {
 	Settings SettingsUCI
@@ -38,6 +61,8 @@ type SettingsUCI struct {
 	UseLegacyGenerator       bool
 	DNSRewriteTTL            int
 	ServiceListenAddress     string
+	TProxyPort               int
+	MixedProxyPort           int
 }
 
 type SectionUCI struct {
@@ -115,29 +140,42 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 	case "enabled":
 		s.Enabled = value == "1"
 	case "log_level":
-		s.LogLevel = value
+		val := strings.ToLower(value)
+		if val == "debug" || val == "info" || val == "warn" || val == "error" || val == "fatal" {
+			s.LogLevel = val
+		} else {
+			s.LogLevel = "info"
+		}
 	case "update_interval":
 		s.UpdateInterval = value
 	case "dont_touch_dhcp":
 		s.DontTouchDHCP = value == "1"
 	case "config_path":
-		s.ConfigPath = value
+		s.ConfigPath = validateFilePath(value)
 	case "source_network_interfaces":
 		s.SourceNetworkInterfaces = append(s.SourceNetworkInterfaces, strings.Fields(value)...)
 	case "exclude_ntp":
 		s.ExcludeNTP = value == "1"
 	case "cache_path":
-		s.CachePath = value
+		s.CachePath = validateFilePath(value)
 	case "watchdog_interval":
 		s.WatchdogInterval = value
 	case "dns_type":
-		s.DNSType = value
+		val := strings.ToLower(value)
+		if val == "dnsmasq" || val == "singbox" || val == "local" {
+			s.DNSType = val
+		}
 	case "dns_server":
-		s.DNSServer = value
+		s.DNSServer = strings.TrimSpace(value)
 	case "dns_strategy":
-		s.DNSStrategy = value
+		val := strings.ToLower(value)
+		if val == "ipv4_only" || val == "prefer_ipv4" || val == "prefer_ipv6" || val == "ipv6_only" {
+			s.DNSStrategy = val
+		} else {
+			s.DNSStrategy = "prefer_ipv4"
+		}
 	case "bootstrap_dns_server":
-		s.BootstrapDNSServer = value
+		s.BootstrapDNSServer = strings.TrimSpace(value)
 	case "enable_yacd":
 		s.EnableYacd = value == "1"
 	case "enable_yacd_wan_access":
@@ -163,7 +201,24 @@ func parseSettings(s *SettingsUCI, keyParts []string, value string) {
 			s.DNSRewriteTTL = ttl
 		}
 	case "service_listen_address":
-		s.ServiceListenAddress = value
+		val := strings.TrimSpace(value)
+		if isValidIP(val) {
+			s.ServiceListenAddress = val
+		} else {
+			s.ServiceListenAddress = "127.0.0.1"
+		}
+	case "tproxy_port":
+		if p, err := strconv.Atoi(value); err == nil && p >= 1024 && p <= 65534 {
+			s.TProxyPort = p
+		} else {
+			s.TProxyPort = 1602
+		}
+	case "mixed_proxy_port":
+		if p, err := strconv.Atoi(value); err == nil && p >= 1024 && p <= 65534 {
+			s.MixedProxyPort = p
+		} else {
+			s.MixedProxyPort = 4534
+		}
 	}
 }
 
@@ -176,9 +231,15 @@ func parseSection(s *SectionUCI, keyParts []string, value string) {
 	case "enabled":
 		s.Enabled = value == "1"
 	case "connection_type":
-		s.ConnectionType = value
+		val := strings.ToLower(value)
+		if val == "direct" || val == "proxy" || val == "block" {
+			s.ConnectionType = val
+		}
 	case "proxy_config_type":
-		s.ProxyConfigType = value
+		val := strings.ToLower(value)
+		if val == "url" || val == "outbound" || val == "subscription" {
+			s.ProxyConfigType = val
+		}
 	case "proxy_string":
 		s.ProxyString = value
 	case "subscription_url":
@@ -192,7 +253,7 @@ func parseSection(s *SectionUCI, keyParts []string, value string) {
 	case "mixed_proxy_enabled":
 		s.MixedProxyEnabled = value == "1"
 	case "mixed_proxy_port":
-		if p, err := strconv.Atoi(value); err == nil {
+		if p, err := strconv.Atoi(value); err == nil && p >= 1024 && p <= 65534 {
 			s.MixedProxyPort = p
 		}
 	case "selector_proxy_links":
@@ -210,6 +271,8 @@ func parseSection(s *SectionUCI, keyParts []string, value string) {
 	case "urltest_testing_url":
 		s.URLTestTestingURL = value
 	case "outbound_json":
-		s.OutboundJSON = value
+		if len(value) <= 65536 {
+			s.OutboundJSON = value
+		}
 	}
 }

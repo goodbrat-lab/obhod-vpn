@@ -1,4 +1,5 @@
 # Global temporary files registry for BusyBox ash compatibility
+set -u
 TEMP_FILES=""
 
 register_temp_file() {
@@ -9,11 +10,16 @@ register_temp_file() {
 cleanup_temp_files() {
     local file
     for file in $TEMP_FILES; do
-        [ -e "$file" ] && rm -rf "$file" 2>/dev/null
+        [ -f "$file" ] && rm -f "$file"
     done
 }
 
 trap cleanup_temp_files EXIT INT TERM
+
+validate_interface_name() {
+    local ifname="$1"
+    echo "$ifname" | grep -qE '^[a-zA-Z0-9][a-zA-Z0-9_\-\.]{0,14}$'
+}
 
 # Check if string is valid IPv4
 is_ipv4() {
@@ -265,6 +271,10 @@ migration_add_new_option() {
     fi
 }
 
+escape_sed() {
+    echo "$1" | sed 's/[&/\]/\\&/g'
+}
+
 # Migrates a configuration key in an OpenWrt config file from old_key_name to new_key_name
 migration_rename_config_key() {
     local config="$1"
@@ -272,9 +282,14 @@ migration_rename_config_key() {
     local old_key_name="$3"
     local new_key_name="$4"
 
+    local esc_key_type esc_old esc_new
+    esc_key_type=$(escape_sed "$key_type")
+    esc_old=$(escape_sed "$old_key_name")
+    esc_new=$(escape_sed "$new_key_name")
+
     if grep -q "$key_type $old_key_name" "$config"; then
         obhod_log "Deprecated $key_type found: $old_key_name migrating to $new_key_name"
-        sed -i "s/$key_type $old_key_name/$key_type $new_key_name/g" "$config"
+        sed -i "s/$esc_key_type $esc_old/$esc_key_type $esc_new/g" "$config"
     fi
 }
 
@@ -302,10 +317,10 @@ download_to_file() {
     for attempt in $(seq 1 "$retries"); do
         if [ "$use_curl" -eq 1 ]; then
             if [ -n "$http_proxy_address" ]; then
-                curl -s -k -L -x "http://$http_proxy_address" -o "$filepath" "$url"
+                curl -s -L -x "http://$http_proxy_address" -o "$filepath" "$url"
                 curl_result=$?
             else
-                curl -s -k -L -o "$filepath" "$url"
+                curl -s -L -o "$filepath" "$url"
                 curl_result=$?
             fi
             

@@ -58,7 +58,9 @@ func safePath(dir, filename string) string {
 
 func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 	// Ensure rules directory exists
-	os.MkdirAll(RulesDir, 0755)
+	if err := os.MkdirAll(RulesDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create rules directory %s: %w", RulesDir, err)
+	}
 
 	config := &SingBoxConfig{
 		Log: &LogConfig{
@@ -88,28 +90,45 @@ func Generate(uci *UCIConfig) (*SingBoxConfig, error) {
 		},
 	}
 
-	// Always enable Clash API on 0.0.0.0:9090 for internal diagnostics and outbounds checks
-	config.Experimental.ClashAPI.ExternalController = "0.0.0.0:9090"
-	if uci.Settings.EnableYacd {
+	clashListenAddr := "127.0.0.1"
+	if uci.Settings.EnableYacd && uci.Settings.EnableYacdWanAccess {
+		clashListenAddr = "0.0.0.0"
+	} else if uci.Settings.ServiceListenAddress != "" {
+		clashListenAddr = uci.Settings.ServiceListenAddress
+	}
+	config.Experimental.ClashAPI.ExternalController = fmt.Sprintf("%s:9090", clashListenAddr)
+
+	if uci.Settings.YacdSecretKey != "" {
 		config.Experimental.ClashAPI.Secret = uci.Settings.YacdSecretKey
+	}
+	if uci.Settings.EnableYacd {
 		config.Experimental.ClashAPI.ExternalUI = "ui"
+	}
+
+	tproxyPort := 1602
+	if uci.Settings.TProxyPort > 0 {
+		tproxyPort = uci.Settings.TProxyPort
 	}
 
 	config.Inbounds = append(config.Inbounds, InboundConfig{
 		Type:                     "tproxy",
 		Tag:                      "tproxy-in",
 		Listen:                   "127.0.0.1",
-		ListenPort:               1602,
+		ListenPort:               tproxyPort,
 		Sniff:                    true,
 		SniffOverrideDestination: true,
 	})
 
 	if uci.Settings.DownloadListsViaProxy {
+		mixedPort := 4534
+		if uci.Settings.MixedProxyPort > 0 {
+			mixedPort = uci.Settings.MixedProxyPort
+		}
 		config.Inbounds = append(config.Inbounds, InboundConfig{
 			Type:       "mixed",
 			Tag:        "service-mixed-in",
 			Listen:     "127.0.0.1",
-			ListenPort: 4534,
+			ListenPort: mixedPort,
 		})
 	}
 
@@ -354,10 +373,17 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 				var customOutbound OutboundConfig
 				if err := json.Unmarshal([]byte(section.OutboundJSON), &customOutbound); err == nil {
 					customOutbound.Tag = outboundTag
-					if customOutbound.RoutingMark == 0 {
-						customOutbound.RoutingMark = 2097152
+					allowedOutboundTypes := map[string]bool{
+						"shadowsocks": true, "vmess": true, "vless": true,
+						"trojan": true, "hysteria2": true, "socks": true,
+						"http": true, "ssh": true, "tuic": true,
 					}
-					outbounds = append(outbounds, customOutbound)
+					if allowedOutboundTypes[customOutbound.Type] {
+						customOutbound.RoutingMark = 2097152
+						outbounds = append(outbounds, customOutbound)
+					} else {
+						logger.Error("config", "generator", "Forbidden or unsupported outbound type in outbound_json for section %s: %s", section.Name, customOutbound.Type)
+					}
 				} else {
 					logger.Error("config", "generator", "Failed to parse custom outbound JSON for section %s: %v", section.Name, err)
 				}
@@ -524,7 +550,9 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 					},
 				}
 				if file, err := json.Marshal(ruleData); err == nil {
-					os.WriteFile(path, file, 0644)
+					if err := os.WriteFile(path, file, 0600); err != nil {
+						logger.Error("config", "generator", "Failed to write user domains ruleset to %s: %v", path, err)
+					}
 				}
 
 				rs := RuleSetConfig{
@@ -562,7 +590,9 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 					},
 				}
 				if file, err := json.Marshal(ruleData); err == nil {
-					os.WriteFile(path, file, 0644)
+					if err := os.WriteFile(path, file, 0600); err != nil {
+						logger.Error("config", "generator", "Failed to write user subnets ruleset to %s: %v", path, err)
+					}
 				}
 
 				rs := RuleSetConfig{
@@ -586,6 +616,12 @@ func processSection(config *SingBoxConfig, section SectionUCI, fetcher *subscrip
 func getCommunityURL(service string) string {
 	if url, ok := communityListMap[service]; ok {
 		return url
+	}
+	// Sanitize service tag (only allow lower alphanumeric, underscores, and hyphens)
+	reg := regexp.MustCompile(`^[a-z0-9_-]+$`)
+	if !reg.MatchString(service) {
+		logger.Warn("config", "generator", "Invalid community service tag blocked: %s", service)
+		return ""
 	}
 	return fmt.Sprintf("https://github.com/itdoginfo/allow-domains/releases/latest/download/%s.srs", service)
 }
@@ -619,7 +655,9 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 		outbound.Server = u.Hostname()
 		outbound.ServerPort = 443
 		if u.Port() != "" {
-			fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
+			if port, err := strconv.Atoi(u.Port()); err == nil {
+				outbound.ServerPort = port
+			}
 		}
 		outbound.UUID = u.User.String()
 		outbound.Flow = u.Query().Get("flow")
@@ -636,7 +674,9 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 		outbound.Server = u.Hostname()
 		outbound.ServerPort = 8388
 		if u.Port() != "" {
-			fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
+			if port, err := strconv.Atoi(u.Port()); err == nil {
+				outbound.ServerPort = port
+			}
 		}
 		userPass := u.User.String()
 		if decoded, err := DecodeBase64Tolerant(userPass); err == nil {
@@ -658,7 +698,9 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 		outbound.Server = u.Hostname()
 		outbound.ServerPort = 1080
 		if u.Port() != "" {
-			fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
+			if port, err := strconv.Atoi(u.Port()); err == nil {
+				outbound.ServerPort = port
+			}
 		}
 		if u.User != nil {
 			outbound.Username = u.User.Username()
@@ -674,7 +716,9 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 		outbound.Server = u.Hostname()
 		outbound.ServerPort = 443
 		if u.Port() != "" {
-			fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
+			if port, err := strconv.Atoi(u.Port()); err == nil {
+				outbound.ServerPort = port
+			}
 		}
 		outbound.Password = u.User.String()
 		applyTLS(outbound, u)
@@ -685,7 +729,9 @@ func parseProxyURL(proxyStr string, tag string) (*OutboundConfig, error) {
 		outbound.Server = u.Hostname()
 		outbound.ServerPort = 443
 		if u.Port() != "" {
-			fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
+			if port, err := strconv.Atoi(u.Port()); err == nil {
+				outbound.ServerPort = port
+			}
 		}
 		outbound.Password = u.User.String()
 		outbound.UpMbps, _ = strconv.Atoi(u.Query().Get("upmbps"))
@@ -799,7 +845,9 @@ func parseVMess(proxyStr string, tag string) (*OutboundConfig, error) {
 			if port, ok := v["port"].(float64); ok {
 				outbound.ServerPort = int(port)
 			} else if portStr, ok := v["port"].(string); ok {
-				fmt.Sscanf(portStr, "%d", &outbound.ServerPort)
+				if port, err := strconv.Atoi(portStr); err == nil {
+					outbound.ServerPort = port
+				}
 			}
 
 			if tls, ok := v["tls"].(string); ok && (tls == "tls" || tls == "reality") {
@@ -848,7 +896,9 @@ func parseVMess(proxyStr string, tag string) (*OutboundConfig, error) {
 		RoutingMark: 2097152,
 	}
 	if u.Port() != "" {
-		fmt.Sscanf(u.Port(), "%d", &outbound.ServerPort)
+		if port, err := strconv.Atoi(u.Port()); err == nil {
+			outbound.ServerPort = port
+		}
 	}
 	if sec := u.Query().Get("security"); sec != "" {
 		outbound.Security = sec

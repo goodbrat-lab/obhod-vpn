@@ -1,3 +1,4 @@
+set -u
 OBHOD_LIB="/usr/lib/obhod"
 . "$OBHOD_LIB/helpers.sh"
 . "$OBHOD_LIB/sing_box_config_manager.sh"

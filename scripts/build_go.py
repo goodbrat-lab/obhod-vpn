@@ -14,6 +14,7 @@ def build(goos, goarch, variant, suffix):
     
     # Setup environment
     env = os.environ.copy()
+    env["PATH"] = r"C:\Program Files\Go\bin;" + env.get("PATH", "")
     env["GOOS"] = goos
     env["GOARCH"] = goarch
     env["CGO_ENABLED"] = "0"
@@ -27,7 +28,7 @@ def build(goos, goarch, variant, suffix):
     elif goarch == "arm":
         env["GOARM"] = variant.lstrip("v")
         
-    cmd = ["go", "build", "-ldflags=-s -w", "-o", str(DIST_DIR / output_name), "."]
+    cmd = [r"C:\Program Files\Go\bin\go.exe", "build", "-ldflags=-s -w", "-o", str(DIST_DIR / output_name), "."]
     
     try:
         res = subprocess.run(cmd, cwd=str(SRC_DIR), env=env, check=True, capture_output=True, text=True)

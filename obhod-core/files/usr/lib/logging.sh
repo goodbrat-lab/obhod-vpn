@@ -1,3 +1,5 @@
+set -u
+
 COLOR_CYAN="\033[0;36m"
 COLOR_GREEN="\033[0;32m"
 COLOR_YELLOW="\033[0;33m"
@@ -74,9 +76,8 @@ obhod_log() {
 
 # Compatibility aliases
 nolog() {
-    # nolog was used for interactive output only. Now log handles it if -t 2.
-    # We keep it as a no-op or just redirect to log debug if needed.
-    :
+    # Print to stdout so diagnostic output is not lost.
+    echo "$1"
 }
 
 echolog() {

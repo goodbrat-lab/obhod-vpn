@@ -9,16 +9,16 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"regexp"
 
 	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/config"
 	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/logger"
-	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/subscription"
 	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/sysinfo"
 	"github.com/goodbrat-lab/obhod-vpn/obhod/internal/watchdog"
 	"encoding/json"
 )
 
-var version = "1.1.36"
+var version = "1.1.39"
 
 func main() {
 	watchdogCmd := flag.NewFlagSet("watchdog", flag.ExitOnError)
@@ -45,6 +45,17 @@ func main() {
 		forwardToBackend()
 	}
 
+	if flag.Arg(0) == "watchdog" {
+		lockFile, err := os.OpenFile("/var/run/obhod_watchdog.lock", os.O_CREATE|os.O_WRONLY, 0600)
+		if err == nil {
+			err = lockInstance(lockFile)
+			if err != nil {
+				fmt.Println("Another instance of obhod watchdog is already running.")
+				os.Exit(1)
+			}
+		}
+	}
+
 	err := logger.Init(*logLevel)
 	if err != nil {
 		fmt.Printf("Failed to initialize logger: %v\n", err)
@@ -62,7 +73,7 @@ func main() {
 		if uci, err := config.LoadUCI(); err == nil {
 			updateInterval = uci.Settings.UpdateInterval
 		}
-		go subscription.StartUpdater("", updateInterval)
+		go config.StartUpdater(ctx, "", updateInterval)
 		watchdog.Start(ctx, *interval, *mark)
 	case "auto-setup":
 		info, err := sysinfo.GetNetworkInfo()
@@ -82,7 +93,7 @@ func main() {
 		fmt.Println(string(data))
 	case "update-subscriptions":
 		updateSubCmd.Parse(flag.Args()[1:])
-		err := subscription.UpdateManual(*cacheFile)
+		err := config.UpdateManual(*cacheFile)
 		if err != nil {
 			logger.Error("config", "main", "Failed to update subscriptions: %v", err)
 			os.Exit(1)
@@ -105,7 +116,7 @@ func main() {
 			os.Exit(1)
 		}
 		if *outputFile != "" {
-			err = os.WriteFile(*outputFile, data, 0644)
+			err = os.WriteFile(*outputFile, data, 0600)
 			if err != nil {
 				logger.Error("config", "main", "Failed to write config to %s: %v", *outputFile, err)
 				os.Exit(1)
@@ -119,6 +130,37 @@ func main() {
 }
 
 func forwardToBackend() {
+	if len(os.Args) < 2 {
+		printUsage()
+		os.Exit(1)
+	}
+	cmdName := os.Args[1]
+	allowedCmds := map[string]bool{
+		"start": true, "stop": true, "restart": true, "reload": true,
+		"validate": true, "main": true, "start_main": true, "stop_main": true,
+		"list_update": true, "backup": true, "restore": true, "check_proxy": true,
+		"check_nft": true, "check_nft_rules": true, "check_sing_box": true,
+		"check_logs": true, "check_sing_box_logs": true, "check_fakeip": true,
+		"clash_api": true, "show_config": true, "show_version": true,
+		"show_sing_box_config": true, "show_sing_box_version": true,
+		"show_system_info": true, "get_status": true, "get_sing_box_status": true,
+		"get_system_info": true, "health": true, "auto_setup": true,
+		"check_dns_available": true, "global_check": true,
+	}
+	if !allowedCmds[cmdName] {
+		fmt.Printf("Error: Unknown or restricted command: %s\n\n", cmdName)
+		printUsage()
+		os.Exit(1)
+	}
+
+	safeArgRegex := regexp.MustCompile(`^[^$;|&<>*?\x60\\"'` + "`" + `\x00-\x1F\x7F-\x9F\x0a\x0d]*$`)
+	for i, arg := range os.Args[2:] {
+		if len(arg) > 255 || !safeArgRegex.MatchString(arg) {
+			fmt.Fprintf(os.Stderr, "Error: invalid character or too long argument in parameter %d: %q\n", i+2, arg)
+			os.Exit(1)
+		}
+	}
+
 	backendPath := "/usr/lib/obhod/obhod-backend.sh"
 	if _, err := os.Stat(backendPath); os.IsNotExist(err) {
 		fmt.Printf("Backend script not found at %s\n", backendPath)

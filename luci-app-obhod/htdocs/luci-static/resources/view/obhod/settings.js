@@ -241,6 +241,10 @@ function createSettingsContent(section) {
     if (!value) {
       return _("Delay value cannot be empty");
     }
+    const n = parseInt(value, 10);
+    if (isNaN(n) || n < 100 || n > 30000 || String(n) !== value.trim()) {
+      return _("Must be a number between 100 and 30000 ms");
+    }
     return true;
   };
 
@@ -382,6 +386,15 @@ function createSettingsContent(section) {
 
     if (!value.endsWith("cache.db")) {
       return _("Path must end with cache.db");
+    }
+
+    if (value.includes("..")) {
+      return _("Path traversal not allowed");
+    }
+
+    const ALLOWED = ["/tmp/", "/var/", "/usr/share/sing-box/"];
+    if (!ALLOWED.some(p => value.startsWith(p))) {
+      return _("Path must be under /tmp/, /var/ or /usr/share/sing-box/");
     }
 
     const parts = value.split("/").filter(Boolean);

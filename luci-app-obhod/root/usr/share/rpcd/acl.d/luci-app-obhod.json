@@ -1,23 +1,19 @@
 {
   "luci-app-obhod": {
-    "description": "Grant full access to Obhod VPN services",
+    "description": "Obhod VPN configuration access",
     "read": {
-      "cgi-bin": [ "/usr/bin/obhod" ],
       "file": {
         "/etc/config/obhod": [ "read" ],
         "/usr/bin/obhod": [ "exec" ],
         "/usr/lib/obhod/obhod-backend.sh": [ "exec" ],
         "/etc/init.d/obhod": [ "exec" ],
-        "/sbin/logread": [ "exec" ],
-        "/usr/bin/dig": [ "exec" ],
         "/tmp/sing-box/config.json": [ "read" ],
         "/tmp/obhod_backup.tar.gz": [ "read" ]
       },
       "ubus": {
-        "file": [ "exec", "read", "list" ],
         "uci": [ "get", "sections" ],
         "service": [ "list", "status" ],
-        "system": [ "info", "log" ]
+        "system": [ "info" ]
       },
       "uci": [ "obhod" ]
     },
@@ -26,8 +22,7 @@
         "/etc/config/obhod": [ "write" ]
       },
       "ubus": {
-        "uci": [ "set", "add", "delete", "commit" ],
-        "file": [ "write" ]
+        "uci": [ "set", "add", "delete", "commit" ]
       },
       "uci": [ "obhod" ]
     }

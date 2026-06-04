@@ -39,4 +39,11 @@ if [ -f Packages ]; then
     gzip -c Packages > Packages.gz
 fi
 
-echo "Done. Packages and Packages.gz updated."
+# Generate standalone SHA256SUMS file
+rm -f SHA256SUMS
+for f in *.ipk *.tar.gz; do
+    [ -e "$f" ] || continue
+    sha256sum "$f" >> SHA256SUMS
+done
+
+echo "Done. Packages, Packages.gz and SHA256SUMS updated."

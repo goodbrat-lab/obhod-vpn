@@ -20,6 +20,8 @@ type RestartHistory struct {
 	LastAlertTime time.Time   `json:"last_alert_time"`
 }
 
+var restartHistoryMutex sync.Mutex
+
 func loadRestartHistory() RestartHistory {
 	var history RestartHistory
 	data, err := os.ReadFile("/tmp/obhod/restart_history.json")
@@ -41,7 +43,7 @@ func saveRestartHistory(history RestartHistory) {
 		return
 	}
 	tmpPath := "/tmp/obhod/restart_history.json.tmp"
-	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		logger.Error("watchdog", "telemetry", "Failed to write temp restart history file: %v", err)
 		return
 	}
@@ -51,6 +53,9 @@ func saveRestartHistory(history RestartHistory) {
 }
 
 func recordRestart(bot *telegram.Bot) {
+	restartHistoryMutex.Lock()
+	defer restartHistoryMutex.Unlock()
+
 	history := loadRestartHistory()
 	now := time.Now()
 	history.Timestamps = append(history.Timestamps, now)
@@ -64,6 +69,11 @@ func recordRestart(bot *telegram.Bot) {
 		}
 	}
 	history.Timestamps = activeTimestamps
+
+	// Cap history timestamps to prevent unbounded growth in case of extreme failures
+	if len(history.Timestamps) > 20 {
+		history.Timestamps = history.Timestamps[len(history.Timestamps)-20:]
+	}
 
 	// Check threshold: 5 or more restarts in 60 minutes
 	if len(history.Timestamps) >= 5 {
@@ -89,9 +99,10 @@ const (
 
 // Global state with mutex protection
 var (
- watchdogMutex sync.Mutex
- failCount     int
- singBoxRestartCount int
+	watchdogMutex       sync.Mutex
+	failCount           int
+	singBoxRestartCount int
+	blackholeActive     bool
 )
 
 func Start(ctx context.Context, checkInterval time.Duration, mark int) {
@@ -101,6 +112,7 @@ func Start(ctx context.Context, checkInterval time.Duration, mark int) {
 	watchdogMutex.Lock()
 	failCount = 0
 	singBoxRestartCount = 0
+	blackholeActive = false
 	watchdogMutex.Unlock()
 
 	uci, _ := config.LoadUCI()
@@ -153,6 +165,11 @@ func processWanCheck(ctx context.Context, bot *telegram.Bot, mark int) {
 				bot.SendMessage("✅ <b>DNS Restored</b>. All systems normal.")
 			}
 		}
+		if blackholeActive {
+			logger.Info("watchdog", "recovery", "DNS restored, removing blackhole route...")
+			_ = exec.Command("ip", "route", "del", "blackhole", "198.18.0.0/15").Run()
+			blackholeActive = false
+		}
 		failCount = 0
 		singBoxRestartCount = 0
 		return
@@ -188,6 +205,11 @@ func processWanCheck(ctx context.Context, bot *telegram.Bot, mark int) {
 
 	failCount = 0
 	singBoxRestartCount++
+
+	// DNS check failed maxFails (3) times. Before restarting, activate the blackhole route to prevent leakage.
+	logger.Warn("watchdog", "recovery", "DNS failed 3 times, activating blackhole route to prevent leaks...")
+	_ = exec.Command("ip", "route", "replace", "blackhole", "198.18.0.0/15").Run()
+	blackholeActive = true
 
 	if singBoxRestartCount <= singBoxRestarts {
 		logger.Error("watchdog", "recovery", "Restarting sing-box...")
@@ -234,27 +256,38 @@ func isWanUp(mark int) bool {
 }
 
 func checkDns() bool {
-	domains := []string{"google.com", "cloudflare.com", "yandex.ru"}
+	// We check resolving "fakeip.obhod", which is configured to resolve to FakeIP.
+	// If it successfully returns an IP in the 198.18.0.0/15 range, it means dnsmasq is correctly
+	// routing requests to sing-box, and sing-box is intercepting and responding via its FakeIP DNS module.
 	r := net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
 			d := net.Dialer{Timeout: 3 * time.Second}
-			// sing-box 1.12+: DNS goes via dnsmasq (127.0.0.1:53) -> nft tproxy -> sing-box hijack-dns
-			// Old approach was direct DNS inbound at 127.0.0.42:53, which no longer exists
 			return d.DialContext(ctx, "udp", "127.0.0.1:53")
 		},
 	}
 
-	for _, domain := range domains {
-		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
-		_, err := r.LookupHost(ctx, domain)
-		cancel()
-		if err == nil {
-			logger.Debug("watchdog", "connectivity", "Local DNS query for %s succeeded", domain)
-			return true
-		}
-		logger.Debug("watchdog", "connectivity", "Local DNS query for %s failed: %v", domain, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	ips, err := r.LookupIPAddr(ctx, "fakeip.obhod")
+	cancel()
+
+	if err != nil {
+		logger.Debug("watchdog", "connectivity", "Local DNS query for fakeip.obhod failed: %v", err)
+		return false
 	}
+
+	for _, ip := range ips {
+		ip4 := ip.IP.To4()
+		if ip4 != nil {
+			// 198.18.0.0/15 matches 198.18.x.x or 198.19.x.x
+			if ip4[0] == 198 && (ip4[1] == 18 || ip4[1] == 19) {
+				logger.Debug("watchdog", "connectivity", "Local DNS query returned FakeIP %s (routing active)", ip4.String())
+				return true
+			}
+		}
+	}
+
+	logger.Warn("watchdog", "connectivity", "Local DNS query returned real or non-FakeIP addresses, selective routing is NOT active")
 	return false
 }
 
@@ -280,9 +313,19 @@ func checkDnsDirect(domain string, mark int) bool {
 }
 
 func restartSingBox() {
-	exec.Command("/etc/init.d/sing-box", "restart").Run()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "/etc/init.d/sing-box", "restart")
+	if err := cmd.Run(); err != nil {
+		logger.Error("watchdog", "recovery", "Failed to restart sing-box: %v", err)
+	}
 }
 
 func restartObhod() {
-	exec.Command("/usr/bin/obhod", "restart").Run()
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "/usr/bin/obhod", "restart")
+	if err := cmd.Run(); err != nil {
+		logger.Error("watchdog", "recovery", "Failed to restart obhod: %v", err)
+	}
 }

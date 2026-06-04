@@ -38,11 +38,34 @@ const (
 )
 
 // ValidateURL checks if URL is safe and well-formed
-func validateURL(url string) error {
-	if len(url) > maxLineLength {
+func validateURL(rawURL string) error {
+	if len(rawURL) > maxLineLength {
 		return fmt.Errorf("URL too long")
 	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("unsupported scheme: %s", u.Scheme)
+	}
 	return nil
+}
+
+func SanitizeURLForLog(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "[invalid-url]"
+	}
+	q := u.Query()
+	sensitive := []string{"token", "key", "secret", "auth", "password", "tk", "uid"}
+	for _, k := range sensitive {
+		if _, exists := q[k]; exists {
+			q.Set(k, "***")
+		}
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func NewFetcher(cachePath string) *Fetcher {
@@ -158,7 +181,7 @@ func (f *Fetcher) SaveCache(data *CacheData) error {
 		return err
 	}
 
-	return os.WriteFile(f.CachePath, file, 0644)
+	return os.WriteFile(f.CachePath, file, 0600)
 }
 
 func (f *Fetcher) LoadCache() (*CacheData, error) {
@@ -177,7 +200,7 @@ func (f *Fetcher) LoadCache() (*CacheData, error) {
 
 func (f *Fetcher) fetchWithClient(targetURL string, proxyPort int, timeout time.Duration) ([]byte, int, error) {
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // Allow self-signed or invalid certs from providers
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: false},
 		DialContext: (&net.Dialer{
 			Timeout:   5 * time.Second,
 			KeepAlive: 30 * time.Second,

@@ -1,3 +1,5 @@
+set -u
+
 # Constructs and returns a ruleset tag using section, name, optional type, and a fixed postfix
 get_ruleset_tag() {
     local section="$1"
@@ -87,7 +89,7 @@ import_plain_domain_list_to_local_source_ruleset_chunked() {
             if (i < count - 1) printf ",\n"
             else printf "\n"
         }
-        print "    }]}"
+        print "    ]}]}"
     }' > "$tmpfile"
 
     if [ $? -eq 0 ] && [ -s "$tmpfile" ]; then
@@ -128,7 +130,7 @@ import_plain_subnet_list_to_local_source_ruleset_chunked() {
             if (i < count - 1) printf ",\n"
             else printf "\n"
         }
-        print "    }]}"
+        print "    ]}]}"
     }' > "$tmpfile"
 
     if [ $? -eq 0 ] && [ -s "$tmpfile" ]; then

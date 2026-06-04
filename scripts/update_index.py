@@ -77,7 +77,21 @@ def update_index():
     with gzip.open(root_packages_gz_path, "wb") as f:
         f.write(packages_txt.encode("utf-8"))
 
-    print("Index generation completed successfully (Packages and Packages.gz created).")
+    # Generate standalone SHA256SUMS file
+    sha256sums_txt = ""
+    for ext in ("*.ipk", "*.tar.gz"):
+        for f in sorted(DIST_DIR.glob(ext)):
+            sha256sums_txt += f"{sha256(f)}  {f.name}\n"
+
+    sha256sums_path = DIST_DIR / "SHA256SUMS"
+    with open(sha256sums_path, "w", newline="\n", encoding="utf-8") as f:
+        f.write(sha256sums_txt)
+
+    root_sha256sums_path = BASE_DIR / "SHA256SUMS"
+    with open(root_sha256sums_path, "w", newline="\n", encoding="utf-8") as f:
+        f.write(sha256sums_txt)
+
+    print("Index generation completed successfully (Packages, Packages.gz and SHA256SUMS created).")
 
 if __name__ == "__main__":
     update_index()

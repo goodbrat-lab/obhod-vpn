@@ -1611,12 +1611,32 @@ function coreService() {
       intervalMs: 3e3,
       onNewLog: (line) => {
         if (line.toLowerCase().includes("[error]") || line.toLowerCase().includes("[fatal]")) {
-          ui.addNotification("Obhod Error", E("div", {}, line), "error");
+          ui.addNotification("Obhod Error", E("div", {}, sanitizeLogLine(line)), "error");
         }
       }
     }
   );
   watcher.start();
+}
+
+function sanitizeLogLine(line) {
+  if (!line) return line;
+  return line
+    .replace(/token=[^&\s]+/gi, 'token=***')
+    .replace(/(ss|vless|trojan):\/\/[^\s]*/gi, '$1://***');
+}
+
+function sanitizeSocketUrl(url) {
+  if (!url) return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has('token')) {
+      parsed.searchParams.set('token', '***');
+    }
+    return parsed.toString();
+  } catch (e) {
+    return url.replace(/token=[^&\s]+/gi, 'token=***');
+  }
 }
 
 // src/obhod/services/socket.service.ts
@@ -1642,7 +1662,7 @@ var SocketManager = class _SocketManager {
       } catch (err) {
         logger.error(
           "[SOCKET]",
-          `resetAll: failed to close socket ${url}`,
+          `resetAll: failed to close socket ${sanitizeSocketUrl(url)}`,
           err
         );
       }
@@ -1661,7 +1681,7 @@ var SocketManager = class _SocketManager {
     } catch (err) {
       logger.error(
         "[SOCKET]",
-        `failed to construct WebSocket for ${url}:`,
+        `failed to construct WebSocket for ${sanitizeSocketUrl(url)}:`,
         err
       );
       this.triggerError(url, err instanceof Event ? err : String(err));
@@ -1673,7 +1693,7 @@ var SocketManager = class _SocketManager {
     this.errorListeners.set(url, /* @__PURE__ */ new Set());
     ws.addEventListener("open", () => {
       this.connected.set(url, true);
-      logger.info("[SOCKET]", "Connected to", url);
+      logger.info("[SOCKET]", "Connected to", sanitizeSocketUrl(url));
     });
     ws.addEventListener("message", (event) => {
       const handlers = this.listeners.get(url);
@@ -1682,18 +1702,18 @@ var SocketManager = class _SocketManager {
           try {
             handler(event.data);
           } catch (err) {
-            logger.error("[SOCKET]", `Handler error for ${url}:`, err);
+            logger.error("[SOCKET]", `Handler error for ${sanitizeSocketUrl(url)}:`, err);
           }
         }
       }
     });
     ws.addEventListener("close", () => {
       this.connected.set(url, false);
-      logger.warn("[SOCKET]", `Disconnected: ${url}`);
+      logger.warn("[SOCKET]", `Disconnected: ${sanitizeSocketUrl(url)}`);
       this.triggerError(url, "Connection closed");
     });
     ws.addEventListener("error", (err) => {
-      logger.error("[SOCKET]", `Socket error for ${url}:`, err);
+      logger.error("[SOCKET]", `Socket error for ${sanitizeSocketUrl(url)}:`, err);
       this.triggerError(url, err);
     });
   }
@@ -1724,7 +1744,7 @@ var SocketManager = class _SocketManager {
     if (ws && this.connected.get(url)) {
       ws.send(typeof data === "string" ? data : JSON.stringify(data));
     } else {
-      logger.warn("[SOCKET]", `Cannot send: not connected to ${url}`);
+      logger.warn("[SOCKET]", `Cannot send: not connected to ${sanitizeSocketUrl(url)}`);
       this.triggerError(url, "Not connected");
     }
   }
@@ -1750,7 +1770,7 @@ var SocketManager = class _SocketManager {
         try {
           cb(err);
         } catch (e) {
-          logger.error("[SOCKET]", `Error handler threw for ${url}:`, e);
+          logger.error("[SOCKET]", `Error handler threw for ${sanitizeSocketUrl(url)}:`, e);
         }
       }
     }

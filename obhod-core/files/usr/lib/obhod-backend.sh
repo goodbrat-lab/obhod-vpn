@@ -1,5 +1,12 @@
 #!/bin/ash
 # shellcheck shell=dash
+set -u
+umask 077
+
+sanitize_url_for_log() {
+    echo "$1" | sed -E 's/([?&])(token|key|secret|auth|password|tk|uid)=[^&]*/\1\2=***REDACTED***/ig'
+}
+
 
 check_required_file() {
     local file="$1"
@@ -160,7 +167,7 @@ fetch_subscription() {
     local output_file="$2"
     local component="subscription"
     local context="fetch"
-    obhod_log "Fetching subscription from $url" "info" "$component" "$context"
+    obhod_log "Fetching subscription from $(sanitize_url_for_log "$url")" "info" "$component" "$context"
     
     local data http_code tmpfile curl_exit domain resolved_ip decoded cleaned_data mod size
     tmpfile=$(mktemp) || {
@@ -318,13 +325,12 @@ start_main_real() {
 
     sing_box_init_config
 
-    # 2. Base network setup
-    obhod_log "Setting up routing table and fwmarks..." "debug"
-    route_table_rule_mark
-    obhod_log "Applying nftables rules..." "debug"
-    create_nft_rules
     obhod_log "Configuring sing-box service..." "debug"
     sing_box_configure_service
+
+    # 2. Check for conflicts before starting networking
+    check_fwmark_conflicts || exit 1
+    check_fakeip_range_conflict
 
     # 3. Start sing-box service
     obhod_log "Starting sing-box service..."
@@ -336,16 +342,18 @@ start_main_real() {
     # NOTE: tproxy sockets use SO_IP_TRANSPARENT (raw sockets) and do NOT appear in
     # 'netstat -lun/-ltn'. We check via 'ss' (preferred) or process existence.
     obhod_log "Waiting for sing-box to start..."
+    local tproxy_port
+    config_get tproxy_port "settings" "tproxy_port" "$SB_TPROXY_INBOUND_PORT"
     local tproxy_ready=0
     local i
     for i in $(seq 1 15); do
         # Method 1: try ss (more reliable than netstat for tproxy/raw sockets)
         if command -v ss >/dev/null 2>&1; then
-            if ss -tlnp 2>/dev/null | grep -q ":${SB_TPROXY_INBOUND_PORT} " || \
-               ss -ulnp 2>/dev/null | grep -q ":${SB_TPROXY_INBOUND_PORT} " || \
-               ss -tlnp 2>/dev/null | grep -q "*:${SB_TPROXY_INBOUND_PORT} "; then
+            if ss -tlnp 2>/dev/null | grep -q ":${tproxy_port} " || \
+               ss -ulnp 2>/dev/null | grep -q ":${tproxy_port} " || \
+               ss -tlnp 2>/dev/null | grep -q "*:${tproxy_port} "; then
                 tproxy_ready=1
-                obhod_log "Sing-box tproxy port ${SB_TPROXY_INBOUND_PORT} detected via ss" "debug"
+                obhod_log "Sing-box tproxy port ${tproxy_port} detected via ss" "debug"
                 break
             fi
         fi
@@ -426,6 +434,12 @@ start_main_real() {
         dnsmasq_configure
     fi
 
+    # 5. Base network setup - ONLY NOW apply nftables rules and route/rule marking to avoid leak window
+    obhod_log "Setting up routing table and fwmarks..." "debug"
+    route_table_rule_mark
+    obhod_log "Applying nftables rules..." "debug"
+    create_nft_rules
+
     uci_set "obhod" "settings" "shutdown_correctly" 0
     uci commit "obhod" && config_load "$OBHOD_CONFIG"
 
@@ -452,8 +466,18 @@ stop_main_real() {
         local pid
         pid=$(cat /var/run/obhod_list_update.pid)
         if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-            obhod_log "Force-terminating background list update (PID: $pid)" "warn"
-            kill -9 "$pid" 2>/dev/null
+            local cmdline=""
+            if [ -f "/proc/$pid/cmdline" ]; then
+                cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
+            fi
+            if echo "$cmdline" | grep -q "obhod"; then
+                obhod_log "Force-terminating background list update (PID: $pid)" "warn"
+                kill "$pid" 2>/dev/null
+                sleep 1
+                kill -9 "$pid" 2>/dev/null
+            else
+                obhod_log "PID $pid does not belong to obhod, skipping termination" "warn"
+            fi
         fi
         rm -f /var/run/obhod_list_update.pid
     fi
@@ -482,7 +506,9 @@ stop_main_real() {
 
     obhod_log "Flush ip rule" "debug"
     while ip rule list | grep -q "fwmark $NFT_FAKEIP_MARK/$NFT_FAKEIP_MARK"; do
-        ip -4 rule del fwmark "$NFT_FAKEIP_MARK"/"$NFT_FAKEIP_MARK" table "$RT_TABLE_NAME" priority 105
+        if ! ip -4 rule del fwmark "$NFT_FAKEIP_MARK"/"$NFT_FAKEIP_MARK" table "$RT_TABLE_NAME" 2>/dev/null; then
+            break
+        fi
     done
 
     obhod_log "Flush ip route" "debug"
@@ -594,6 +620,45 @@ br_netfilter_disable() {
 
 # Main funcs
 
+check_fwmark_conflicts() {
+    local fakeip_mark="$NFT_FAKEIP_MARK"
+    local outbound_mark="$NFT_OUTBOUND_MARK"
+
+    # Check nftables ruleset for existing marks (excluding ObhodTable)
+    if command -v nft >/dev/null 2>&1; then
+        local nft_ruleset
+        nft_ruleset="$(nft list ruleset 2>/dev/null | grep -v "$NFT_TABLE_NAME" || true)"
+        if echo "$nft_ruleset" | grep -q "meta mark.*$fakeip_mark"; then
+            obhod_log "CRITICAL: fwmark $fakeip_mark (FakeIP) is already in use by another firewall rule!" "error"
+            return 1
+        fi
+        if echo "$nft_ruleset" | grep -q "meta mark.*$outbound_mark"; then
+            obhod_log "CRITICAL: fwmark $outbound_mark (Outbound) is already in use by another firewall rule!" "error"
+            return 1
+        fi
+    fi
+
+    # Check ip rule for existing marks (excluding the obhod table/priority)
+    local ip_rules
+    ip_rules="$(ip rule list 2>/dev/null | grep -v "$RT_TABLE_NAME" || true)"
+    if echo "$ip_rules" | grep -q "fwmark $fakeip_mark"; then
+        obhod_log "CRITICAL: ip rule fwmark $fakeip_mark conflict with another routing policy!" "error"
+        return 1
+    fi
+    if echo "$ip_rules" | grep -q "fwmark $outbound_mark"; then
+        obhod_log "CRITICAL: ip rule fwmark $outbound_mark conflict with another routing policy!" "error"
+        return 1
+    fi
+    return 0
+}
+
+check_fakeip_range_conflict() {
+    # Check if 198.18.0.0/15 route exists in routing tables (excluding table 105 / obhod)
+    if ip route show | grep -v "table $RT_TABLE_NAME" | grep -v "table 105" | grep -qE "^198\.1[89]\."; then
+        obhod_log "WARNING: 198.18.0.0/15 route exists - FakeIP range may conflict with local routes!" "warn"
+    fi
+}
+
 route_table_rule_mark() {
     grep -q "105 $RT_TABLE_NAME" /etc/iproute2/rt_tables || echo "105 $RT_TABLE_NAME" >> /etc/iproute2/rt_tables
 
@@ -612,82 +677,140 @@ route_table_rule_mark() {
     fi
 }
 
-nft_init_interfaces_set() {
-    nft_create_ifname_set "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME"
+create_nft_rules() {
+    local tproxy_port
+    config_get tproxy_port "settings" "tproxy_port" "$SB_TPROXY_INBOUND_PORT"
 
     local source_network_interfaces
     config_get source_network_interfaces "settings" "source_network_interfaces" "br-lan"
 
+    local interface_elements=""
+    local interface
     for interface in $source_network_interfaces; do
-        nft add element inet "$NFT_TABLE_NAME" "$NFT_INTERFACE_SET_NAME" "{ $interface }"
+        if validate_interface_name "$interface"; then
+            interface_elements="${interface_elements:+$interface_elements, }\"$interface\""
+        else
+            obhod_log "Invalid interface name rejected: '$interface'" "error"
+        fi
     done
-}
 
-create_nft_rules() {
-    obhod_log "Create nft table"
-    nft delete table inet "$NFT_TABLE_NAME" 2>/dev/null
-    nft_create_table "$NFT_TABLE_NAME"
-
-    obhod_log "Create localv4 set"
-    nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_LOCALV4_SET_NAME"
-    nft add element inet "$NFT_TABLE_NAME" localv4 '{
-        0.0.0.0/8,
-        10.0.0.0/8,
-        127.0.0.0/8,
-        169.254.0.0/16,
-        172.16.0.0/12,
-        192.0.0.0/24,
-        192.0.2.0/24,
-        192.88.99.0/24,
-        192.168.0.0/16,
-        198.51.100.0/24,
-        203.0.113.0/24,
-        224.0.0.0/4,
-        240.0.0.0-255.255.255.255
-    }'
-
-    obhod_log "Create common set"
-    nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"
-
-    obhod_log "Create interface set"
-    nft_init_interfaces_set
-
-    obhod_log "Create nft rules"
-    nft add chain inet "$NFT_TABLE_NAME" mangle '{ type filter hook prerouting priority -150; policy accept; }'
-    nft add chain inet "$NFT_TABLE_NAME" mangle_output '{ type route hook output priority -150; policy accept; }'
-    nft add chain inet "$NFT_TABLE_NAME" proxy '{ type filter hook prerouting priority -100; policy accept; }'
-
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
-
-    nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto tcp tproxy ip to 127.0.0.1:1602 counter
-    nft add rule inet "$NFT_TABLE_NAME" proxy meta mark \& "$NFT_FAKEIP_MARK" == "$NFT_FAKEIP_MARK" meta l4proto udp tproxy ip to 127.0.0.1:1602 counter
-
-    # DNS from loopback (dnsmasq → sing-box DNS module via tproxy + hijack-dns)
-    # sing-box 1.12+: DNS inbound removed, use nft redirect + hijack-dns route action
-    nft add rule inet "$NFT_TABLE_NAME" proxy iif lo meta l4proto udp udp dport 53 tproxy ip to 127.0.0.1:1602 counter
-    nft add rule inet "$NFT_TABLE_NAME" proxy iif lo meta l4proto tcp tcp dport 53 tproxy ip to 127.0.0.1:1602 counter
-
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_LOCALV4_SET_NAME" return
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output meta mark "$NFT_OUTBOUND_MARK" counter return
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto tcp meta mark set "$NFT_FAKEIP_MARK" counter
-    nft add rule inet "$NFT_TABLE_NAME" mangle_output ip daddr "$SB_FAKEIP_INET4_RANGE" meta l4proto udp meta mark set "$NFT_FAKEIP_MARK" counter
-
-    # DNS from loopback: mark for tproxy routing (must be before "localv4 return" rule)
-    # This handles dnsmasq DNS forwarding to sing-box via tproxy redirect
-    nft insert rule inet "$NFT_TABLE_NAME" mangle_output meta mark "$NFT_OUTBOUND_MARK" counter return
-    nft insert rule inet "$NFT_TABLE_NAME" mangle_output oif lo meta l4proto udp udp dport 53 meta mark set "$NFT_FAKEIP_MARK" counter
-    nft insert rule inet "$NFT_TABLE_NAME" mangle_output oif lo meta l4proto tcp tcp dport 53 meta mark set "$NFT_FAKEIP_MARK" counter
+    local interface_elements_block=""
+    if [ -n "$interface_elements" ]; then
+        interface_elements_block="elements = { $interface_elements }"
+    fi
 
     local exclude_ntp
     config_get_bool exclude_ntp "settings" "exclude_ntp" "0"
+    local exclude_ntp_rule=""
     if [ "$exclude_ntp" -eq 1 ]; then
-        obhod_log "NTP traffic exclude for proxy"
-        nft insert rule inet "$NFT_TABLE_NAME" mangle udp dport 123 return
+        exclude_ntp_rule="udp dport 123 return"
+    fi
+
+    obhod_log "Generating and applying atomic nftables ruleset..."
+    
+    local tmp_nft
+    tmp_nft=$(mktemp "/tmp/obhod_ruleset_XXXXXX.nft") || return 1
+    register_temp_file "$tmp_nft"
+
+    cat <<EOF > "$tmp_nft"
+table inet $NFT_TABLE_NAME
+delete table inet $NFT_TABLE_NAME
+table inet $NFT_TABLE_NAME {
+    set localv4 {
+        type ipv4_addr
+        flags interval
+        auto-merge
+        elements = {
+            0.0.0.0/8,
+            10.0.0.0/8,
+            127.0.0.0/8,
+            169.254.0.0/16,
+            172.16.0.0/12,
+            192.0.0.0/24,
+            192.0.2.0/24,
+            192.88.99.0/24,
+            192.168.0.0/16,
+            198.51.100.0/24,
+            203.0.113.0/24,
+            224.0.0.0/4,
+            240.0.0.0-255.255.255.255
+        }
+    }
+    set $NFT_INTERFACE_SET_NAME {
+        type ifname
+        flags interval
+        $interface_elements_block
+    }
+    set $NFT_COMMON_SET_NAME {
+        type ipv4_addr
+        flags interval
+        auto-merge
+    }
+    set $NFT_COMMON_V6_SET_NAME {
+        type ipv6_addr
+        flags interval
+        auto-merge
+    }
+    set $NFT_DISCORD_SET_NAME {
+        type ipv4_addr
+        flags interval
+        auto-merge
+    }
+
+    chain mangle {
+        type filter hook prerouting priority -150; policy accept;
+        $exclude_ntp_rule
+        iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_DISCORD_SET_NAME" udp dport { 50000-65535 } meta mark set $NFT_FAKEIP_MARK counter
+        iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set $NFT_FAKEIP_MARK counter
+        iifname "@$NFT_INTERFACE_SET_NAME" ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set $NFT_FAKEIP_MARK counter
+        iifname "@$NFT_INTERFACE_SET_NAME" ip daddr $SB_FAKEIP_INET4_RANGE meta l4proto tcp meta mark set $NFT_FAKEIP_MARK counter
+        iifname "@$NFT_INTERFACE_SET_NAME" ip daddr $SB_FAKEIP_INET4_RANGE meta l4proto udp meta mark set $NFT_FAKEIP_MARK counter
+        iifname "@$NFT_INTERFACE_SET_NAME" ip6 daddr "@$NFT_COMMON_V6_SET_NAME" reject with icmpv6 type port-unreachable
+        
+        # Block IPv6 DNS requests to external servers to prevent DNS leaks
+        iifname "@$NFT_INTERFACE_SET_NAME" ip6 daddr != ::1 udp dport 53 reject with icmpv6 type no-route
+        iifname "@$NFT_INTERFACE_SET_NAME" ip6 daddr != ::1 tcp dport 53 reject with icmpv6 type no-route
+    }
+
+    chain proxy {
+        type filter hook prerouting priority -100; policy accept;
+        meta mark and $NFT_FAKEIP_MARK == $NFT_FAKEIP_MARK meta l4proto tcp tproxy ip to 127.0.0.1:$tproxy_port accept counter
+        meta mark and $NFT_FAKEIP_MARK == $NFT_FAKEIP_MARK meta l4proto udp tproxy ip to 127.0.0.1:$tproxy_port accept counter
+        iif lo meta l4proto udp udp dport 53 tproxy ip to 127.0.0.1:$tproxy_port accept counter
+        iif lo meta l4proto tcp tcp dport 53 tproxy ip to 127.0.0.1:$tproxy_port accept counter
+        
+        # Kill-Switch: drop remaining marked packets if tproxy fails or is down
+        meta mark and $NFT_FAKEIP_MARK == $NFT_FAKEIP_MARK drop
+    }
+
+    chain mangle_output {
+        type route hook output priority -150; policy accept;
+        meta mark $NFT_OUTBOUND_MARK return
+        oif lo meta l4proto udp udp dport 53 meta mark set $NFT_FAKEIP_MARK counter
+        oif lo meta l4proto tcp tcp dport 53 meta mark set $NFT_FAKEIP_MARK counter
+        ip daddr "@localv4" return
+        ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto tcp meta mark set $NFT_FAKEIP_MARK counter
+        ip daddr "@$NFT_COMMON_SET_NAME" meta l4proto udp meta mark set $NFT_FAKEIP_MARK counter
+        ip daddr $SB_FAKEIP_INET4_RANGE meta l4proto tcp meta mark set $NFT_FAKEIP_MARK counter
+        ip daddr $SB_FAKEIP_INET4_RANGE meta l4proto udp meta mark set $NFT_FAKEIP_MARK counter
+        ip6 daddr "@$NFT_COMMON_V6_SET_NAME" reject with icmpv6 type port-unreachable
+        
+        # Block local IPv6 DNS requests to external servers
+        oifname != "lo" ip6 daddr != ::1 udp dport 53 reject with icmpv6 type no-route
+        oifname != "lo" ip6 daddr != ::1 tcp dport 53 reject with icmpv6 type no-route
+    }
+}
+EOF
+
+    nft -f "$tmp_nft"
+    local res=$?
+    rm -f "$tmp_nft"
+    
+    if [ $res -eq 0 ]; then
+        obhod_log "Atomic nftables ruleset applied successfully ✅"
+    else
+        obhod_log "Failed to apply nftables ruleset ❌" "error"
+        return 1
     fi
 }
 
@@ -941,11 +1064,51 @@ list_update_real() {
         return 1
     fi
 
+    # Create temporary files for combined subnets
+    local combined_subnets combined_discord
+    combined_subnets=$(mktemp "/tmp/obhod_subnets_XXXXXX.lst") || return 1
+    register_temp_file "$combined_subnets"
+    combined_discord=$(mktemp "/tmp/obhod_discord_XXXXXX.lst") || return 1
+    register_temp_file "$combined_discord"
+
+    # Export variables so that nft_add_set_elements_from_file_chunked redirects to them
+    export OBHOD_COMBINED_SUBNETS_FILE="$combined_subnets"
+    export OBHOD_COMBINED_DISCORD_FILE="$combined_discord"
+
     echolog "📥 Downloading and processing lists..."
 
+    local update_status=0
     if config_foreach import_community_subnet_lists "section" && \
        config_foreach import_domains_from_remote_domain_lists "section" && \
        config_foreach import_subnets_from_remote_subnet_lists "section"; then
+        
+        # Load accumulated subnets atomically
+        echolog "Applying subnets atomically to nftables..."
+        
+        # We must unset the environment variables before calling nft_update_set_from_file to avoid loops
+        unset OBHOD_COMBINED_SUBNETS_FILE
+        unset OBHOD_COMBINED_DISCORD_FILE
+
+        if ! nft_update_set_from_file "$combined_subnets" "$NFT_TABLE_NAME" "$NFT_COMMON_SET_NAME"; then
+            echolog "❌ Failed to update nft set $NFT_COMMON_SET_NAME"
+            update_status=1
+        fi
+
+        if ! nft_update_set_from_file "$combined_discord" "$NFT_TABLE_NAME" "$NFT_DISCORD_SET_NAME"; then
+            echolog "❌ Failed to update nft set $NFT_DISCORD_SET_NAME"
+            update_status=1
+        fi
+    else
+        update_status=1
+        # Unset env vars in failure case too
+        unset OBHOD_COMBINED_SUBNETS_FILE
+        unset OBHOD_COMBINED_DISCORD_FILE
+    fi
+
+    # Cleanup temp files
+    rm -f "$combined_subnets" "$combined_discord"
+
+    if [ "$update_status" -eq 0 ]; then
         echolog "✅ Lists update completed successfully"
         if [ "$(uci -q get obhod.settings.enabled)" = "1" ]; then
             /etc/init.d/sing-box reload 2>/dev/null || /etc/init.d/sing-box restart 2>/dev/null
@@ -954,6 +1117,7 @@ list_update_real() {
         fi
     else
         echolog "❌ Lists update failed"
+        return 1
     fi
 }
 
@@ -1857,9 +2021,6 @@ import_community_service_subnet_list_handler() {
         ;;
     "discord")
         URL=$SUBNETS_DISCORD
-        nft_create_ipv4_set "$NFT_TABLE_NAME" "$NFT_DISCORD_SET_NAME"
-        nft add rule inet "$NFT_TABLE_NAME" mangle iifname "@$NFT_INTERFACE_SET_NAME" ip daddr \
-            "@$NFT_DISCORD_SET_NAME" udp dport '{ 50000-65535 }' meta mark set "$NFT_FAKEIP_MARK" counter
         ;;
     "roblox")
         URL=$SUBNETS_ROBLOX
@@ -1900,7 +2061,7 @@ import_domains_from_remote_domain_list_handler() {
     local url="$1"
     local section="$2"
 
-    obhod_log "Importing domains from URL: $url"
+    obhod_log "Importing domains from URL: $(sanitize_url_for_log "$url")"
 
     local file_extension
     file_extension=$(url_get_file_extension "$url")
@@ -1952,7 +2113,7 @@ import_subnets_from_remote_subnet_list_handler() {
     local url="$1"
     local section="$2"
 
-    obhod_log "Importing subnets from URL: $url"
+    obhod_log "Importing subnets from URL: $(sanitize_url_for_log "$url")"
 
     local file_extension
     file_extension="$(url_get_file_extension "$url")"
@@ -2349,6 +2510,16 @@ check_logs() {
     fi
 }
 
+check_sing_box_logs() {
+    if command -v logread >/dev/null 2>&1; then
+        logread -e sing-box | tail -n 100
+    elif [ -f "/var/log/sing-box.log" ]; then
+        tail -n 100 /var/log/sing-box.log
+    else
+        nolog "No sing-box logs found"
+    fi
+}
+
 show_sing_box_config() {
     local sing_box_config_path
     config_get sing_box_config_path "settings" "config_path"
@@ -2733,25 +2904,27 @@ check_sing_box() {
     fi
 
     # Check if sing-box is listening on required ports
-    # sing-box 1.12+: DNS inbound removed, only tproxy port 1602 is checked
-    local port_1602_ok=0
+    # sing-box 1.12+: DNS inbound removed, only tproxy port is checked
+    local tproxy_port
+    config_get tproxy_port "settings" "tproxy_port" "$SB_TPROXY_INBOUND_PORT"
+    local port_ready_ok=0
 
     if command -v ss >/dev/null 2>&1; then
-        if ss -tlnp 2>/dev/null | grep -q ":1602 " || \
-           ss -ulnp 2>/dev/null | grep -q ":1602 " || \
-           ss -tlnp 2>/dev/null | grep -q "*:1602 "; then
-            port_1602_ok=1
+        if ss -tlnp 2>/dev/null | grep -q ":${tproxy_port} " || \
+           ss -ulnp 2>/dev/null | grep -q ":${tproxy_port} " || \
+           ss -tlnp 2>/dev/null | grep -q "*:${tproxy_port} "; then
+            port_ready_ok=1
         fi
     fi
 
-    if [ "$port_1602_ok" = "0" ]; then
-        if netstat -ln 2> /dev/null | grep -q ":1602"; then
-            port_1602_ok=1
+    if [ "$port_ready_ok" = "0" ]; then
+        if netstat -ln 2> /dev/null | grep -q ":${tproxy_port}"; then
+            port_ready_ok=1
         fi
     fi
 
     # Tproxy port must be listening (DNS handled via nft redirect + hijack-dns)
-    if [ "$port_1602_ok" = "1" ]; then
+    if [ "$port_ready_ok" = "1" ]; then
         sing_box_ports_listening=1
     fi
 
@@ -2776,6 +2949,20 @@ check_fakeip() {
 #   clash_api get_group_latency <group_tag> [timeout]
 #   clash_api set_group_proxy <group_tag> <proxy_tag>
 #######################################
+
+url_encode() {
+    local string="$1"
+    jq -rn --arg val "$string" '$val|@uri'
+}
+
+validate_tag() {
+    local tag="$1"
+    # Return 0 if safe (no shell metacharacters or quotes), 1 otherwise
+    if echo "$tag" | grep -qE '[$`\\";|&<>*?(){}]'; then
+        return 1
+    fi
+    return 0
+}
 
 clash_api() {
     local action="$1"
@@ -2810,7 +2997,15 @@ clash_api() {
             return 1
         fi
 
-        curl -G -s "$CLASH_URL/proxies/$proxy_tag/delay" \
+        if ! validate_tag "$proxy_tag"; then
+            echo '{"error":"invalid characters in proxy_tag"}' | jq .
+            return 1
+        fi
+
+        local encoded_proxy_tag
+        encoded_proxy_tag=$(url_encode "$proxy_tag")
+
+        curl -G -s "$CLASH_URL/proxies/$encoded_proxy_tag/delay" \
             --header "$auth_header" \
             --data-urlencode "url=$TEST_URL" \
             --data-urlencode "timeout=$timeout" | jq .
@@ -2825,7 +3020,15 @@ clash_api() {
             return 1
         fi
 
-        curl -G -s "$CLASH_URL/group/$group_tag/delay" \
+        if ! validate_tag "$group_tag"; then
+            echo '{"error":"invalid characters in group_tag"}' | jq .
+            return 1
+        fi
+
+        local encoded_group_tag
+        encoded_group_tag=$(url_encode "$group_tag")
+
+        curl -G -s "$CLASH_URL/group/$encoded_group_tag/delay" \
             --header "$auth_header" \
             --data-urlencode "url=$TEST_URL" \
             --data-urlencode "timeout=$timeout" | jq .
@@ -2840,11 +3043,19 @@ clash_api() {
             return 1
         fi
 
-        local response
+        if ! validate_tag "$group_tag" || ! validate_tag "$proxy_tag"; then
+            echo '{"error":"invalid characters in group_tag or proxy_tag"}' | jq .
+            return 1
+        fi
+
+        local encoded_group_tag json_body response
+        encoded_group_tag=$(url_encode "$group_tag")
+        json_body=$(jq -n --arg name "$proxy_tag" '{"name":$name}')
+
         response=$(
-            curl -X PUT -s -w "\n%{http_code}" "$CLASH_URL/proxies/$group_tag" \
+            curl -X PUT -s -w "\n%{http_code}" "$CLASH_URL/proxies/$encoded_group_tag" \
                 --header "$auth_header" \
-                --data-raw "{\"name\":\"$proxy_tag\"}"
+                --data-raw "$json_body"
         )
 
         local http_code
@@ -2854,15 +3065,18 @@ clash_api() {
 
         case "$http_code" in
         204)
-            echo "{\"success\":true,\"group\":\"$group_tag\",\"proxy\":\"$proxy_tag\"}" | jq .
+            jq -n --arg group "$group_tag" --arg proxy "$proxy_tag" \
+                '{"success":true,"group":$group,"proxy":$proxy}'
             ;;
         404)
-            echo "{\"success\":false,\"error\":\"group_not_found\",\"message\":\"$group_tag does not exist\"}" | jq .
+            jq -n --arg group "$group_tag" \
+                '{"success":false,"error":"group_not_found","message":($group + " does not exist")}'
             return 1
             ;;
         400)
             if echo "$body" | grep -q "not found"; then
-                echo "{\"success\":false,\"error\":\"proxy_not_found\",\"message\":\"$proxy_tag not found in group $group_tag\"}" | jq .
+                jq -n --arg group "$group_tag" --arg proxy "$proxy_tag" \
+                    '{"success":false,"error":"proxy_not_found","message":($proxy + " not found in group " + $group)}'
             else
                 echo '{"success":false,"error":"bad_request","message":"Invalid request"}' | jq .
             fi
@@ -2872,9 +3086,11 @@ clash_api() {
             if [ -n "$body" ]; then
                 local body_json
                 body_json=$(echo "$body" | jq -c .)
-                echo "{\"success\":false,\"http_code\":$http_code,\"body\":$body_json}" | jq .
+                jq -n --arg http_code "$http_code" --argjson body "$body_json" \
+                    '{"success":false,"http_code":($http_code|tonumber),"body":$body}'
             else
-                echo "{\"success\":false,\"http_code\":$http_code}" | jq .
+                jq -n --arg http_code "$http_code" \
+                    '{"success":false,"http_code":($http_code|tonumber)}'
             fi
             return 1
             ;;
@@ -3297,7 +3513,41 @@ backup)
     ;;
 restore)
     FILE="$2"
+    if [ "$FILE" != "/tmp/obhod_backup.tar.gz" ]; then
+        obhod_log "Restore failed: Invalid backup file path (must be /tmp/obhod_backup.tar.gz)" "error" "system" "restore"
+        exit 1
+    fi
+
     if [ -f "$FILE" ]; then
+        obhod_log "Validating backup archive: $FILE" "info" "system" "restore"
+        local tar_list
+        tar_list=$(tar -tzf "$FILE" 2>/dev/null)
+        if [ -z "$tar_list" ]; then
+            obhod_log "Restore failed: Empty or invalid archive" "error" "system" "restore"
+            exit 1
+        fi
+
+        local invalid_found=0
+        local path
+        for path in $tar_list; do
+            # Clean path (strip leading slash if any)
+            local clean_path="${path#/}"
+            if [ "$clean_path" != "etc" ] && \
+               [ "$clean_path" != "etc/config" ] && \
+               [ "$clean_path" != "etc/config/obhod" ] && \
+               [ "$clean_path" != "tmp" ] && \
+               [ "$clean_path" != "tmp/obhod" ] && \
+               [ "$clean_path" != "tmp/obhod/subscriptions.json" ]; then
+                obhod_log "Restore failed: Forbidden path in archive: $path" "error" "system" "restore"
+                invalid_found=1
+                break
+            fi
+        done
+
+        if [ "$invalid_found" -eq 1 ]; then
+            exit 1
+        fi
+
         obhod_log "Restoring system from backup: $FILE" "info" "system" "restore"
         if tar -xzf "$FILE" -C / 2>/dev/null; then
             obhod_log "Restore successful. Reloading service..." "info" "system" "restore"

@@ -1,12 +1,13 @@
 # shellcheck disable=SC2034
+set -u
 
-OBHOD_VERSION="1.1.36"
+OBHOD_VERSION="1.1.39"
 ## Common
 OBHOD_CONFIG="/etc/config/obhod"
 RESOLV_CONF="/etc/resolv.conf"
 DNS_RESOLVERS="1.1.1.1 1.0.0.1 8.8.8.8 8.8.4.4 9.9.9.9 9.9.9.11 94.140.14.14 94.140.15.15 208.67.220.220 208.67.222.222 77.88.8.1 77.88.8.8"
 CHECK_PROXY_IP_DOMAIN="ip.podkop.fyi"
-FAKEIP_TEST_DOMAIN="fakeip.podkop.fyi"
+FAKEIP_TEST_DOMAIN="fakeip.obhod"
 TMP_SING_BOX_FOLDER="/tmp/sing-box"
 TMP_RULESET_FOLDER="$TMP_SING_BOX_FOLDER/rulesets"
 CLOUDFLARE_OCTETS="8.47 162.159 188.114" # Endpoints https://github.com/ampetelin/warp-endpoint-checker
@@ -18,6 +19,7 @@ RT_TABLE_NAME="obhod"
 NFT_TABLE_NAME="ObhodTable"
 NFT_LOCALV4_SET_NAME="localv4"
 NFT_COMMON_SET_NAME="obhod_subnets"
+NFT_COMMON_V6_SET_NAME="obhod_subnets_v6"
 NFT_DISCORD_SET_NAME="obhod_discord_subnets"
 NFT_INTERFACE_SET_NAME="interfaces"
 NFT_FAKEIP_MARK="0x00100000"
