@@ -8,7 +8,7 @@ set -e
 
 # 1. Environment and Debugging
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:"$PATH"
-REPO_URL="${REPO_URL:-https://github.com/goodbrat-lab/obhod-vpn/raw/main/dist/packages}"
+REPO_URL="${REPO_URL:-https://raw.githubusercontent.com/goodbrat-lab/obhod-vpn/main/dist/packages}"
 VERSION="1.1.39"
 RELEASE="1"
 
@@ -241,11 +241,11 @@ local cb="?v=\$(date +%s)"
 if [ "$USE_TARBALLS" -eq 1 ]; then
     CORE_PKG_FILE="obhod_${VERSION}-${RELEASE}_${ARCH}.tar.gz"
     LUCI_PKG_FILE="luci-app-obhod_${VERSION}-${RELEASE}_all.tar.gz"
-    wget -q "$REPO_URL/$CORE_PKG_FILE$cb" -O "/tmp/$CORE_PKG_FILE"
-    wget -q "$REPO_URL/$LUCI_PKG_FILE$cb" -O "/tmp/$LUCI_PKG_FILE"
+    wget -q "$REPO_URL/$CORE_PKG_FILE$cb" -O "/tmp/$CORE_PKG_FILE" || { echo "❌ Error: Failed to download $CORE_PKG_FILE"; exit 1; }
+    wget -q "$REPO_URL/$LUCI_PKG_FILE$cb" -O "/tmp/$LUCI_PKG_FILE" || { echo "❌ Error: Failed to download $LUCI_PKG_FILE"; exit 1; }
 else
-    wget -q "$REPO_URL/$CORE_PKG$cb" -O "/tmp/$CORE_PKG"
-    wget -q "$REPO_URL/$LUCI_PKG$cb" -O "/tmp/$LUCI_PKG"
+    wget -q "$REPO_URL/$CORE_PKG$cb" -O "/tmp/$CORE_PKG" || { echo "❌ Error: Failed to download $CORE_PKG"; exit 1; }
+    wget -q "$REPO_URL/$LUCI_PKG$cb" -O "/tmp/$LUCI_PKG" || { echo "❌ Error: Failed to download $LUCI_PKG"; exit 1; }
 fi
 
 # Verify checksums if SHA256SUMS is available
