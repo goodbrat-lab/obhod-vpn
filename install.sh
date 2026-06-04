@@ -252,21 +252,42 @@ fi
 wget -q "$REPO_URL/SHA256SUMS$cb" -O SHA256SUMS || true
 if [ -f SHA256SUMS ]; then
     echo "Verifying package integrity..."
+    local core_expected_hash=""
+    local luci_expected_hash=""
+    local core_actual_hash=""
+    local luci_actual_hash=""
+    
     if [ "$USE_TARBALLS" -eq 1 ]; then
-        grep -E "$CORE_PKG_FILE|$LUCI_PKG_FILE" SHA256SUMS > /tmp/check_sums.txt
-        if ! sha256sum -c /tmp/check_sums.txt >/dev/null 2>&1; then
-            echo "❌ Error: Checksum verification failed for downloaded tarballs!"
-            exit 1
-        fi
+        core_expected_hash=$(grep "$CORE_PKG_FILE" SHA256SUMS | awk '{print $1}')
+        luci_expected_hash=$(grep "$LUCI_PKG_FILE" SHA256SUMS | awk '{print $1}')
+        core_actual_hash=$(sha256sum "/tmp/$CORE_PKG_FILE" | awk '{print $1}')
+        luci_actual_hash=$(sha256sum "/tmp/$LUCI_PKG_FILE" | awk '{print $1}')
     else
-        grep -E "$CORE_PKG|$LUCI_PKG" SHA256SUMS > /tmp/check_sums.txt
-        if ! sha256sum -c /tmp/check_sums.txt >/dev/null 2>&1; then
-            echo "❌ Error: Checksum verification failed for downloaded ipk packages!"
-            exit 1
-        fi
+        core_expected_hash=$(grep "$CORE_PKG" SHA256SUMS | awk '{print $1}')
+        luci_expected_hash=$(grep "$LUCI_PKG" SHA256SUMS | awk '{print $1}')
+        core_actual_hash=$(sha256sum "/tmp/$CORE_PKG" | awk '{print $1}')
+        luci_actual_hash=$(sha256sum "/tmp/$LUCI_PKG" | awk '{print $1}')
+    fi
+    
+    if [ -z "$core_expected_hash" ] || [ -z "$luci_expected_hash" ]; then
+        echo "❌ Error: Could not find package checksums in SHA256SUMS!"
+        rm -f SHA256SUMS
+        exit 1
+    fi
+    
+    if [ "$core_expected_hash" != "$core_actual_hash" ] || [ "$luci_expected_hash" != "$luci_actual_hash" ]; then
+        echo "❌ Error: Checksum verification failed!"
+        echo "Core Package ($CORE_PKG_FILE):"
+        echo "  Expected: $core_expected_hash"
+        echo "  Actual  : $core_actual_hash"
+        echo "LuCI Package ($LUCI_PKG_FILE):"
+        echo "  Expected: $luci_expected_hash"
+        echo "  Actual  : $luci_actual_hash"
+        rm -f SHA256SUMS
+        exit 1
     fi
     echo "✅ Checksum verification succeeded!"
-    rm -f SHA256SUMS /tmp/check_sums.txt
+    rm -f SHA256SUMS
 else
     echo "⚠️ Warning: SHA256SUMS file not found on repository. Skipping package integrity check."
 fi
