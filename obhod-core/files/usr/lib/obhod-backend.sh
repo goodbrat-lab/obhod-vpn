@@ -28,9 +28,11 @@ check_required_file "$OBHOD_LIB/sing_box_config_manager.sh"
 check_required_file "$OBHOD_LIB/sing_box_config_facade.sh"
 check_required_file "$OBHOD_LIB/logging.sh"
 check_required_file "$OBHOD_LIB/rulesets.sh"
+set +u
 . /lib/functions.sh
 . /lib/config/uci.sh
 . /lib/functions/network.sh
+set -u
 . "$OBHOD_LIB/constants.sh"
 . "$OBHOD_LIB/nft.sh"
 . "$OBHOD_LIB/helpers.sh"
